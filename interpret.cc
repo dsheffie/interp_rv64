@@ -24,9 +24,6 @@
 
 template <bool EL> void execRiscv(state_t *s);
 
-void execRiscv(state_t *s) {
-  execRiscv<true>(s);
-}
 
 std::ostream &operator<<(std::ostream &out, const state_t & s) {
   using namespace std;
@@ -45,17 +42,16 @@ void initState(state_t *s) {
 }
 
 
-template <bool EL>
 void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
-  std::cout << "s->pc = " << std::hex << s->pc << std::dec << "\n";
+
   uint32_t inst = *reinterpret_cast<uint32_t*>(mem + s->pc);
   s->last_pc = s->pc;  
 
   uint32_t opcode = inst & 127;
   uint32_t rd = (inst>>7) & 31;
   mips_t m(inst);
-  std::cout << "opcode = " << std::hex << opcode << std::dec << "\n";
+  std::cout << "pc : " << std::hex << s->pc << ", opcode : " << opcode << std::dec << " , icnt " << s->icnt  << "\n";
 
   switch(opcode)
     {
@@ -70,6 +66,7 @@ void execRiscv(state_t *s) {
       int32_t disp = m.l.imm11_0;
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       int32_t ea = disp + s->gpr[m.l.rs1];
+      assert(ea >= 0);
       switch(m.s.sel)
 	{
 	case 0x2: /* lw */
@@ -133,6 +130,7 @@ void execRiscv(state_t *s) {
       int32_t disp = m.s.imm4_0 | (m.s.imm11_5 << 5);
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       int32_t ea = disp + s->gpr[m.s.rs1];
+      assert(ea >= 0);
       switch(m.s.sel)
 	{
 	case 0x2: /* sw */
@@ -266,5 +264,5 @@ void execRiscv(state_t *s) {
       assert(false);
       break;
     }
-
+  s->icnt++;
 }
