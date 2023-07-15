@@ -39,6 +39,7 @@ std::ostream &operator<<(std::ostream &out, const state_t & s) {
 
 void initState(state_t *s) {
   memset(s, 0, sizeof(state_t));
+  s->gpr[2] = 0x80000000;
 }
 
 
@@ -53,6 +54,9 @@ void execRiscv(state_t *s) {
   mips_t m(inst);
   std::cout << "pc : " << std::hex << s->pc << ", opcode : " << opcode << std::dec << " , icnt " << s->icnt  << "\n";
 
+  uint32_t old_x2 = s->gpr[2];
+
+  
   switch(opcode)
     {
 #if 0
@@ -65,13 +69,28 @@ void execRiscv(state_t *s) {
     case 0x3: {
       int32_t disp = m.l.imm11_0;
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
-      int32_t ea = disp + s->gpr[m.l.rs1];
-      assert(ea >= 0);
+      uint32_t ea = disp + s->gpr[m.l.rs1];
       switch(m.s.sel)
 	{
+	case 0x0: /* lb */
+	  s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int8_t*>(s->mem + ea)));	 
+	  break;
+	case 0x1: /* lh */
+	  s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int16_t*>(s->mem + ea)));	 
+	  break;
 	case 0x2: /* lw */
 	  s->gpr[m.l.rd] = *(reinterpret_cast<int32_t*>(s->mem + ea));
 	  break;
+	case 0x4: {/* lbu */
+	  uint32_t b = s->mem[ea];
+	  *reinterpret_cast<uint32_t*>(&s->gpr[m.l.rd]) = b;
+	  break;
+	}
+	case 0x5: { /* lhu */
+	  uint16_t b = *reinterpret_cast<uint16_t*>(s->mem + ea);
+	  *reinterpret_cast<uint32_t*>(&s->gpr[m.l.rd]) = b;
+	  break;
+	}
 	default:
 	  assert(0);
 	}
@@ -129,7 +148,7 @@ void execRiscv(state_t *s) {
     case 0x23: {
       int32_t disp = m.s.imm4_0 | (m.s.imm11_5 << 5);
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
-      int32_t ea = disp + s->gpr[m.s.rs1];
+      uint32_t ea = disp + s->gpr[m.s.rs1];
       assert(ea >= 0);
       switch(m.s.sel)
 	{
@@ -145,7 +164,10 @@ void execRiscv(state_t *s) {
       
       //imm[31:12] rd 011 0111 LUI
     case 0x37:
-      assert(0);      
+      if(rd != 0) {
+	s->gpr[rd] = inst & 0xfffff000;
+      }
+      s->pc += 4;
       break;
       //imm[31:12] rd 0010111 AUIPC
     case 0x17: /* is this sign extended */
@@ -184,23 +206,31 @@ void execRiscv(state_t *s) {
       break;
     }
     case 0x33: {
-      switch(m.r.sel)
-	{
-	case 0x0: /* add & sub */
-	  if( (inst>>30) & 1 ) { /* sub */
-	    if(rd != 0) {
+      if(m.r.rd != 0) {
+	switch(m.r.sel)
+	  {
+	  case 0x0: /* add & sub */
+	    if( (inst>>30) & 1 ) { /* sub */
 	      s->gpr[m.r.rd] = s->gpr[m.r.rs1] - s->gpr[m.r.rs2];
 	    }
-	  }
 	  else { /* add */
-	    if(rd != 0) {
-	      s->gpr[m.r.rd] = s->gpr[m.r.rs1] + s->gpr[m.r.rs2];
-	    }
+	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] + s->gpr[m.r.rs2];
 	  }
 	  break;
-	default:
-	  assert(0);
-	}
+	  case 0x3: /* sltu */
+	    s->gpr[m.r.rd] = *reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs1]) < *reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs2]);
+	    break;
+	  case 0x6:
+	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] | s->gpr[m.r.rs2];
+	    break;
+	  case 0x7:
+	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] & s->gpr[m.r.rs2];
+	    break;
+	  default:
+	    std::cout << "implement = " << m.r.sel << "\n";
+	    assert(0);
+	  }
+      }
 #if 0
     0000000 rs2 rs1 000 rd 0110011 ADD
     0100000 rs2 rs1 000 rd 0110011 SUB
@@ -213,9 +243,9 @@ void execRiscv(state_t *s) {
     0000000 rs2 rs1 110 rd 0110011 OR
     0000000 rs2 rs1 111 rd 0110011 AND
 #endif
-      }
       s->pc += 4;
       break;
+    }
 #if 0
     imm[12|10:5] rs2 rs1 000 imm[4:1|11] 1100011 BEQ
     imm[12|10:5] rs2 rs1 001 imm[4:1|11] 1100011 BNE
@@ -265,4 +295,9 @@ void execRiscv(state_t *s) {
       break;
     }
   s->icnt++;
+  
+  if(old_x2 != s->gpr[2]) {
+    std::cout << "changed stack pointer : " << std::hex << old_x2
+	      << " -> "  << s->gpr[2] << std::dec << "\n";
+  }
 }
