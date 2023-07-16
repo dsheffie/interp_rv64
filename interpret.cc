@@ -47,14 +47,15 @@ void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
 
   uint32_t inst = *reinterpret_cast<uint32_t*>(mem + s->pc);
+
+  std::cout << std::hex << s->pc << std::dec
+	    << " : " << getAsmString(inst, s->pc) << "\n";
+  
   s->last_pc = s->pc;  
 
   uint32_t opcode = inst & 127;
   uint32_t rd = (inst>>7) & 31;
   mips_t m(inst);
-  std::cout << "pc : " << std::hex << s->pc << ", opcode : " << opcode << std::dec << " , icnt " << s->icnt  << "\n";
-
-  uint32_t old_x2 = s->gpr[2];
 
   
   switch(opcode)
@@ -296,8 +297,5 @@ void execRiscv(state_t *s) {
     }
   s->icnt++;
   
-  if(old_x2 != s->gpr[2]) {
-    std::cout << "changed stack pointer : " << std::hex << old_x2
-	      << " -> "  << s->gpr[2] << std::dec << "\n";
-  }
+
 }
