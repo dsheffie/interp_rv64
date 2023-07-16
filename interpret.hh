@@ -20,6 +20,15 @@ struct state_t{
   uint64_t icnt;
 };
 
+static inline int32_t checksum_gprs(const state_t *s) {
+  int32_t h = 0;
+  for(int i = 0; i < 32; i++) {
+    h ^= s->gpr[i];
+  }
+  return h;
+}
+
+
 struct utype_t {
   uint32_t opcode : 7;
   uint32_t rd : 5;
