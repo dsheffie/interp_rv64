@@ -110,7 +110,10 @@ void execRiscv(state_t *s) {
       s->pc += 4;
       break;
     }
-
+    case 0xf: { /* fence - there's a bunch of 'em */
+      s->pc += 4;
+      break;
+    }
 #if 0
     imm[11:0] rs1 000 rd 0010011 ADDI
     imm[11:0] rs1 010 rd 0010011 SLTI
@@ -192,6 +195,12 @@ void execRiscv(state_t *s) {
       std::cout << "STORE EA " << std::hex << ea << std::dec << "\n";      
       switch(m.s.sel)
 	{
+	case 0x0: /* sb */
+	  s->mem[ea] = *reinterpret_cast<uint8_t*>(&s->gpr[m.s.rs2]);
+	  break;
+	case 0x1: /* sh */
+	  *(reinterpret_cast<uint16_t*>(s->mem + ea)) = *reinterpret_cast<uint16_t*>(&s->gpr[m.s.rs2]);
+	  break;
 	case 0x2: /* sw */
 	  *(reinterpret_cast<int32_t*>(s->mem + ea)) = s->gpr[m.s.rs2];
 	  break;
