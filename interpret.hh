@@ -94,7 +94,7 @@ struct load_t {
   uint32_t rd : 5; //12
   uint32_t sel : 3; //15
   uint32_t rs1 : 5; //20
-  uint32_t imm11_0 : 7; //32
+  uint32_t imm11_0 : 12; //32
 };
 
 union riscv_t {

@@ -124,13 +124,12 @@ void load_elf(const char* fn, state_t *ms) {
     exit(-1);
   }
 
-  uint32_t lAddr = bswap_(eh32->e_entry);
 
   e_phnum = bswap_(eh32->e_phnum);
   ph32 = (Elf32_Phdr*)(buf + bswap_(eh32->e_phoff));
   e_shnum = bswap_(eh32->e_shnum);
   sh32 = (Elf32_Shdr*)(buf + bswap_(eh32->e_shoff));
-  ms->pc = lAddr;
+  ms->pc = eh32->e_entry;
 
   
   /* Find instruction segments and copy to
@@ -139,14 +138,25 @@ void load_elf(const char* fn, state_t *ms) {
     int32_t p_memsz = bswap_(ph32->p_memsz);
     int32_t p_offset = bswap_(ph32->p_offset);
     int32_t p_filesz = bswap_(ph32->p_filesz);
-    int32_t p_type = bswap_(ph32->p_type);
-    uint32_t p_vaddr = bswap_(ph32->p_vaddr);
-    if(p_type == SHT_PROGBITS && p_memsz) {
-      if( (p_vaddr + p_memsz) > lAddr)
-	lAddr = (p_vaddr + p_memsz);
+    int32_t p_type = ph32->p_type;
+    uint32_t p_vaddr = ph32->p_vaddr;
 
-      //std::cout << "copying code segment to "
-      //<< std::hex << p_vaddr << std::dec << "\n";
+#if 0
+    std::cout << "p_type = "
+	      << std::hex
+	      << p_type
+	      << " size = "
+	      << p_memsz
+	      << std::dec << "\n";
+#endif
+    
+    if(p_type == SHT_PROGBITS && p_memsz) {
+
+      std::cout << "copying progbits :  "
+		<< std::hex << p_vaddr
+		<< " to "
+		<< (p_vaddr + p_memsz)
+		<< std::dec << "\n";
       
       memset(mem+p_vaddr, 0, sizeof(uint8_t)*p_memsz);
       memcpy(mem+p_vaddr, (uint8_t*)(buf + p_offset),
@@ -173,15 +183,15 @@ void load_elf(const char* fn, state_t *ms) {
   }
   munmap(buf, s.st_size);
 
-#define WRITE_INSN(EA,INSN) { *reinterpret_cast<uint32_t*>(mem + EA) = INSN; }
+#define WRITE_WORD(EA,WORD) { *reinterpret_cast<uint32_t*>(mem + EA) = WORD; }
 
-  WRITE_INSN(0x1000, 0x00000297); //0
-  WRITE_INSN(0x1004, 0x02028593); //1
-  WRITE_INSN(0x1008, 0xf1402573); //2
-  WRITE_INSN(0x100c, 0x0182a283); //3
-  WRITE_INSN(0x1010, 0x00028067); //4
-  WRITE_INSN(0x1014, 0x80000000);
-  WRITE_INSN(0x1018, 0x80000000);
+  WRITE_WORD(0x1000, 0x00000297); //0
+  WRITE_WORD(0x1004, 0x02028593); //1
+  WRITE_WORD(0x1008, 0xf1402573); //2
+  WRITE_WORD(0x100c, 0x0182a283); //3
+  WRITE_WORD(0x1010, 0x00028067); //4
+  WRITE_WORD(0x1014, 0x80000000);
+  WRITE_WORD(0x1018, 0x80000000);
 
   ms->pc = 0x1000;
 }

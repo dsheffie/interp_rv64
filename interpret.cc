@@ -79,6 +79,10 @@ void execRiscv(state_t *s) {
       int32_t disp = m.l.imm11_0;
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       uint32_t ea = disp + s->gpr[m.l.rs1];
+      std::cout << "LOAD EA " << std::hex << ea << std::dec << "\n";
+      //std::cout << "LOAD EA " << std::hex << s->gpr[m.l.rs1] << std::dec << "\n";
+      //std::cout << "DISP " << disp << "\n";
+      //if(s->pc == 0x80003474) exit(-1);
       switch(m.s.sel)
 	{
 	case 0x0: /* lb */
@@ -145,12 +149,12 @@ void execRiscv(state_t *s) {
 	    s->gpr[rd] = s->gpr[rs1] ^ simm32;
 	    break;
 	  case 5: { /* srli & srai */
-	    uint32_t sel =  (inst >> 25) & 127;
+	    uint32_t sel =  (inst >> 25) & 127;	    
 	    if(sel == 0) { /* srli */
-	      s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[rs1]) << shamt);
+	      s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[rs1]) >> shamt);
 	    }
 	    else if(sel == 32) { /* srai */
-	      s->gpr[rd] = s->gpr[rs1] << shamt;
+	      s->gpr[rd] = s->gpr[rs1] >> shamt;
 	    }
 	    else {
 	      std::cout << "sel = " << sel << "\n";
@@ -179,13 +183,13 @@ void execRiscv(state_t *s) {
 #if 0
     imm[11:5] rs2 rs1 000 imm[4:0] 0100011 SB
     imm[11:5] rs2 rs1 001 imm[4:0] 0100011 SH
-    imm[11:5] rs2 rs1 010 imm[4:0] 0100011 SW
+    imm[11:5] rs2 rs1 010 imm[4:0] 0100011 SW      
 #endif
     case 0x23: {
       int32_t disp = m.s.imm4_0 | (m.s.imm11_5 << 5);
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       uint32_t ea = disp + s->gpr[m.s.rs1];
-      assert(ea >= 0);
+      std::cout << "STORE EA " << std::hex << ea << std::dec << "\n";      
       switch(m.s.sel)
 	{
 	case 0x2: /* sw */
@@ -208,9 +212,11 @@ void execRiscv(state_t *s) {
       //imm[31:12] rd 0010111 AUIPC
     case 0x17: /* is this sign extended */
       if(rd != 0) {
-	uint32_t u = static_cast<uint32_t>(s->pc) +
-	  ((inst>>12) & ((1U<<20)-1) << 12);	
+	uint32_t imm = inst & (~4095U);
+	uint32_t u = static_cast<uint32_t>(s->pc) + imm;
 	*reinterpret_cast<uint32_t*>(&s->gpr[rd]) = u;
+	//std::cout << "u = " << std::hex << u << std::dec << "\n";
+	//if(s->pc == 0x80000084) exit(-1);
       }
       s->pc += 4;
       break;
