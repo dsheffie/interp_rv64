@@ -47,15 +47,23 @@ void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
 
   uint32_t inst = *reinterpret_cast<uint32_t*>(mem + s->pc);
+  uint32_t opcode = inst & 127;
 
   std::cout << std::hex << s->pc << std::dec
-	    << " : " << getAsmString(inst, s->pc) << "\n";
+	    << " : " << getAsmString(inst, s->pc)
+	    << " , opcode " << std::hex
+	    << opcode
+	    << std::dec
+	    << " , icnt " << s->icnt
+	    << "\n";
   
   s->last_pc = s->pc;  
 
-  uint32_t opcode = inst & 127;
   uint32_t rd = (inst>>7) & 31;
-  mips_t m(inst);
+  riscv_t m(inst);
+
+  int32_t old_gpr[32];
+  memcpy(old_gpr, s->gpr, 4*32);
 
   
   switch(opcode)
@@ -114,27 +122,54 @@ void execRiscv(state_t *s) {
       uint32_t rs1 = (inst >> 15) & 31;
       int32_t simm32 = (inst >> 20);
       simm32 |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
-      uint32_t subop =(inst>>12)&3;
+      uint32_t subop =(inst>>12)&7;
       uint32_t shamt = (inst>>20) & 31;
-      //std::cout << "subop " << subop << "\n";
-      switch(subop)
-	{
-	case 0: /* addi */
-	  s->gpr[rd] = s->gpr[rs1] + simm32;
-	  break;
-	case 1: /* slli */
-	  s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[rs1])) >> shamt;
-	  break;
-	case 2: /* slti */
- 	  s->gpr[rd] = (s->gpr[rs1] < simm32);
-	  break;
-	case 3: /* sltiu */
-	  s->gpr[rd] = (s->gpr[rs1] < (inst>>20));
-	  break;
-	default:
-	  std::cout << "implement case " << subop << "\n";
-	  assert(false);
-	}
+
+      std::cout << "subop " << subop << "\n";
+      if(rd != 0) {
+	switch(subop)
+	  {
+	  case 0: /* addi */
+	    s->gpr[rd] = s->gpr[rs1] + simm32;
+	    break;
+	  case 1: /* slli */
+	    s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[rs1])) << shamt;
+	    break;
+	  case 2: /* slti */
+	    s->gpr[rd] = (s->gpr[rs1] < simm32);
+	    break;
+	  case 3: /* sltiu */
+	    s->gpr[rd] = (s->gpr[rs1] < (inst>>20));
+	    break;
+	  case 4: /* xori */
+	    s->gpr[rd] = s->gpr[rs1] ^ simm32;
+	    break;
+	  case 5: { /* srli & srai */
+	    uint32_t sel =  (inst >> 25) & 127;
+	    if(sel == 0) { /* srli */
+	      s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[rs1]) << shamt);
+	    }
+	    else if(sel == 32) { /* srai */
+	      s->gpr[rd] = s->gpr[rs1] << shamt;
+	    }
+	    else {
+	      std::cout << "sel = " << sel << "\n";
+	      assert(0);
+	    }
+	    break;
+	  }
+	  case 6: /* ori */
+	    s->gpr[rd] = s->gpr[rs1] | simm32;
+	    break;
+	  case 7: /* andi */
+	    s->gpr[rd] = s->gpr[rs1] & simm32;
+	    break;
+	    
+	  default:
+	    std::cout << "implement case " << subop << "\n";
+	    assert(false);
+	  }
+      }
       s->pc += 4;
       break;
     }
@@ -173,7 +208,9 @@ void execRiscv(state_t *s) {
       //imm[31:12] rd 0010111 AUIPC
     case 0x17: /* is this sign extended */
       if(rd != 0) {
-	s->gpr[rd] = s->pc + (inst<<12);
+	uint32_t u = static_cast<uint32_t>(s->pc) +
+	  ((inst>>12) & ((1U<<20)-1) << 12);	
+	*reinterpret_cast<uint32_t*>(&s->gpr[rd]) = u;
       }
       s->pc += 4;
       break;
@@ -218,8 +255,14 @@ void execRiscv(state_t *s) {
 	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] + s->gpr[m.r.rs2];
 	  }
 	  break;
+	  case 0x1: /* sll */
+	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] << (s->gpr[m.r.rs2] & 31);
+	    break;
 	  case 0x3: /* sltu */
 	    s->gpr[m.r.rd] = *reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs1]) < *reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs2]);
+	    break;
+	  case 0x4:
+	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] ^ s->gpr[m.r.rs2];
 	    break;
 	  case 0x6:
 	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] | s->gpr[m.r.rs2];
@@ -290,12 +333,28 @@ void execRiscv(state_t *s) {
       s->pc = takeBranch ? disp + s->pc : s->pc + 4;
       break;
     }
+
+    case 0x73:
+      s->pc += 4;
+      break;
     
     default:
-      assert(false);
+      std::cout << "opcode " << std::hex << opcode << std::dec << "\n";
+      std::cout << *s << "\n";
+      exit(-1);
       break;
     }
   s->icnt++;
-  
+  for(int i = 0; i < 32; i++){
+    if(old_gpr[i] != s->gpr[i]) {
+      std::cout << "\t" << getGPRName(i) << " changed from "
+		<< std::hex
+		<< old_gpr[i]
+		<< " to "
+		<< s->gpr[i]
+		<< std::dec
+		<< "\n";
+    }
+  }
 
 }

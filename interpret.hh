@@ -97,7 +97,7 @@ struct load_t {
   uint32_t imm11_0 : 7; //32
 };
 
-union mips_t {
+union riscv_t {
   rtype_t r;
   itype_t i;
   utype_t u;
@@ -107,7 +107,7 @@ union mips_t {
   store_t s;
   load_t l;
   uint32_t raw;
-  mips_t(uint32_t x) : raw(x) {}
+  riscv_t(uint32_t x) : raw(x) {}
 };
 
 void initState(state_t *s);

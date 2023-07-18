@@ -132,6 +132,7 @@ void load_elf(const char* fn, state_t *ms) {
   sh32 = (Elf32_Shdr*)(buf + bswap_(eh32->e_shoff));
   ms->pc = lAddr;
 
+  
   /* Find instruction segments and copy to
    * the memory buffer */
   for(int32_t i = 0; i < e_phnum; i++, ph32++) {
@@ -143,16 +144,16 @@ void load_elf(const char* fn, state_t *ms) {
     if(p_type == SHT_PROGBITS && p_memsz) {
       if( (p_vaddr + p_memsz) > lAddr)
 	lAddr = (p_vaddr + p_memsz);
+
+      //std::cout << "copying code segment to "
+      //<< std::hex << p_vaddr << std::dec << "\n";
       
       memset(mem+p_vaddr, 0, sizeof(uint8_t)*p_memsz);
       memcpy(mem+p_vaddr, (uint8_t*)(buf + p_offset),
 	     sizeof(uint8_t)*p_filesz);
     }
   }
-  /* Iterate through code sections and
-   * mark as no-write. Tag with extra-special
-   * metadata (DBS_PROT_INSN) that these
-   * are instructions */
+
   for(int32_t i = 0; i < e_shnum; i++, sh32++) {
     int32_t f = bswap_(sh32->sh_flags);
     if(f & SHF_EXECINSTR) {
@@ -170,7 +171,17 @@ void load_elf(const char* fn, state_t *ms) {
       }
     }
   }
-
   munmap(buf, s.st_size);
 
+#define WRITE_INSN(EA,INSN) { *reinterpret_cast<uint32_t*>(mem + EA) = INSN; }
+
+  WRITE_INSN(0x1000, 0x00000297); //0
+  WRITE_INSN(0x1004, 0x02028593); //1
+  WRITE_INSN(0x1008, 0xf1402573); //2
+  WRITE_INSN(0x100c, 0x0182a283); //3
+  WRITE_INSN(0x1010, 0x00028067); //4
+  WRITE_INSN(0x1014, 0x80000000);
+  WRITE_INSN(0x1018, 0x80000000);
+
+  ms->pc = 0x1000;
 }
