@@ -26,44 +26,8 @@
 #include <elf.h>
 #endif
 
-#define INTEGRAL_ENABLE_IF(SZ,T) typename std::enable_if<std::is_integral<T>::value and (sizeof(T)==SZ),T>::type* = nullptr
-
-template <typename T, INTEGRAL_ENABLE_IF(1,T)>
-T bswap_(T x) {
-  return x;
-}
-
-template <typename T, INTEGRAL_ENABLE_IF(2,T)> 
-T bswap_(T x) {
-  static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "must be little endian machine");
-  if(globals::isMipsEL) 
-    return x;
-  else
-  return  __builtin_bswap16(x);
-}
-
-template <typename T, INTEGRAL_ENABLE_IF(4,T)>
-T bswap_(T x) {
-  static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "must be little endian machine");
-  if(globals::isMipsEL)
-    return x;
-  else 
-    return  __builtin_bswap32(x);
-}
-
-template <typename T, INTEGRAL_ENABLE_IF(8,T)> 
-T bswap_(T x) {
-  static_assert(__BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__, "must be little endian machine");
-  if(globals::isMipsEL)
-    return x;
-  else 
-    return  __builtin_bswap64(x);
-}
-
-#undef INTEGRAL_ENABLE_IF
-
-
 static const uint8_t magicArr[4] = {0x7f, 'E', 'L', 'F'};
+
 bool checkElf(const Elf32_Ehdr *eh32) {
   uint8_t *identArr = (uint8_t*)eh32->e_ident;
   return memcmp((void*)magicArr, identArr, 4)==0;
@@ -119,25 +83,25 @@ void load_elf(const char* fn, state_t *ms) {
   /* Check for a MIPS machine */
   assert(checkLittleEndian(eh32));
 
-  if(bswap_(eh32->e_machine) != 243) {
-    printf("INTERP : non-mips binary..goodbye got type %d\n", bswap_(eh32->e_machine));
+  if((eh32->e_machine) != 243) {
+    printf("INTERP : non-mips binary..goodbye got type %d\n", (eh32->e_machine));
     exit(-1);
   }
 
 
-  e_phnum = bswap_(eh32->e_phnum);
-  ph32 = (Elf32_Phdr*)(buf + bswap_(eh32->e_phoff));
-  e_shnum = bswap_(eh32->e_shnum);
-  sh32 = (Elf32_Shdr*)(buf + bswap_(eh32->e_shoff));
+  e_phnum = (eh32->e_phnum);
+  ph32 = (Elf32_Phdr*)(buf + (eh32->e_phoff));
+  e_shnum = (eh32->e_shnum);
+  sh32 = (Elf32_Shdr*)(buf + (eh32->e_shoff));
   ms->pc = eh32->e_entry;
 
   
   /* Find instruction segments and copy to
    * the memory buffer */
   for(int32_t i = 0; i < e_phnum; i++, ph32++) {
-    int32_t p_memsz = bswap_(ph32->p_memsz);
-    int32_t p_offset = bswap_(ph32->p_offset);
-    int32_t p_filesz = bswap_(ph32->p_filesz);
+    int32_t p_memsz = (ph32->p_memsz);
+    int32_t p_offset = (ph32->p_offset);
+    int32_t p_filesz = (ph32->p_filesz);
     int32_t p_type = ph32->p_type;
     uint32_t p_vaddr = ph32->p_vaddr;
 
@@ -152,11 +116,11 @@ void load_elf(const char* fn, state_t *ms) {
     
     if(p_type == SHT_PROGBITS && p_memsz) {
 
-      std::cout << "copying progbits :  "
-		<< std::hex << p_vaddr
-		<< " to "
-		<< (p_vaddr + p_memsz)
-		<< std::dec << "\n";
+      //std::cout << "copying progbits :  "
+      //<< std::hex << p_vaddr
+      //	<< " to "
+      //	<< (p_vaddr + p_memsz)
+      //	<< std::dec << "\n";
       
       memset(mem+p_vaddr, 0, sizeof(uint8_t)*p_memsz);
       memcpy(mem+p_vaddr, (uint8_t*)(buf + p_offset),
@@ -165,10 +129,10 @@ void load_elf(const char* fn, state_t *ms) {
   }
 
   for(int32_t i = 0; i < e_shnum; i++, sh32++) {
-    int32_t f = bswap_(sh32->sh_flags);
+    int32_t f = (sh32->sh_flags);
     if(f & SHF_EXECINSTR) {
-      uint32_t addr = bswap_(sh32->sh_addr);
-      int32_t size = bswap_(sh32->sh_size);
+      uint32_t addr = (sh32->sh_addr);
+      int32_t size = (sh32->sh_size);
       bool pgAligned = ((addr & 4095) == 0);
       if(pgAligned) {
 	size = (size / pgSize) * pgSize;

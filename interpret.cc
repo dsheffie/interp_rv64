@@ -68,47 +68,38 @@ void execRiscv(state_t *s) {
   
   switch(opcode)
     {
-#if 0
-    imm[11:0] rs1 000 rd 0000011 LB
-    imm[11:0] rs1 001 rd 0000011 LH
-    imm[11:0] rs1 010 rd 0000011 LW
-    imm[11:0] rs1 100 rd 0000011 LBU
-    imm[11:0] rs1 101 rd 0000011 LHU
-#endif
     case 0x3: {
-      int32_t disp = m.l.imm11_0;
-      disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
-      uint32_t ea = disp + s->gpr[m.l.rs1];
-      std::cout << "LOAD EA " << std::hex << ea << std::dec << "\n";
-      //std::cout << "LOAD EA " << std::hex << s->gpr[m.l.rs1] << std::dec << "\n";
-      //std::cout << "DISP " << disp << "\n";
-      //if(s->pc == 0x80003474) exit(-1);
-      switch(m.s.sel)
-	{
-	case 0x0: /* lb */
-	  s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int8_t*>(s->mem + ea)));	 
-	  break;
-	case 0x1: /* lh */
-	  s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int16_t*>(s->mem + ea)));	 
-	  break;
-	case 0x2: /* lw */
-	  s->gpr[m.l.rd] = *(reinterpret_cast<int32_t*>(s->mem + ea));
-	  break;
-	case 0x4: {/* lbu */
-	  uint32_t b = s->mem[ea];
-	  *reinterpret_cast<uint32_t*>(&s->gpr[m.l.rd]) = b;
-	  break;
-	}
-	case 0x5: { /* lhu */
-	  uint16_t b = *reinterpret_cast<uint16_t*>(s->mem + ea);
-	  *reinterpret_cast<uint32_t*>(&s->gpr[m.l.rd]) = b;
-	  break;
-	}
-	default:
-	  assert(0);
-	}
-      s->pc += 4;
-      break;
+      if(m.l.rd != 0) {
+	int32_t disp = m.l.imm11_0;
+	disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
+	uint32_t ea = disp + s->gpr[m.l.rs1];
+	switch(m.s.sel)
+	  {
+	  case 0x0: /* lb */
+	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int8_t*>(s->mem + ea)));	 
+	    break;
+	  case 0x1: /* lh */
+	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int16_t*>(s->mem + ea)));	 
+	    break;
+	  case 0x2: /* lw */
+	    s->gpr[m.l.rd] = *(reinterpret_cast<int32_t*>(s->mem + ea));
+	    break;
+	  case 0x4: {/* lbu */
+	    uint32_t b = s->mem[ea];
+	    *reinterpret_cast<uint32_t*>(&s->gpr[m.l.rd]) = b;
+	    break;
+	  }
+	  case 0x5: { /* lhu */
+	    uint16_t b = *reinterpret_cast<uint16_t*>(s->mem + ea);
+	    *reinterpret_cast<uint32_t*>(&s->gpr[m.l.rd]) = b;
+	    break;
+	  }
+	  default:
+	    assert(0);
+	  }
+	s->pc += 4;
+	break;
+      }
     }
     case 0xf: { /* fence - there's a bunch of 'em */
       s->pc += 4;
@@ -180,14 +171,6 @@ void execRiscv(state_t *s) {
       s->pc += 4;
       break;
     }
-
-
-      
-#if 0
-    imm[11:5] rs2 rs1 000 imm[4:0] 0100011 SB
-    imm[11:5] rs2 rs1 001 imm[4:0] 0100011 SH
-    imm[11:5] rs2 rs1 010 imm[4:0] 0100011 SW      
-#endif
     case 0x23: {
       int32_t disp = m.s.imm4_0 | (m.s.imm11_5 << 5);
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
@@ -266,10 +249,10 @@ void execRiscv(state_t *s) {
 	    if( (inst>>30) & 1 ) { /* sub */
 	      s->gpr[m.r.rd] = s->gpr[m.r.rs1] - s->gpr[m.r.rs2];
 	    }
-	  else { /* add */
-	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] + s->gpr[m.r.rs2];
-	  }
-	  break;
+	    else { /* add */
+	      s->gpr[m.r.rd] = s->gpr[m.r.rs1] + s->gpr[m.r.rs2];
+	    }
+	    break;
 	  case 0x1: /* sll */
 	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] << (s->gpr[m.r.rs2] & 31);
 	    break;
@@ -359,7 +342,9 @@ void execRiscv(state_t *s) {
       exit(-1);
       break;
     }
+
   s->icnt++;
+
   for(int i = 0; i < 32; i++){
     if(old_gpr[i] != s->gpr[i]) {
       std::cout << "\t" << getGPRName(i) << " changed from "
@@ -371,5 +356,4 @@ void execRiscv(state_t *s) {
 		<< "\n";
     }
   }
-
 }

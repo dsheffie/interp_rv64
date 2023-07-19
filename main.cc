@@ -91,7 +91,6 @@ static int buildArgcArgv(const char *filename, const std::string &sysArgs, char 
 }
 
 int main(int argc, char *argv[]) {
-  bool bigEndianMips = true;
   namespace po = boost::program_options; 
   std::string dumpname;
   int64_t dumpIcnt = -1L;
@@ -111,7 +110,7 @@ int main(int argc, char *argv[]) {
       ("isdump,d", po::value<bool>(&isDump)->default_value(false), "is a dump")
       ("dumpicnt", po::value<int64_t>(&dumpIcnt)->default_value(-1L), "dump after n instructions")
       ("dumpname", po::value<std::string>(&dumpname), "dump file name")
-      ("maxinsns,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
+      ("maxicnt,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
       ("icountMIPS", po::value<uint64_t>(&globals::icountMIPS)->default_value(500), "millions of of instructions per second for time calculation")
       ; 
