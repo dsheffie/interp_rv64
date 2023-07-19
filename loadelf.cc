@@ -83,8 +83,6 @@ void load_elf(const char* fn, state_t *ms) {
     printf("INTERP: Bogus binary - not ELF32\n");
     exit(-1);
   }
-  globals::isMipsEL = true;
-  /* Check for a MIPS machine */
   assert(checkLittleEndian(eh32));
 
   if((eh32->e_machine) != 243) {
