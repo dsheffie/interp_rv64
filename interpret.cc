@@ -52,7 +52,12 @@ void execRiscv(state_t *s) {
   uint64_t tohost = *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr);
   
   if(tohost) {
-    std::cout << "tohost = " << std::hex << tohost << std::dec << "\n";
+    //std::cout << "tohost = " << std::hex << tohost << std::dec << "\n";
+    if(tohost & 1) {
+      /* exit */
+      s->brk = 1;
+      return;
+    }
     uint64_t *buf = reinterpret_cast<uint64_t*>(mem + tohost);
     switch(buf[0])
       {
@@ -72,7 +77,7 @@ void execRiscv(state_t *s) {
     *reinterpret_cast<uint64_t*>(mem + globals::fromhost_addr) = 1;
   }
 
-  
+#if 0
   std::cout << std::hex << s->pc << std::dec
 	    << " : " << getAsmString(inst, s->pc)
 	    << " , opcode " << std::hex
@@ -80,15 +85,17 @@ void execRiscv(state_t *s) {
 	    << std::dec
 	    << " , icnt " << s->icnt
 	    << "\n";
+#endif
   
   s->last_pc = s->pc;  
 
   uint32_t rd = (inst>>7) & 31;
   riscv_t m(inst);
 
+#if 0
   int32_t old_gpr[32];
   memcpy(old_gpr, s->gpr, 4*32);
-
+#endif
   
   switch(opcode)
     {
@@ -147,7 +154,7 @@ void execRiscv(state_t *s) {
       uint32_t subop =(inst>>12)&7;
       uint32_t shamt = (inst>>20) & 31;
 
-      std::cout << "subop " << subop << "\n";
+      ///std::cout << "subop " << subop << "\n";
       if(rd != 0) {
 	switch(subop)
 	  {
@@ -199,7 +206,7 @@ void execRiscv(state_t *s) {
       int32_t disp = m.s.imm4_0 | (m.s.imm11_5 << 5);
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       uint32_t ea = disp + s->gpr[m.s.rs1];
-      std::cout << "STORE EA " << std::hex << ea << std::dec << "\n";      
+      //std::cout << "STORE EA " << std::hex << ea << std::dec << "\n";      
       switch(m.s.sel)
 	{
 	case 0x0: /* sb */
@@ -371,7 +378,7 @@ void execRiscv(state_t *s) {
     }
 
   s->icnt++;
-
+#if 0
   for(int i = 0; i < 32; i++){
     if(old_gpr[i] != s->gpr[i]) {
       std::cout << "\t" << getGPRName(i) << " changed from "
@@ -383,4 +390,5 @@ void execRiscv(state_t *s) {
 		<< "\n";
     }
   }
+#endif
 }
