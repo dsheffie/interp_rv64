@@ -54,10 +54,22 @@ void execRiscv(state_t *s) {
   if(tohost) {
     std::cout << "tohost = " << std::hex << tohost << std::dec << "\n";
     uint64_t *buf = reinterpret_cast<uint64_t*>(mem + tohost);
-    for(int i = 0; i < 4; i++) {
-      std::cout << std::hex << buf[i] << std::dec << "\n";
-    }
-    exit(-1);
+    switch(buf[0])
+      {
+      case SYS_write: /* int write(int file, char *ptr, int len) */
+	buf[0] = (int32_t)write(buf[1], (void*)(s->mem + buf[2]), buf[3]);
+	if(buf[1]==1)
+	  fflush(stdout);
+	else if(buf[1]==2)
+	  fflush(stderr);
+	break;
+      default:
+	std::cout << "syscall " << buf[0] << " unsupported\n";
+	exit(-1);
+      }
+    //ack
+    *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr) = 0;
+    *reinterpret_cast<uint64_t*>(mem + globals::fromhost_addr) = 1;
   }
 
   
@@ -328,6 +340,9 @@ void execRiscv(state_t *s) {
 	  break;
 	case 4: /* blt */
 	  takeBranch = s->gpr[m.b.rs1] < s->gpr[m.b.rs2];
+	  break;
+	case 5: /* bge */
+	  takeBranch = s->gpr[m.b.rs1] >= s->gpr[m.b.rs2];	  
 	  break;
 	case 6: /* bltu */
 	  takeBranch = u_rs1 < u_rs2;
