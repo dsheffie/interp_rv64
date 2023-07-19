@@ -55,6 +55,10 @@ void load_elf(const char* fn, state_t *ms) {
   int fd,rc;
   char *buf = nullptr;
   uint8_t *mem = ms->mem;
+  /* symbol code shamelessly stolen from
+   * elfloader.cc - need for to/from host
+   * symbols */
+  int32_t strtabidx = 0, symtabidx = 0;
 
   fd = open(fn, O_RDONLY);
   if(fd<0) {
@@ -90,9 +94,10 @@ void load_elf(const char* fn, state_t *ms) {
 
 
   e_phnum = (eh32->e_phnum);
-  ph32 = (Elf32_Phdr*)(buf + (eh32->e_phoff));
-  e_shnum = (eh32->e_shnum);
-  sh32 = (Elf32_Shdr*)(buf + (eh32->e_shoff));
+  ph32 = reinterpret_cast<Elf32_Phdr*>(buf + eh32->e_phoff);
+  e_shnum = eh32->e_shnum;
+  sh32 = reinterpret_cast<Elf32_Shdr*>(buf + eh32->e_shoff);
+  char* shstrtab = buf + sh32[eh32->e_shstrndx].sh_offset;
   ms->pc = eh32->e_entry;
 
   
@@ -128,6 +133,7 @@ void load_elf(const char* fn, state_t *ms) {
     }
   }
 
+  
   for(int32_t i = 0; i < e_shnum; i++, sh32++) {
     int32_t f = (sh32->sh_flags);
     if(f & SHF_EXECINSTR) {
@@ -144,8 +150,29 @@ void load_elf(const char* fn, state_t *ms) {
 	}
       }
     }
+    if (sh32->sh_type & SHT_NOBITS) {
+      continue;
+    }
+    if (strcmp(shstrtab + sh32->sh_name, ".strtab") == 0) {
+      strtabidx = i;
+    }
+    if (strcmp(shstrtab + sh32->sh_name, ".symtab") == 0) {
+      symtabidx = i;
+    }
+  }
+  /* this code is all basically from elfloader.cc */
+  if(strtabidx && symtabidx) {
+    sh32 = reinterpret_cast<Elf32_Shdr*>(buf + eh32->e_shoff);    
+    char* strtab = buf + sh32[strtabidx].sh_offset;
+    Elf32_Sym* sym = reinterpret_cast<Elf32_Sym*>(buf + sh32[symtabidx].sh_offset);
+    for(int32_t i = 0; i < (sh32[symtabidx].sh_size / sizeof(Elf32_Sym)); i++) {
+      globals::symtab[strtab + sym[i].st_name] = static_cast<uint32_t>(sym[i].st_value);
+    }
   }
   munmap(buf, s.st_size);
+
+  globals::tohost_addr = globals::symtab.at("tohost");
+  globals::fromhost_addr = globals::symtab.at("fromhost");
 
 #define WRITE_WORD(EA,WORD) { *reinterpret_cast<uint32_t*>(mem + EA) = WORD; }
 

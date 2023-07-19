@@ -5,6 +5,8 @@
 #include <cstdlib>
 #include <cstdio>
 #include <ostream>
+#include <map>
+#include <string>
 
 #define MARGS 20
 

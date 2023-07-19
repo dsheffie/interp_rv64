@@ -49,6 +49,18 @@ void execRiscv(state_t *s) {
   uint32_t inst = *reinterpret_cast<uint32_t*>(mem + s->pc);
   uint32_t opcode = inst & 127;
 
+  uint64_t tohost = *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr);
+  
+  if(tohost) {
+    std::cout << "tohost = " << std::hex << tohost << std::dec << "\n";
+    uint64_t *buf = reinterpret_cast<uint64_t*>(mem + tohost);
+    for(int i = 0; i < 4; i++) {
+      std::cout << std::hex << buf[i] << std::dec << "\n";
+    }
+    exit(-1);
+  }
+
+  
   std::cout << std::hex << s->pc << std::dec
 	    << " : " << getAsmString(inst, s->pc)
 	    << " , opcode " << std::hex
