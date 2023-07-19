@@ -52,7 +52,8 @@ void execRiscv(state_t *s) {
   uint64_t tohost = *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr);
   
   if(tohost) {
-    //std::cout << "tohost = " << std::hex << tohost << std::dec << "\n";
+    std::cout << "tohost = " << std::hex << tohost << std::dec << "\n";
+    std::cout << std::hex << s->pc << std::dec << "\n";
     if(tohost & 1) {
       /* exit */
       s->brk = 1;
@@ -287,12 +288,29 @@ void execRiscv(state_t *s) {
 	  case 0x1: /* sll */
 	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] << (s->gpr[m.r.rs2] & 31);
 	    break;
+	  case 0x2: /* slt */
+	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] < s->gpr[m.r.rs2];
+	    break;
 	  case 0x3: /* sltu */
 	    s->gpr[m.r.rd] = *reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs1]) < *reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs2]);
 	    break;
 	  case 0x4:
 	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] ^ s->gpr[m.r.rs2];
 	    break;
+	  case 0x5: { /* srl & sra */
+	    uint32_t sel =  (inst >> 25) & 127;	    
+	    if(sel == 0) { /* srl */
+	      s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs1]) >> (s->gpr[m.r.rs2] & 31));
+	    }
+	    else if(sel == 32) { /* sra */
+	      s->gpr[rd] = s->gpr[m.r.rs1] >> (s->gpr[m.r.rs2] & 31);
+	    }
+	    else {
+	      std::cout << "sel = " << sel << "\n";
+	      assert(0);
+	    }
+	    break;
+	  }
 	  case 0x6:
 	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] | s->gpr[m.r.rs2];
 	    break;
