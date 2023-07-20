@@ -27,36 +27,13 @@
 extern const char* githash;
 uint32_t globals::tohost_addr = 0;
 uint32_t globals::fromhost_addr = 0;
+bool globals::log = false;
 std::map<std::string, uint32_t> globals::symtab;
 char **globals::sysArgv = nullptr;
 int globals::sysArgc = 0;
 bool globals::silent = true;
 
-static state_t *s =0;
-
-template<typename X, typename Y>
-static inline void dump_histo(const std::string &fname,
-			      const std::map<X,Y> &histo) {
-  if(histo.empty())
-    return;
-  
-  std::vector<std::pair<X,Y>> sorted_by_cnt;
-  for(auto &p : histo) {
-    sorted_by_cnt.emplace_back(p.second, p.first);
-  }
-  std::ofstream out(fname);
-  std::sort(sorted_by_cnt.begin(), sorted_by_cnt.end());
-  for(auto it = sorted_by_cnt.rbegin(), E = sorted_by_cnt.rend(); it != E; ++it) {
-    uint32_t pc = it->second;
-    uint32_t r_inst = *reinterpret_cast<uint32_t*>(s->mem+pc);
-    r_inst = bswap<false>(r_inst);	
-    auto s = getAsmString(r_inst, it->second);
-    out << std::hex << it->second << ":"
-  	      << s << ","
-  	      << std::dec << it->first << "\n";
-  }
-  out.close();
-}
+static state_t *s = nullptr;
 
 
 static int buildArgcArgv(const char *filename, const std::string &sysArgs, char **&argv){
@@ -109,6 +86,7 @@ int main(int argc, char *argv[]) {
       ("dumpname", po::value<std::string>(&dumpname), "dump file name")
       ("maxicnt,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
+      ("log,l", po::value<bool>(&globals::log)->default_value(false), "log instructions")
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -186,15 +164,9 @@ int main(int argc, char *argv[]) {
   else {
     while(s->brk==0 and (s->icnt < s->maxicnt)) {
       execRiscv(s);
-      if(s->bad_addr) {
-	std::cout << "bad address generated for pc "
-		  << std::hex
-		  << s->epc
-		  << std::dec
-		  << "!\n";
-	break;
-      }
     }
+    std::cout << "a7 = " << std::hex << s->gpr[17]
+	      << ", a0 = " << s->gpr[10] << std::dec << "\n";
   }
 
   runtime = timestamp()-runtime;

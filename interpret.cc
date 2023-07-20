@@ -78,16 +78,15 @@ void execRiscv(state_t *s) {
     *reinterpret_cast<uint64_t*>(mem + globals::fromhost_addr) = 1;
   }
 
-#if 0
-  std::cout << std::hex << s->pc << std::dec
-	    << " : " << getAsmString(inst, s->pc)
-	    << " , opcode " << std::hex
-	    << opcode
-	    << std::dec
-	    << " , icnt " << s->icnt
-	    << "\n";
-#endif
-  
+  if(globals::log) {
+    std::cout << std::hex << s->pc << std::dec
+	      << " : " << getAsmString(inst, s->pc)
+	      << " , opcode " << std::hex
+	      << opcode
+	      << std::dec
+	      << " , icnt " << s->icnt
+	      << "\n";
+  }
   s->last_pc = s->pc;  
 
   uint32_t rd = (inst>>7) & 31;
@@ -151,6 +150,7 @@ void execRiscv(state_t *s) {
     case 0x13: {
       uint32_t rs1 = (inst >> 15) & 31;
       int32_t simm32 = (inst >> 20);
+
       simm32 |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       uint32_t subop =(inst>>12)&7;
       uint32_t shamt = (inst>>20) & 31;
@@ -168,9 +168,12 @@ void execRiscv(state_t *s) {
 	  case 2: /* slti */
 	    s->gpr[rd] = (s->gpr[rs1] < simm32);
 	    break;
-	  case 3: /* sltiu */
-	    s->gpr[rd] = (s->gpr[rs1] < (inst>>20));
+	  case 3: { /* sltiu */
+	    uint32_t uimm32 = static_cast<uint32_t>(simm32);
+	    uint32_t u_rs1 = *reinterpret_cast<uint32_t*>(&s->gpr[rs1]);
+	    s->gpr[rd] = (u_rs1 < uimm32);
 	    break;
+	  }
 	  case 4: /* xori */
 	    s->gpr[rd] = s->gpr[rs1] ^ simm32;
 	    break;
@@ -385,7 +388,12 @@ void execRiscv(state_t *s) {
     }
 
     case 0x73:
-      s->pc += 4;
+      if((inst >> 7) == 0) {
+	s->brk = 1;
+      }
+      else {
+	s->pc += 4;
+      }
       break;
     
     default:
