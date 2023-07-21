@@ -102,7 +102,9 @@ void execRiscv(state_t *s) {
     case 0x3: {
       if(m.l.rd != 0) {
 	int32_t disp = m.l.imm11_0;
-	disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
+	if((inst>>31)&1) {
+	  disp |= 0xfffff000;
+	}
 	uint32_t ea = disp + s->gpr[m.l.rs1];
 	switch(m.s.sel)
 	  {
@@ -148,42 +150,40 @@ void execRiscv(state_t *s) {
     0100000 shamt rs1 101 rd 0010011 SRAI
 #endif
     case 0x13: {
-      uint32_t rs1 = (inst >> 15) & 31;
       int32_t simm32 = (inst >> 20);
 
       simm32 |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       uint32_t subop =(inst>>12)&7;
       uint32_t shamt = (inst>>20) & 31;
 
-      ///std::cout << "subop " << subop << "\n";
       if(rd != 0) {
-	switch(subop)
+	switch(m.i.sel)
 	  {
 	  case 0: /* addi */
-	    s->gpr[rd] = s->gpr[rs1] + simm32;
+	    s->gpr[rd] = s->gpr[m.i.rs1] + simm32;
 	    break;
 	  case 1: /* slli */
-	    s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[rs1])) << shamt;
+	    s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[m.i.rs1])) << shamt;
 	    break;
 	  case 2: /* slti */
-	    s->gpr[rd] = (s->gpr[rs1] < simm32);
+	    s->gpr[rd] = (s->gpr[m.i.rs1] < simm32);
 	    break;
 	  case 3: { /* sltiu */
 	    uint32_t uimm32 = static_cast<uint32_t>(simm32);
-	    uint32_t u_rs1 = *reinterpret_cast<uint32_t*>(&s->gpr[rs1]);
+	    uint32_t u_rs1 = *reinterpret_cast<uint32_t*>(&s->gpr[m.i.rs1]);
 	    s->gpr[rd] = (u_rs1 < uimm32);
 	    break;
 	  }
 	  case 4: /* xori */
-	    s->gpr[rd] = s->gpr[rs1] ^ simm32;
+	    s->gpr[rd] = s->gpr[m.i.rs1] ^ simm32;
 	    break;
 	  case 5: { /* srli & srai */
 	    uint32_t sel =  (inst >> 25) & 127;	    
 	    if(sel == 0) { /* srli */
-	      s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[rs1]) >> shamt);
+	      s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[m.i.rs1]) >> shamt);
 	    }
 	    else if(sel == 32) { /* srai */
-	      s->gpr[rd] = s->gpr[rs1] >> shamt;
+	      s->gpr[rd] = s->gpr[m.i.rs1] >> shamt;
 	    }
 	    else {
 	      std::cout << "sel = " << sel << "\n";
@@ -192,10 +192,10 @@ void execRiscv(state_t *s) {
 	    break;
 	  }
 	  case 6: /* ori */
-	    s->gpr[rd] = s->gpr[rs1] | simm32;
+	    s->gpr[rd] = s->gpr[m.i.rs1] | simm32;
 	    break;
 	  case 7: /* andi */
-	    s->gpr[rd] = s->gpr[rs1] & simm32;
+	    s->gpr[rd] = s->gpr[m.i.rs1] & simm32;
 	    break;
 	    
 	  default:
@@ -325,18 +325,6 @@ void execRiscv(state_t *s) {
 	    assert(0);
 	  }
       }
-#if 0
-    0000000 rs2 rs1 000 rd 0110011 ADD
-    0100000 rs2 rs1 000 rd 0110011 SUB
-    0000000 rs2 rs1 001 rd 0110011 SLL
-    0000000 rs2 rs1 010 rd 0110011 SLT
-    0000000 rs2 rs1 011 rd 0110011 SLTU
-    0000000 rs2 rs1 100 rd 0110011 XOR
-    0000000 rs2 rs1 101 rd 0110011 SRL
-    0100000 rs2 rs1 101 rd 0110011 SRA
-    0000000 rs2 rs1 110 rd 0110011 OR
-    0000000 rs2 rs1 111 rd 0110011 AND
-#endif
       s->pc += 4;
       break;
     }
