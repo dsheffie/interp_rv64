@@ -42,8 +42,8 @@ void execRiscv(state_t *s) {
 
   uint32_t inst = *reinterpret_cast<uint32_t*>(mem + s->pc);
   uint32_t opcode = inst & 127;
-
-#if 1
+  
+#if 0
   std::cout << std::hex << s->pc << "\n";
   for(int r = 0; r < 32; r++) {
     std::cout << "\t" << s->gpr[r] << "\n";
@@ -56,8 +56,9 @@ void execRiscv(state_t *s) {
   tohost &= ((1UL<<32)-1);
   
   if(tohost) {
-    std::cout << "tohost = " << std::hex << tohost << std::dec << "\n";
-    std::cout << std::hex << s->pc << std::dec << "\n";
+    //std::cout << "tohost = " << std::hex << tohost << std::dec << "\n";
+    //std::cout << std::hex << s->pc << std::dec << "\n";
+    //std::cout << std::hex << s->last_pc << std::dec << "\n";
     if(tohost & 1) {
       /* exit */
       s->brk = 1;
@@ -96,7 +97,7 @@ void execRiscv(state_t *s) {
   uint32_t rd = (inst>>7) & 31;
   riscv_t m(inst);
 
-#if 0
+#if OLD_GPR
   int32_t old_gpr[32];
   memcpy(old_gpr, s->gpr, 4*32);
 #endif
@@ -332,8 +333,8 @@ void execRiscv(state_t *s) {
 		s->gpr[m.r.rd] = u_rs1 < u_rs2;
 		break;
 	      case 0x1: {/* MULHU */
-		int64_t t = u_rs1 * s->gpr[m.r.rs2];
-		s->gpr[m.r.rd] = (t>>32);
+		uint64_t t = static_cast<uint64_t>(u_rs1) * static_cast<uint64_t>(u_rs2);
+		*reinterpret_cast<uint32_t*>(&s->gpr[m.r.rd]) = (t>>32);
 		break;
 	      }
 	      default:
@@ -373,6 +374,9 @@ void execRiscv(state_t *s) {
 	      case 0x0:
 		s->gpr[m.r.rd] = s->gpr[m.r.rs1] | s->gpr[m.r.rs2];
 		break;
+	      case 0x1:
+		s->gpr[m.r.rd] = s->gpr[m.r.rs1] % s->gpr[m.r.rs2];
+		break;		
 	      default:
 		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
 		assert(0);
@@ -438,6 +442,11 @@ void execRiscv(state_t *s) {
 	  break;
 	case 7: /* bgeu */
 	  takeBranch = u_rs1 >= u_rs2;
+	  //std::cout << "s->pc " << std::hex << s->pc << ", rs1 " << u_rs1 << ", rs2 "
+	  //<< u_rs2 << std::dec
+	  //<< ", takeBranch " << takeBranch
+	  //<< "\n";
+
 	  break;
 	default:
 	  std::cout << "implement case " << m.b.sel << "\n";
@@ -465,7 +474,7 @@ void execRiscv(state_t *s) {
     }
 
   s->icnt++;
-#if 0
+#if OLD_GPR
   for(int i = 0; i < 32; i++){
     if(old_gpr[i] != s->gpr[i]) {
       std::cout << "\t" << getGPRName(i) << " changed from "
