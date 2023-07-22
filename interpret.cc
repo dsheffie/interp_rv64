@@ -19,11 +19,6 @@
 #include "helper.hh"
 #include "globals.hh"
 
-//#define CALLSTACK_DEBUG
-
-
-template <bool EL> void execRiscv(state_t *s);
-
 
 std::ostream &operator<<(std::ostream &out, const state_t & s) {
   using namespace std;
@@ -39,7 +34,6 @@ std::ostream &operator<<(std::ostream &out, const state_t & s) {
 
 void initState(state_t *s) {
   memset(s, 0, sizeof(state_t));
-  s->gpr[2] = 0x80000000;
 }
 
 
@@ -49,7 +43,17 @@ void execRiscv(state_t *s) {
   uint32_t inst = *reinterpret_cast<uint32_t*>(mem + s->pc);
   uint32_t opcode = inst & 127;
 
+#if 1
+  std::cout << std::hex << s->pc << "\n";
+  for(int r = 0; r < 32; r++) {
+    std::cout << "\t" << s->gpr[r] << "\n";
+  }
+  std::cout << std::dec;
+#endif				    
+  
+  
   uint64_t tohost = *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr);
+  tohost &= ((1UL<<32)-1);
   
   if(tohost) {
     std::cout << "tohost = " << std::hex << tohost << std::dec << "\n";
@@ -276,49 +280,118 @@ void execRiscv(state_t *s) {
       s->pc += jaddr;
       break;
     }
-    case 0x33: {
+    case 0x33: {      
       if(m.r.rd != 0) {
+	uint32_t u_rs1 = *reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs1]);
+	uint32_t u_rs2 = *reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs2]);
 	switch(m.r.sel)
 	  {
 	  case 0x0: /* add & sub */
-	    if( (inst>>30) & 1 ) { /* sub */
-	      s->gpr[m.r.rd] = s->gpr[m.r.rs1] - s->gpr[m.r.rs2];
-	    }
-	    else { /* add */
-	      s->gpr[m.r.rd] = s->gpr[m.r.rs1] + s->gpr[m.r.rs2];
-	    }
+	    switch(m.r.special)
+	      {
+	      case 0x0: /* add */
+		s->gpr[m.r.rd] = s->gpr[m.r.rs1] + s->gpr[m.r.rs2];
+		break;
+	      case 0x1: /* mul */
+		s->gpr[m.r.rd] = s->gpr[m.r.rs1] * s->gpr[m.r.rs2];
+		break;
+	      case 0x20: /* sub */
+		s->gpr[m.r.rd] = s->gpr[m.r.rs1] - s->gpr[m.r.rs2];
+		break;
+	      default:
+		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
+		assert(0);
+	      }
 	    break;
 	  case 0x1: /* sll */
-	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] << (s->gpr[m.r.rs2] & 31);
+	    switch(m.r.special)
+	      {
+	      case 0x0:
+		s->gpr[m.r.rd] = s->gpr[m.r.rs1] << (s->gpr[m.r.rs2] & 31);
+		break;
+	      default:
+		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
+		assert(0);
+	      }
 	    break;
 	  case 0x2: /* slt */
-	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] < s->gpr[m.r.rs2];
+	    switch(m.r.special)
+	      {
+	      case 0x0:
+		s->gpr[m.r.rd] = s->gpr[m.r.rs1] < s->gpr[m.r.rs2];
+		break;
+	      default:
+		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
+		assert(0);		
+	      }
 	    break;
 	  case 0x3: /* sltu */
-	    s->gpr[m.r.rd] = *reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs1]) < *reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs2]);
+	    switch(m.r.special)
+	      {
+	      case 0x0:
+		s->gpr[m.r.rd] = u_rs1 < u_rs2;
+		break;
+	      case 0x1: {/* MULHU */
+		int64_t t = u_rs1 * s->gpr[m.r.rs2];
+		s->gpr[m.r.rd] = (t>>32);
+		break;
+	      }
+	      default:
+		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
+		std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
+		assert(0);		
+	      }
 	    break;
 	  case 0x4:
-	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] ^ s->gpr[m.r.rs2];
+	    switch(m.r.special)
+	      {
+	      case 0x0:
+		s->gpr[m.r.rd] = s->gpr[m.r.rs1] ^ s->gpr[m.r.rs2];
+		break;
+	      default:
+		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
+		assert(0);		
+	      }
+	    break;		
+	  case 0x5: /* srl & sra */
+	    switch(m.r.special)
+	      {
+	      case 0x0: /* srl */
+		s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs1]) >> (s->gpr[m.r.rs2] & 31));
+		break;
+	      case 0x20: /* sra */
+		s->gpr[rd] = s->gpr[m.r.rs1] >> (s->gpr[m.r.rs2] & 31);
+		break;
+	      default:
+		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
+		assert(0);				
+	      }
 	    break;
-	  case 0x5: { /* srl & sra */
-	    uint32_t sel =  (inst >> 25) & 127;	    
-	    if(sel == 0) { /* srl */
-	      s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs1]) >> (s->gpr[m.r.rs2] & 31));
-	    }
-	    else if(sel == 32) { /* sra */
-	      s->gpr[rd] = s->gpr[m.r.rs1] >> (s->gpr[m.r.rs2] & 31);
-	    }
-	    else {
-	      std::cout << "sel = " << sel << "\n";
-	      assert(0);
-	    }
-	    break;
-	  }
 	  case 0x6:
-	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] | s->gpr[m.r.rs2];
+	    switch(m.r.special)
+	      {
+	      case 0x0:
+		s->gpr[m.r.rd] = s->gpr[m.r.rs1] | s->gpr[m.r.rs2];
+		break;
+	      default:
+		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
+		assert(0);
+	      }
 	    break;
 	  case 0x7:
-	    s->gpr[m.r.rd] = s->gpr[m.r.rs1] & s->gpr[m.r.rs2];
+	    switch(m.r.special)
+	      {
+	      case 0x0:
+		s->gpr[m.r.rd] = s->gpr[m.r.rs1] & s->gpr[m.r.rs2];
+		break;
+	      case 0x1: { /* remu */
+		s->gpr[m.r.rd] = u_rs1 % u_rs2;
+		break;
+	      }
+	      default:
+		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
+		assert(0);
+	      }
 	    break;
 	  default:
 	    std::cout << "implement = " << m.r.sel << "\n";

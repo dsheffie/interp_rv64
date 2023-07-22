@@ -21,7 +21,7 @@ CXXFLAGS = -std=c++11 -g $(OPT)
 LIBS =  $(EXTRA_LD) -lpthread
 
 DEP = $(OBJ:.o=.d)
-OPT = -O0 -g -std=c++11
+OPT = -O3 -std=c++11
 EXE = interp_rv32
 
 .PHONY : all clean
