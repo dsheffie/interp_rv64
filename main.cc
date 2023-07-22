@@ -165,8 +165,8 @@ int main(int argc, char *argv[]) {
     while(s->brk==0 and (s->icnt < s->maxicnt)) {
       execRiscv(s);
     }
-    std::cout << "a7 = " << std::hex << s->gpr[17]
-	      << ", a0 = " << s->gpr[10] << std::dec << "\n";
+    //std::cout << "a7 = " << std::hex << s->gpr[17]
+    //<< ", a0 = " << s->gpr[10] << std::dec << "\n";
   }
 
   runtime = timestamp()-runtime;
