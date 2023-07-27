@@ -37,7 +37,8 @@ void initState(state_t *s) {
 }
 
 
-void execRiscv(state_t *s) {
+
+static inline void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
 
   uint32_t inst = *reinterpret_cast<uint32_t*>(mem + s->pc);
@@ -57,7 +58,7 @@ void execRiscv(state_t *s) {
   
   if(tohost) {
     //std::cout << "tohost = " << std::hex << tohost << std::dec << "\n";
-    //std::cout << std::hex << s->pc << std::dec << "\n";
+    //exit(-1);
     //std::cout << std::hex << s->last_pc << std::dec << "\n";
     if(tohost & 1) {
       /* exit */
@@ -65,15 +66,28 @@ void execRiscv(state_t *s) {
       return;
     }
     uint64_t *buf = reinterpret_cast<uint64_t*>(mem + tohost);
+    //std::cout << "syscall number " << buf[0] << "\n";
+    //for(int i = 0; i < 4; i++) {
+    //std::cout << std::hex << "arg " << i << " : " << buf[i] << std::dec << "\n";
+    //}
     switch(buf[0])
       {
       case SYS_write: /* int write(int file, char *ptr, int len) */
-	buf[0] = (int32_t)write(buf[1], (void*)(s->mem + buf[2]), buf[3]);
+	buf[0] = write(buf[1], (void*)(s->mem + buf[2]), buf[3]);
 	if(buf[1]==1)
 	  fflush(stdout);
 	else if(buf[1]==2)
 	  fflush(stderr);
 	break;
+      case SYS_open: {
+	const char *path = reinterpret_cast<const char*>(s->mem + buf[1]);
+	buf[0] = open(path, remapIOFlags(buf[2]), S_IRUSR|S_IWUSR);
+	break;
+      }
+      case SYS_read: {
+	buf[0] = read(buf[1], reinterpret_cast<char*>(s->mem + buf[2]), buf[3]); 
+	break;
+      }
       default:
 	std::cout << "syscall " << buf[0] << " unsupported\n";
 	exit(-1);
@@ -363,6 +377,10 @@ void execRiscv(state_t *s) {
 	      case 0x0: /* srl */
 		s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs1]) >> (s->gpr[m.r.rs2] & 31));
 		break;
+	      case 0x1: {
+		*reinterpret_cast<uint32_t*>(&s->gpr[m.r.rd]) = u_rs1 / u_rs2;
+		break;
+	      }
 	      case 0x20: /* sra */
 		s->gpr[rd] = s->gpr[m.r.rs1] >> (s->gpr[m.r.rs2] & 31);
 		break;
@@ -392,7 +410,7 @@ void execRiscv(state_t *s) {
 		s->gpr[m.r.rd] = s->gpr[m.r.rs1] & s->gpr[m.r.rs2];
 		break;
 	      case 0x1: { /* remu */
-		s->gpr[m.r.rd] = u_rs1 % u_rs2;
+		*reinterpret_cast<uint32_t*>(&s->gpr[m.r.rd]) = u_rs1 % u_rs2;
 		break;
 	      }
 	      default:
@@ -447,7 +465,7 @@ void execRiscv(state_t *s) {
 	  takeBranch = u_rs1 >= u_rs2;
 	  //std::cout << "s->pc " << std::hex << s->pc << ", rs1 " << u_rs1 << ", rs2 "
 	  //<< u_rs2 << std::dec
-	  //<< ", takeBranch " << takeBranch
+	  //	    << ", takeBranch " << takeBranch
 	  //<< "\n";
 
 	  break;
@@ -470,7 +488,13 @@ void execRiscv(state_t *s) {
       break;
     
     default:
-      std::cout << "opcode " << std::hex << opcode << std::dec << "\n";
+      std::cout << std::hex << s->pc << std::dec
+		<< " : " << getAsmString(inst, s->pc)
+		<< " , opcode " << std::hex
+		<< opcode
+		<< std::dec
+		<< " , icnt " << s->icnt
+		<< "\n";
       std::cout << *s << "\n";
       exit(-1);
       break;
@@ -490,4 +514,10 @@ void execRiscv(state_t *s) {
     }
   }
 #endif
+}
+
+void runRiscv(state_t *s) {
+  while(s->brk==0 and (s->icnt < s->maxicnt)) {
+    execRiscv(s);
+  }
 }

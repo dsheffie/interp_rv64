@@ -67,12 +67,10 @@ static int buildArgcArgv(const char *filename, const std::string &sysArgs, char 
 
 int main(int argc, char *argv[]) {
   namespace po = boost::program_options; 
-  std::string dumpname;
-  int64_t dumpIcnt = -1L;
   size_t pgSize = getpagesize();
   std::string sysArgs, filename;
   uint64_t maxinsns = ~(0UL);
-  bool hash = false, isDump = false;
+  bool hash = false;
 
   try {
     po::options_description desc("Options");
@@ -81,9 +79,6 @@ int main(int argc, char *argv[]) {
       ("args,a", po::value<std::string>(&sysArgs), "arguments to mips binary") 
       ("hash,h", po::value<bool>(&hash)->default_value(false), "hash memory at end of execution")
       ("file,f", po::value<std::string>(&filename), "mips binary")
-      ("isdump,d", po::value<bool>(&isDump)->default_value(false), "is a dump")
-      ("dumpicnt", po::value<int64_t>(&dumpIcnt)->default_value(-1L), "dump after n instructions")
-      ("dumpname", po::value<std::string>(&dumpname), "dump file name")
       ("maxicnt,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
       ("log,l", po::value<bool>(&globals::log)->default_value(false), "log instructions")
@@ -133,42 +128,11 @@ int main(int argc, char *argv[]) {
     exit(-1);
   }
   
-  if(isDump) {
-    loadState(*s,filename);
-  }
-  else {
-    load_elf(filename.c_str(), s);
-  }
-  
+  load_elf(filename.c_str(), s);
   initCapstone();
 
   double runtime = timestamp();
-  
-  if(dumpIcnt != -1L) {
-    if(dumpname.size() == 0) {
-      dumpname = filename;
-    }
-    while(s->brk==0 and (s->icnt < s->maxicnt)) {
-      if( (s->icnt >= dumpIcnt) ) {
-	std::stringstream ss;
-	ss << dumpname << s->icnt << ".bin";
-	if(not(globals::silent)) {
-	  std::cout << "dumping at icnt " << s->icnt << "\n";
-	}
-	dumpState(*s, ss.str());
-	s->brk = 1;
-      }
-      execRiscv(s);
-    }
-  }
-  else {
-    while(s->brk==0 and (s->icnt < s->maxicnt)) {
-      execRiscv(s);
-    }
-    //std::cout << "a7 = " << std::hex << s->gpr[17]
-    //<< ", a0 = " << s->gpr[10] << std::dec << "\n";
-  }
-
+  runRiscv(s);
   runtime = timestamp()-runtime;
   
   if(hash) {

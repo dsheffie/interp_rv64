@@ -113,7 +113,7 @@ union riscv_t {
 };
 
 void initState(state_t *s);
-void execRiscv(state_t *s);
+void runRiscv(state_t *s);
 
 /* stolen from libgloss-htif : syscall.h */
 #define SYS_getcwd 17
@@ -125,6 +125,7 @@ void execRiscv(state_t *s);
 #define SYS_ftruncate 46
 #define SYS_faccessat 48
 #define SYS_chdir 49
+#define SYS_open   55
 #define SYS_openat 56
 #define SYS_close 57
 #define SYS_lseek 62
