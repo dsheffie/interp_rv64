@@ -76,9 +76,9 @@ int main(int argc, char *argv[]) {
     po::options_description desc("Options");
     desc.add_options() 
       ("help", "Print help messages") 
-      ("args,a", po::value<std::string>(&sysArgs), "arguments to mips binary") 
+      ("args,a", po::value<std::string>(&sysArgs), "arguments to rv32 binary") 
       ("hash,h", po::value<bool>(&hash)->default_value(false), "hash memory at end of execution")
-      ("file,f", po::value<std::string>(&filename), "mips binary")
+      ("file,f", po::value<std::string>(&filename), "rv32 binary")
       ("maxicnt,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
       ("log,l", po::value<bool>(&globals::log)->default_value(false), "log instructions")
@@ -95,7 +95,7 @@ int main(int argc, char *argv[]) {
   
   if(not(globals::silent)) {
     std::cerr << KGRN
-	      << "MIPS INTERP : built "
+	      << "RV32 INTERP : built "
 	      << __DATE__ << " " << __TIME__
 	      << ",pid="<< getpid() << "\n"
 	      << "git hash=" << githash
@@ -103,7 +103,7 @@ int main(int argc, char *argv[]) {
   }
   
   if(filename.size()==0) {
-    std::cerr << "INTERP : no file\n";
+    std::cerr << argv[0] << ": no file\n";
     return -1;
   }
 

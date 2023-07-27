@@ -86,7 +86,7 @@ void load_elf(const char* fn, state_t *ms) {
   assert(checkLittleEndian(eh32));
 
   if((eh32->e_machine) != 243) {
-    printf("INTERP : non-mips binary..goodbye got type %d\n", (eh32->e_machine));
+    printf("INTERP : non-rv32 binary..goodbye got type %d\n", (eh32->e_machine));
     exit(-1);
   }
 
