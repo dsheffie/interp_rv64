@@ -22,6 +22,8 @@ struct state_t{
   uint64_t icnt;
 };
 
+void handle_syscall(state_t *s, uint64_t tohost);
+
 static inline int32_t checksum_gprs(const state_t *s) {
   int32_t h = 0;
   for(int i = 0; i < 32; i++) {
