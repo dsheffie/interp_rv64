@@ -507,6 +507,10 @@ void handle_syscall(state_t *s, uint64_t tohost) {
       buf[0] = open(path, remapIOFlags(buf[2]), S_IRUSR|S_IWUSR);
       break;
     }
+    case SYS_close: {
+      buf[0] = close(buf[1]);
+      break;
+    }
     case SYS_read: {
       buf[0] = read(buf[1], reinterpret_cast<char*>(s->mem + buf[2]), buf[3]); 
       break;

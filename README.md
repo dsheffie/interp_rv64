@@ -1,0 +1,1 @@
+riscv-gnu-toolchain : ./configure --prefix=/opt/riscv --with-arch=rv32im --with-abi=ilp32
