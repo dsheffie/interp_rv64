@@ -511,6 +511,25 @@ void handle_syscall(state_t *s, uint64_t tohost) {
       buf[0] = read(buf[1], reinterpret_cast<char*>(s->mem + buf[2]), buf[3]); 
       break;
     }
+    case SYS_fstat : {
+      struct stat native_stat;
+      stat32_t *host_stat = reinterpret_cast<stat32_t*>(s->mem + buf[2]);
+      int rc = fstat(buf[1], &native_stat);
+      host_stat->st_dev = native_stat.st_dev;
+      host_stat->st_ino = native_stat.st_ino;
+      host_stat->st_mode = native_stat.st_mode;
+      host_stat->st_nlink = native_stat.st_nlink;
+      host_stat->st_uid = native_stat.st_uid;
+      host_stat->st_gid = native_stat.st_gid;
+      host_stat->st_size = native_stat.st_size;
+      host_stat->_st_atime = native_stat.st_atime;
+      host_stat->_st_mtime = 0;
+      host_stat->_st_ctime = 0;
+      host_stat->st_blksize = native_stat.st_blksize;
+      host_stat->st_blocks = native_stat.st_blocks;
+      buf[0] = rc;
+      break;
+    }
     default:
       std::cout << "syscall " << buf[0] << " unsupported\n";
       exit(-1);
