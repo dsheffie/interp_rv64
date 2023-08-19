@@ -515,6 +515,10 @@ void handle_syscall(state_t *s, uint64_t tohost) {
       buf[0] = read(buf[1], reinterpret_cast<char*>(s->mem + buf[2]), buf[3]); 
       break;
     }
+    case SYS_lseek: {
+      buf[0] = lseek(buf[1], buf[2], buf[3]);
+      break;
+    }
     case SYS_fstat : {
       struct stat native_stat;
       stat32_t *host_stat = reinterpret_cast<stat32_t*>(s->mem + buf[2]);
