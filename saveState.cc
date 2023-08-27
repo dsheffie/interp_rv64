@@ -12,7 +12,7 @@ struct page {
 } __attribute__((packed));
 
 struct header {
-  static const uint64_t magic = 0xbeefcafefaced00d;
+  static const uint64_t magic = 0xbeefd00d12345670;
   uint32_t pc;
   int32_t gpr[32];
   uint64_t icnt;

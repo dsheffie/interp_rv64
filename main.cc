@@ -69,7 +69,7 @@ int main(int argc, char *argv[]) {
   namespace po = boost::program_options; 
   size_t pgSize = getpagesize();
   std::string sysArgs, filename;
-  uint64_t maxinsns = ~(0UL);
+  uint64_t maxinsns = ~(0UL), dumpIcnt = ~(0UL);
   bool hash = false;
 
   try {
@@ -80,6 +80,7 @@ int main(int argc, char *argv[]) {
       ("hash,h", po::value<bool>(&hash)->default_value(false), "hash memory at end of execution")
       ("file,f", po::value<std::string>(&filename), "rv32 binary")
       ("maxicnt,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
+      ("dumpicnt", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
       ("log,l", po::value<bool>(&globals::log)->default_value(false), "log instructions")
       ; 
@@ -132,8 +133,17 @@ int main(int argc, char *argv[]) {
   initCapstone();
 
   double runtime = timestamp();
-  runRiscv(s);
+  runRiscv(s,dumpIcnt);
   runtime = timestamp()-runtime;
+
+  if( s->icnt >= dumpIcnt ) {
+    std::stringstream ss;
+    ss << filename << s->icnt << ".bin";
+    if(not(globals::silent)) {
+      std::cout << "dumping at icnt " << s->icnt << "\n";
+    }
+    dumpState(*s, ss.str());
+  }
   
   if(hash) {
     std::fflush(nullptr);

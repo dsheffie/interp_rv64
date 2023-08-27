@@ -485,8 +485,8 @@ static inline void execRiscv(state_t *s) {
 #endif
 }
 
-void runRiscv(state_t *s) {
-  while(s->brk==0 and (s->icnt < s->maxicnt)) {
+void runRiscv(state_t *s, uint64_t dumpIcnt) {
+  while(s->brk==0 and (s->icnt < s->maxicnt) and (s->icnt < dumpIcnt)) {
     execRiscv(s);
   }
 }
@@ -541,7 +541,11 @@ void handle_syscall(state_t *s, uint64_t tohost) {
       host_stat->_st_ctime = 0;
       host_stat->st_blksize = native_stat.st_blksize;
       host_stat->st_blocks = native_stat.st_blocks;
-      buf[0] = rc;
+            buf[0] = rc;
+      break;
+    }
+    case SYS_stat : {
+      buf[0] = 0;
       break;
     }
     default:
