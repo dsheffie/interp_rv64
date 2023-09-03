@@ -11,13 +11,16 @@ struct page {
   uint8_t data[4096];
 } __attribute__((packed));
 
+
+static const uint64_t MAGIC_NUM = 0xbeefd00d12345670UL;
+
 struct header {
-  static const uint64_t magic = 0xbeefd00d12345670;
+  uint64_t magic;
   uint32_t pc;
   int32_t gpr[32];
   uint64_t icnt;
   uint32_t num_nz_pages;
-  header() {}
+  header() : magic(MAGIC_NUM) {}
 } __attribute__((packed));
 
 void dumpState(const state_t &s, const std::string &filename) {
