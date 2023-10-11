@@ -451,6 +451,18 @@ static inline void execRiscv(state_t *s) {
       if((inst >> 7) == 0) {
 	s->brk = 1;
       }
+      else if( ((inst >> 12) & 3) == 2) {
+	switch(inst>>20)
+	  {
+	  case 0xc00:
+	    s->gpr[(inst>>7) & 31] = s->icnt;
+	    break;
+	  default:
+	    break;
+	  }
+	    
+	s->pc += 4;
+      }
       else {
 	s->pc += 4;
       }
