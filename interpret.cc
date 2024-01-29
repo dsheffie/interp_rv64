@@ -553,7 +553,7 @@ void handle_syscall(state_t *s, uint64_t tohost) {
       host_stat->_st_ctime = 0;
       host_stat->st_blksize = native_stat.st_blksize;
       host_stat->st_blocks = native_stat.st_blocks;
-            buf[0] = rc;
+      buf[0] = rc;
       break;
     }
     case SYS_stat : {
@@ -565,6 +565,22 @@ void handle_syscall(state_t *s, uint64_t tohost) {
       struct timeval *tp = reinterpret_cast<struct timeval*>(s->mem + buf[1]);
       struct timezone *tzp = reinterpret_cast<struct timezone*>(s->mem + buf[2]);
       buf[0] = gettimeofday(tp, tzp);
+      break;
+    }
+    case SYS_times: {
+      struct tms32 {
+	uint32_t tms_utime;
+	uint32_t tms_stime;  /* system time */
+	uint32_t tms_cutime; /* user time of children */
+	uint32_t tms_cstime; /* system time of children */
+      };
+      tms32 *t = reinterpret_cast<tms32*>(s->mem + buf[1]);
+      struct tms tt;
+      buf[0] = times(&tt);
+      t->tms_utime = tt.tms_utime;
+      t->tms_stime = tt.tms_stime;
+      t->tms_cutime = tt.tms_cutime;
+      t->tms_cstime = tt.tms_cstime;
       break;
     }
     default:

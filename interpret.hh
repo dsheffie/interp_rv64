@@ -140,6 +140,7 @@ void runRiscv(state_t *s, uint64_t dumpIcnt);
 #define SYS_fstat 80
 #define SYS_exit 93
 #define SYS_gettimeofday 94
+#define SYS_times 95
 #define SYS_lstat 1039
 #define SYS_getmainvars 2011
 
