@@ -25,10 +25,10 @@
 #include "globals.hh"
 
 extern const char* githash;
-uint32_t globals::tohost_addr = 0;
-uint32_t globals::fromhost_addr = 0;
+uint64_t globals::tohost_addr = 0;
+uint64_t globals::fromhost_addr = 0;
 bool globals::log = false;
-std::map<std::string, uint32_t> globals::symtab;
+std::map<std::string, uint64_t> globals::symtab;
 char **globals::sysArgv = nullptr;
 int globals::sysArgc = 0;
 bool globals::silent = true;

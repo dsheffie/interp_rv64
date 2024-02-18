@@ -2,13 +2,13 @@
 #define __GLOBALSH__
 
 namespace globals {
-  extern uint32_t tohost_addr;
-  extern uint32_t fromhost_addr;
+  extern uint64_t tohost_addr;
+  extern uint64_t fromhost_addr;
   extern int sysArgc;
   extern char **sysArgv;
   extern bool silent;
   extern bool log;
-  extern std::map<std::string, uint32_t> symtab;
+  extern std::map<std::string, uint64_t> symtab;
 };
 
 #endif
