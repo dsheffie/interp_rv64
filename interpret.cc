@@ -87,7 +87,7 @@ static inline void execRiscv(state_t *s) {
 	if((inst>>31)&1) {
 	  disp |= 0xfffff000;
 	}
-	uint32_t ea = disp + s->gpr[m.l.rs1];
+	int64_t ea = static_cast<int64_t>(disp) + s->gpr[m.l.rs1];
 	switch(m.s.sel)
 	  {
 	  case 0x0: /* lb */
@@ -97,7 +97,10 @@ static inline void execRiscv(state_t *s) {
 	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int16_t*>(s->mem + ea)));	 
 	    break;
 	  case 0x2: /* lw */
-	    s->gpr[m.l.rd] = *(reinterpret_cast<int32_t*>(s->mem + ea));
+	    s->sext_xlen( *reinterpret_cast<int32_t*>(s->mem + ea), m.l.rd);
+	    break;
+	  case 0x3: /* ld */
+	    s->sext_xlen( *reinterpret_cast<int64_t*>(s->mem + ea), m.l.rd);	    
 	    break;
 	  case 0x4: {/* lbu */
 	    uint32_t b = s->mem[ea];
@@ -135,6 +138,7 @@ static inline void execRiscv(state_t *s) {
       int32_t simm32 = (inst >> 20);
 
       simm32 |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
+      int64_t simm64 = simm32;
       uint32_t subop =(inst>>12)&7;
       uint32_t shamt = (inst>>20) & 31;
 
@@ -142,7 +146,7 @@ static inline void execRiscv(state_t *s) {
 	switch(m.i.sel)
 	  {
 	  case 0: /* addi */
-	    s->gpr[rd] = s->gpr[m.i.rs1] + simm32;
+	    s->sext_xlen((s->gpr[m.i.rs1] + simm64), rd);
 	    break;
 	  case 1: /* slli */
 	    s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[m.i.rs1])) << shamt;
@@ -191,7 +195,7 @@ static inline void execRiscv(state_t *s) {
     case 0x23: {
       int32_t disp = m.s.imm4_0 | (m.s.imm11_5 << 5);
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
-      uint32_t ea = disp + s->gpr[m.s.rs1];
+      int64_t ea = static_cast<int64_t>(disp) + s->gpr[m.s.rs1];
       //std::cout << "STORE EA " << std::hex << ea << std::dec << "\n";      
       switch(m.s.sel)
 	{
@@ -204,6 +208,9 @@ static inline void execRiscv(state_t *s) {
 	case 0x2: /* sw */
 	  *(reinterpret_cast<int32_t*>(s->mem + ea)) = s->gpr[m.s.rs2];
 	  break;
+	case 0x3: /* sd */
+	  *(reinterpret_cast<int64_t*>(s->mem + ea)) = s->gpr[m.s.rs2];
+	  break;
 	default:
 	  assert(0);
 	}
@@ -214,18 +221,16 @@ static inline void execRiscv(state_t *s) {
       //imm[31:12] rd 011 0111 LUI
     case 0x37:
       if(rd != 0) {
-	s->gpr[rd] = inst & 0xfffff000;
+	int32_t imm32 = inst & 0xfffff000;
+	s->sext_xlen(imm32, rd);
       }
       s->pc += 4;
       break;
       //imm[31:12] rd 0010111 AUIPC
     case 0x17: /* is this sign extended */
       if(rd != 0) {
-	uint32_t imm = inst & (~4095U);
-	uint32_t u = static_cast<uint32_t>(s->pc) + imm;
-	*reinterpret_cast<uint32_t*>(&s->gpr[rd]) = u;
-	//std::cout << "u = " << std::hex << u << std::dec << "\n";
-	//if(s->pc == 0x80000084) exit(-1);
+	int64_t imm = inst & (~4095);
+	s->sext_xlen(s->pc + imm, rd);
       }
       s->pc += 4;
       break;
@@ -234,12 +239,13 @@ static inline void execRiscv(state_t *s) {
     case 0x67: {
       int32_t tgt = m.jj.imm11_0;
       tgt |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
-      tgt += s->gpr[m.jj.rs1];
-      tgt &= ~(1U);
+      int64_t tgt64 = tgt;
+      tgt64 += s->gpr[m.jj.rs1];
+      tgt64 &= ~(1U);
       if(m.jj.rd != 0) {
 	s->gpr[m.jj.rd] = s->pc + 4;
       }
-      s->pc = tgt;
+      s->pc = tgt64;
       break;
     }
 
@@ -255,7 +261,7 @@ static inline void execRiscv(state_t *s) {
       if(rd != 0) {
 	s->gpr[rd] = s->pc + 4;
       }
-      s->pc += jaddr;
+      s->pc += static_cast<int64_t>(jaddr);
       break;
     }
     case 0x33: {      

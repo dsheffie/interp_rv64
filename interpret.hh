@@ -11,26 +11,24 @@
 #define MARGS 20
 
 struct state_t{
-  uint32_t pc;
-  uint32_t last_pc;
-  int32_t gpr[32];
+  uint64_t pc;
+  uint64_t last_pc;
+  int64_t gpr[32];
   uint8_t *mem;
   uint8_t brk;
   uint8_t bad_addr;
-  uint32_t epc;
+  uint64_t epc;
   uint64_t maxicnt;
   uint64_t icnt;
+  int xlen() const {
+    return 64;
+  }
+  void sext_xlen(int64_t x, int i) {
+    gpr[i] = (x << (64-xlen())) >> (64-xlen());
+  }    
 };
 
 void handle_syscall(state_t *s, uint64_t tohost);
-
-static inline int32_t checksum_gprs(const state_t *s) {
-  int32_t h = 0;
-  for(int i = 0; i < 32; i++) {
-    h ^= s->gpr[i];
-  }
-  return h;
-}
 
 
 struct utype_t {
