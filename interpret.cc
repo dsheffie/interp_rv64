@@ -71,6 +71,7 @@ static inline void execRiscv(state_t *s) {
   
 #ifdef OLD_GPR
   int64_t old_gpr[32];
+  uint64_t old_pc = s->pc;
   memcpy(old_gpr, s->gpr, sizeof(old_gpr));
 #endif
 
@@ -224,28 +225,33 @@ static inline void execRiscv(state_t *s) {
       if(m.r.rd != 0) {
 	int32_t a = *reinterpret_cast<int32_t*>(&s->gpr[m.r.rs1]);
 	int32_t b = *reinterpret_cast<int32_t*>(&s->gpr[m.r.rs2]);
-	switch(m.r.special)
-	  {
-	  case 0x0: {/* add */
-	    int32_t c = a+b;
-	    s->sext_xlen(c, m.r.rd);
-	    break;
-	  }
-	  case 0x1: {
-	    int32_t c = a*b;
-	    s->sext_xlen(c, m.r.rd);	    	    
-	    break;
-	  }
-	  case 0x20: {
-	    int32_t c = a-b;
-	    s->sext_xlen(c, m.r.rd);	    
-	    break;
-	  }
-	  default:
-	    std::cout << "m.r.special = " << std::hex << m.r.special
-		      << std::dec << "\n";
-	    assert(0);
-	  }
+
+	if((m.r.sel == 0) & (m.r.special == 0)) { /* addw */
+	  int32_t c = a+b;
+	  s->sext_xlen(c, m.r.rd);	 
+	}
+	else if((m.r.sel == 0) & (m.r.special == 1)) { /* mulw */
+	  int32_t c = a*b;
+	  s->sext_xlen(c, m.r.rd);
+	}	
+	else if((m.r.sel == 0) & (m.r.special == 32)) { /* subw */
+	  int32_t c = a-b;
+	  s->sext_xlen(c, m.r.rd);
+	} 
+	else if((m.r.sel == 1) & (m.r.special == 0)) { /* slliw */
+	  int32_t c = a << m.r.rs2;
+	  s->sext_xlen(c, m.r.rd);
+	}
+	else if((m.r.sel == 4) & (m.r.special == 1)) { /* subw */
+	  int32_t c = a/b;
+	  s->sext_xlen(c, m.r.rd);
+	}	
+	else {
+	  std::cout << "special = " << m.r.special << "\n";
+	  std::cout << "sel = " << m.r.sel << "\n";
+	  assert(0);
+	}
+	
       }
       s->pc += 4;
       break;
@@ -324,8 +330,8 @@ static inline void execRiscv(state_t *s) {
     }
     case 0x33: {      
       if(m.r.rd != 0) {
-	uint32_t u_rs1 = *reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs1]);
-	uint32_t u_rs2 = *reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs2]);
+	uint64_t u_rs1 = *reinterpret_cast<uint64_t*>(&s->gpr[m.r.rs1]);
+	uint64_t u_rs2 = *reinterpret_cast<uint64_t*>(&s->gpr[m.r.rs2]);
 	switch(m.r.sel)
 	  {
 	  case 0x0: /* add & sub */
@@ -349,7 +355,7 @@ static inline void execRiscv(state_t *s) {
 	    switch(m.r.special)
 	      {
 	      case 0x0:
-		s->gpr[m.r.rd] = s->gpr[m.r.rs1] << (s->gpr[m.r.rs2] & 31);
+		s->gpr[m.r.rd] = s->gpr[m.r.rs1] << (s->gpr[m.r.rs2] & (s->xlen()-1));
 		break;
 	      case 0x1: { /* MULH */
 		int64_t t = static_cast<int64_t>(s->gpr[m.r.rs1]) * static_cast<int64_t>(s->gpr[m.r.rs2]);
@@ -408,14 +414,14 @@ static inline void execRiscv(state_t *s) {
 	    switch(m.r.special)
 	      {
 	      case 0x0: /* srl */
-		s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs1]) >> (s->gpr[m.r.rs2] & 31));
+		s->gpr[rd] = (*reinterpret_cast<uint64_t*>(&s->gpr[m.r.rs1]) >> (s->gpr[m.r.rs2] & (s->xlen()-1)));
 		break;
 	      case 0x1: {
-		*reinterpret_cast<uint32_t*>(&s->gpr[m.r.rd]) = u_rs1 / u_rs2;
+		*reinterpret_cast<uint64_t*>(&s->gpr[m.r.rd]) = u_rs1 / u_rs2;
 		break;
 	      }
 	      case 0x20: /* sra */
-		s->gpr[rd] = s->gpr[m.r.rs1] >> (s->gpr[m.r.rs2] & 31);
+		s->gpr[rd] = s->gpr[m.r.rs1] >> (s->gpr[m.r.rs2] & (s->xlen()-1));
 		break;
 	      default:
 		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
@@ -443,7 +449,7 @@ static inline void execRiscv(state_t *s) {
 		s->gpr[m.r.rd] = s->gpr[m.r.rs1] & s->gpr[m.r.rs2];
 		break;
 	      case 0x1: { /* remu */
-		*reinterpret_cast<uint32_t*>(&s->gpr[m.r.rd]) = u_rs1 % u_rs2;
+		*reinterpret_cast<uint64_t*>(&s->gpr[m.r.rd]) = u_rs1 % u_rs2;
 		break;
 	      }
 	      default:
@@ -554,7 +560,9 @@ static inline void execRiscv(state_t *s) {
 		<< std::hex
 		<< old_gpr[i]
 		<< " to "
-		<< s->gpr[i]
+		<< s->gpr[i]	
+		<< " at pc "
+		<< old_pc
 		<< std::dec
 		<< "\n";
     }
