@@ -67,6 +67,8 @@ static inline void execRiscv(state_t *s) {
   uint32_t rd = (inst>>7) & 31;
   riscv_t m(inst);
 
+  //#define OLD_GPR
+  
 #ifdef OLD_GPR
   int64_t old_gpr[32];
   memcpy(old_gpr, s->gpr, sizeof(old_gpr));
@@ -142,7 +144,7 @@ static inline void execRiscv(state_t *s) {
 	    s->sext_xlen((s->gpr[m.i.rs1] + simm64), rd);
 	    break;
 	  case 1: /* slli */
-	    s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[m.i.rs1])) << shamt;
+	    s->sext_xlen((*reinterpret_cast<uint64_t*>(&s->gpr[m.i.rs1])) << shamt, rd);
 	    break;
 	  case 2: /* slti */
 	    s->gpr[rd] = (s->gpr[m.i.rs1] < simm64);
@@ -578,6 +580,11 @@ void handle_syscall(state_t *s, uint64_t tohost) {
   switch(buf[0])
     {
     case SYS_write: /* int write(int file, char *ptr, int len) */
+      //std::cout << "got write syscall, fd = " << buf[1] << ", ptr = "
+      //<< std::hex << buf[2] << std::dec
+      //<< ", len = " << buf[3] << "\n";
+
+      
       buf[0] = write(buf[1], (void*)(s->mem + buf[2]), buf[3]);
       if(buf[1]==1)
 	fflush(stdout);
