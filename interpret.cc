@@ -192,11 +192,63 @@ static inline void execRiscv(state_t *s) {
       s->pc += 4;
       break;
     }
+    case 0x1b: {      
+      if(rd != 0) {
+	int32_t simm32 = (inst >> 20);
+	simm32 |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
+	uint32_t shamt = (inst>>20) & 31;
+	switch(m.i.sel)
+	  {
+	  case 0: {
+	    int32_t r = simm32 + *reinterpret_cast<int32_t*>(&s->gpr[m.i.rs1]);
+	    std::cout << std::hex << simm32 << std::dec << "\n";
+	    std::cout << std::hex << s->gpr[m.i.rs1] << std::dec << "\n";
+	    std::cout << std::hex << r << std::dec << "\n";
+	    s->sext_xlen(r, rd);
+	    break;
+	  }
+	  case 1: { /*SLLIW*/
+	    int32_t r = *reinterpret_cast<int32_t*>(&s->gpr[m.i.rs1]) << shamt;
+	    s->sext_xlen(r, rd);
+	    break;
+	  }
+	  case 5: { /* SRAIW */
+	    int32_t r = *reinterpret_cast<int32_t*>(&s->gpr[m.i.rs1]) >> shamt;
+	    s->sext_xlen(r, rd);
+	    break;	    
+	  }
+	  default:
+	    std::cout << m.i.sel << "\n";
+	    assert(0);
+	    break;
+	  }
+      }
+      s->pc += 4;
+      break;
+    }
+    case 0x3b: {
+      if(m.r.rd != 0) {
+	switch(m.r.special)
+	  {
+	  case 0x0: {/* add */
+	    int32_t a = *reinterpret_cast<int32_t*>(&s->gpr[m.r.rs1]);
+	    int32_t b = *reinterpret_cast<int32_t*>(&s->gpr[m.r.rs2]);
+	    int32_t c = a+b;
+	    s->sext_xlen(c, m.r.rd);
+	    break;
+	  }
+	  default:
+	    assert(0);
+	  }
+      }
+      s->pc += 4;
+      break;
+    }      
     case 0x23: {
       int32_t disp = m.s.imm4_0 | (m.s.imm11_5 << 5);
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       int64_t ea = static_cast<int64_t>(disp) + s->gpr[m.s.rs1];
-      //std::cout << "STORE EA " << std::hex << ea << std::dec << "\n";      
+      std::cout << "STORE EA " << std::hex << ea << std::dec << "\n";      
       switch(m.s.sel)
 	{
 	case 0x0: /* sb */
@@ -217,6 +269,7 @@ static inline void execRiscv(state_t *s) {
       s->pc += 4;
       break;
     }
+
       
       //imm[31:12] rd 011 0111 LUI
     case 0x37:
@@ -274,7 +327,7 @@ static inline void execRiscv(state_t *s) {
 	    switch(m.r.special)
 	      {
 	      case 0x0: /* add */
-		s->gpr[m.r.rd] = s->gpr[m.r.rs1] + s->gpr[m.r.rs2];
+		s->sext_xlen(s->gpr[m.r.rs1] + s->gpr[m.r.rs2], m.r.rd);
 		break;
 	      case 0x1: /* mul */
 		s->gpr[m.r.rd] = s->gpr[m.r.rs1] * s->gpr[m.r.rs2];
