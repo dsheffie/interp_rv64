@@ -16,8 +16,8 @@ static const uint64_t MAGIC_NUM = 0xbeefd00d12345670UL;
 
 struct header {
   uint64_t magic;
-  uint32_t pc;
-  int32_t gpr[32];
+  uint64_t pc;
+  int64_t gpr[32];
   uint64_t icnt;
   uint32_t num_nz_pages;
   header() : magic(MAGIC_NUM) {}

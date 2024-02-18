@@ -140,7 +140,7 @@ static inline void execRiscv(state_t *s) {
       simm32 |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       int64_t simm64 = simm32;
       uint32_t subop =(inst>>12)&7;
-      uint32_t shamt = (inst>>20) & 31;
+      uint32_t shamt = (inst>>20) & (s->xlen()-1);
 
       if(rd != 0) {
 	switch(m.i.sel)
@@ -164,15 +164,14 @@ static inline void execRiscv(state_t *s) {
 	    s->gpr[rd] = s->gpr[m.i.rs1] ^ simm32;
 	    break;
 	  case 5: { /* srli & srai */
-	    uint32_t sel =  (inst >> 25) & 127;	    
+	    uint32_t sel =  (inst >> 26) & 127;	    
 	    if(sel == 0) { /* srli */
 	      s->gpr[rd] = (*reinterpret_cast<uint32_t*>(&s->gpr[m.i.rs1]) >> shamt);
 	    }
-	    else if(sel == 32) { /* srai */
+	    else if(sel == 16) { /* srai */
 	      s->gpr[rd] = s->gpr[m.i.rs1] >> shamt;
 	    }
 	    else {
-	      std::cout << "sel = " << sel << "\n";
 	      assert(0);
 	    }
 	    break;
@@ -201,9 +200,9 @@ static inline void execRiscv(state_t *s) {
 	  {
 	  case 0: {
 	    int32_t r = simm32 + *reinterpret_cast<int32_t*>(&s->gpr[m.i.rs1]);
-	    std::cout << std::hex << simm32 << std::dec << "\n";
-	    std::cout << std::hex << s->gpr[m.i.rs1] << std::dec << "\n";
-	    std::cout << std::hex << r << std::dec << "\n";
+	    //std::cout << std::hex << simm32 << std::dec << "\n";
+	    //std::cout << std::hex << s->gpr[m.i.rs1] << std::dec << "\n";
+	    //std::cout << std::hex << r << std::dec << "\n";
 	    s->sext_xlen(r, rd);
 	    break;
 	  }
@@ -248,7 +247,6 @@ static inline void execRiscv(state_t *s) {
       int32_t disp = m.s.imm4_0 | (m.s.imm11_5 << 5);
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       int64_t ea = static_cast<int64_t>(disp) + s->gpr[m.s.rs1];
-      std::cout << "STORE EA " << std::hex << ea << std::dec << "\n";      
       switch(m.s.sel)
 	{
 	case 0x0: /* sb */
