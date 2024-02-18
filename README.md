@@ -1,1 +1,1 @@
-riscv-gnu-toolchain : ./configure --prefix=/opt/riscv --with-arch=rv32im --with-abi=ilp32
+riscv-gnu-toolchain : ./configure --prefix=/opt/riscv64 --with-arch=rv64im --with-abi=lp64 --with-cmodel=medany
