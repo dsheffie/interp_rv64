@@ -22,7 +22,7 @@ LIBS =  $(EXTRA_LD) -lpthread
 
 DEP = $(OBJ:.o=.d)
 OPT = -O3 -std=c++11
-EXE = interp_rv32
+EXE = interp_rv64
 
 .PHONY : all clean
 

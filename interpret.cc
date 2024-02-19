@@ -84,6 +84,7 @@ void execRiscv(state_t *s) {
 	  disp |= 0xfffff000;
 	}
 	int64_t ea = static_cast<int64_t>(disp) + s->gpr[m.l.rs1];
+      
 	switch(m.s.sel)
 	  {
 	  case 0x0: /* lb */
@@ -108,6 +109,11 @@ void execRiscv(state_t *s) {
 	    *reinterpret_cast<uint64_t*>(&s->gpr[m.l.rd]) = b;
 	    break;
 	  }
+	  case 0x6: { /* lwu */
+	    uint32_t b = *reinterpret_cast<uint32_t*>(s->mem + ea);
+	    *reinterpret_cast<uint64_t*>(&s->gpr[m.l.rd]) = b;
+	    break;
+	  }	    
 	  default:
 	    assert(0);
 	  }
@@ -210,9 +216,23 @@ void execRiscv(state_t *s) {
 	    s->sext_xlen(r, rd);
 	    break;
 	  }
-	  case 5: { /* SRAIW */
-	    int32_t r = *reinterpret_cast<int32_t*>(&s->gpr[m.i.rs1]) >> shamt;
-	    s->sext_xlen(r, rd);
+	  case 5: { 
+	    uint32_t sel =  (inst >> 25) & 127;
+	    if(sel == 0) { /* SRLIW */
+	      uint32_t r = *reinterpret_cast<uint32_t*>(&s->gpr[m.i.rs1]) >> shamt;
+	      int32_t rr =  *reinterpret_cast<int32_t*>(&r);
+	      //std::cout << std::hex << *reinterpret_cast<uint32_t*>(&s->gpr[m.i.rs1])
+	      //<< std::dec << "\n";
+	      //std::cout << "rr = " << std::hex << rr << std::dec << "\n";
+	      s->sext_xlen(rr, rd);
+	    }
+	    else if(sel == 32){ /* SRAIW */
+	      int32_t r = *reinterpret_cast<int32_t*>(&s->gpr[m.i.rs1]) >> shamt;
+	      s->sext_xlen(r, rd);	      
+	    }
+	    else {
+	      assert(0);
+	    }
 	    break;	    
 	  }
 	  default:
@@ -248,7 +268,29 @@ void execRiscv(state_t *s) {
 	else if((m.r.sel == 4) & (m.r.special == 1)) { /* divw */
 	  int32_t c = a/b;
 	  s->sext_xlen(c, m.r.rd);
-	}	
+	}
+	else if((m.r.sel == 5) & (m.r.special == 1)) { /* divuw */
+	  uint32_t aa = s->get_reg_u32(m.r.rs1);
+	  uint32_t bb = s->get_reg_u32(m.r.rs2);
+	  uint32_t c = aa/bb;
+	  int32_t rr =  *reinterpret_cast<int32_t*>(&c);
+	  s->sext_xlen(rr, m.r.rd);
+	}
+	else if((m.r.sel == 6) & (m.r.special == 1)) { /* remw */
+	  int32_t c = a % b;
+	  s->sext_xlen(c, m.r.rd);
+	}
+	else if((m.r.sel == 7) & (m.r.special == 1)) { /* remuw */
+	  uint32_t aa = s->get_reg_u32(m.r.rs1);
+	  uint32_t bb = s->get_reg_u32(m.r.rs2);
+	  uint32_t c = aa%bb;
+	  int32_t rr =  *reinterpret_cast<int32_t*>(&c);
+	  s->sext_xlen(rr, m.r.rd);
+	}
+	else if((m.r.sel == 5) & (m.r.special == 32)) { /* sraw */
+	  int32_t c = a >> (s->gpr[m.r.rs2]&31);
+	  s->sext_xlen(c, m.r.rd);	  
+	}
 	else {
 	  std::cout << "special = " << m.r.special << "\n";
 	  std::cout << "sel = " << m.r.sel << "\n";
