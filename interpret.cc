@@ -241,11 +241,11 @@ void execRiscv(state_t *s) {
 	  int32_t c = a-b;
 	  s->sext_xlen(c, m.r.rd);
 	} 
-	else if((m.r.sel == 1) & (m.r.special == 0)) { /* slliw */
-	  int32_t c = a << m.r.rs2;
+	else if((m.r.sel == 1) & (m.r.special == 0)) { /* sllw */
+	  int32_t c = a << (s->gpr[m.r.rs2]&31);
 	  s->sext_xlen(c, m.r.rd);
 	}
-	else if((m.r.sel == 4) & (m.r.special == 1)) { /* subw */
+	else if((m.r.sel == 4) & (m.r.special == 1)) { /* divw */
 	  int32_t c = a/b;
 	  s->sext_xlen(c, m.r.rd);
 	}	
@@ -454,6 +454,9 @@ void execRiscv(state_t *s) {
 		break;
 	      case 0x1: { /* remu */
 		*reinterpret_cast<uint64_t*>(&s->gpr[m.r.rd]) = u_rs1 % u_rs2;
+		//std::cout << std::hex << u_rs1 << std::dec << "\n";
+		//std::cout << std::hex << u_rs2 << std::dec << "\n";
+		//std::cout << std::hex << (u_rs1 % u_rs2) << std::dec << "\n";
 		break;
 	      }
 	      default:
@@ -609,7 +612,10 @@ void handle_syscall(state_t *s, uint64_t tohost) {
       break;
     }
     case SYS_close: {
-      buf[0] = close(buf[1]);
+      buf[0] = 0;
+      if(buf[1] > 2) {
+	buf[0] = close(buf[1]);
+      }
       break;
     }
     case SYS_read: {
