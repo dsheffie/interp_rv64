@@ -17,7 +17,7 @@
 #include <fstream>
 #include <boost/program_options.hpp>
 
-#include "loadelf.hh"
+#include "elf.hh"
 #include "helper.hh"
 #include "disassemble.hh"
 #include "interpret.hh"
@@ -75,12 +75,12 @@ int main(int argc, char *argv[]) {
   try {
     po::options_description desc("Options");
     desc.add_options() 
-      ("help", "Print help messages") 
-      ("args,a", po::value<std::string>(&sysArgs), "arguments to rv32 binary") 
-      ("hash,h", po::value<bool>(&hash)->default_value(false), "hash memory at end of execution")
+      ("help,h", "Print help messages") 
+      ("args,a", po::value<std::string>(&sysArgs), "arguments to riscv binary") 
+      ("hash", po::value<bool>(&hash)->default_value(false), "hash memory at end of execution")
       ("file,f", po::value<std::string>(&filename), "rv32 binary")
-      ("maxicnt,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
-      ("dumpicnt", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
+      ("max,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
+      ("dump", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
       ("log,l", po::value<bool>(&globals::log)->default_value(false), "log instructions")
       ; 
@@ -96,7 +96,7 @@ int main(int argc, char *argv[]) {
   
   if(not(globals::silent)) {
     std::cerr << KGRN
-	      << "RV32 INTERP : built "
+	      << "RISCV64 ISS : built "
 	      << __DATE__ << " " << __TIME__
 	      << ",pid="<< getpid() << "\n"
 	      << "git hash=" << githash

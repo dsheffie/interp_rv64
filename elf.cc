@@ -28,6 +28,25 @@
 
 static const uint8_t magicArr[4] = {0x7f, 'E', 'L', 'F'};
 
+static void findNZPages(std::vector<bool> &b, uint8_t *mem, uint64_t sz) {
+  static const uint64_t pgsz = 4096;
+  for(uint64_t i = 0; i < sz; i+=pgsz) {
+    uint64_t *v = reinterpret_cast<uint64_t*>(mem+i);
+    bool nz = false;
+    for(uint64_t ii = i; ii < (i+pgsz); ii+=sizeof(uint64_t)) {
+      if(*v != 0) {
+	nz = true;
+	break;
+      }
+      v++;
+    }
+    if(nz) {
+      std::cout << "page starting at "  << std::hex << i << std::dec << " not zero\n";
+      b.at(i/4096) = true;
+    }
+  }
+}
+
 bool checkElf(const Elf64_Ehdr *eh) {
   const uint8_t *identArr = reinterpret_cast<const uint8_t*>(eh->e_ident);
   return memcmp((void*)magicArr, identArr, 4)==0;
@@ -86,7 +105,7 @@ void load_elf(const char* fn, state_t *ms) {
   assert(checkLittleEndian(eh));
 
   if((eh->e_machine) != 243) {
-    printf("INTERP : non-rv32 binary..goodbye got type %d\n", (eh->e_machine));
+    printf("INTERP : non-rv32 binary..goodbye got type %d\n", eh->e_machine);
     exit(-1);
   }
 
