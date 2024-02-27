@@ -2,6 +2,7 @@
 #include <cstdint>
 #include <cassert>
 #include <cstring>
+#include <iostream>
 #include <unistd.h>
 #include <fcntl.h>
 #include "interpret.hh"
@@ -42,7 +43,12 @@ void dumpState(const state_t &s, const std::string &filename) {
   int fd = ::open(filename.c_str(), O_RDWR|O_CREAT|O_TRUNC, 0600);
   assert(fd != -1);
   h.pc = s.pc;
+  
+
+  static_assert(sizeof(s.gpr)==sizeof(h.gpr), "mistakes were made");
   memcpy(&h.gpr,&s.gpr,sizeof(s.gpr));
+
+  
   h.icnt = s.icnt;
   h.num_nz_pages = nz_pages.count();
   ssize_t wb = write(fd, &h, sizeof(h));
