@@ -6,6 +6,7 @@
 #include <unistd.h>
 #include <fcntl.h>
 #include "interpret.hh"
+#include "globals.hh"
 
 struct page {
   uint32_t va;
@@ -21,6 +22,9 @@ struct header {
   int64_t gpr[32];
   uint64_t icnt;
   uint32_t num_nz_pages;
+  uint64_t tohost_addr;
+  uint64_t fromhost_addr;
+
   header() : magic(MAGIC_NUM) {}
 } __attribute__((packed));
 
@@ -51,6 +55,9 @@ void dumpState(const state_t &s, const std::string &filename) {
   
   h.icnt = s.icnt;
   h.num_nz_pages = nz_pages.count();
+  h.tohost_addr = globals::tohost_addr;
+  h.fromhost_addr = globals::fromhost_addr;
+
   ssize_t wb = write(fd, &h, sizeof(h));
   assert(wb == sizeof(h));
 
