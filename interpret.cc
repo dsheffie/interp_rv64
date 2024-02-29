@@ -4,15 +4,6 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
-#include <fcntl.h>
-#include <unistd.h>
-#include <sys/time.h>
-#include <sys/times.h>
-#include <sys/mman.h>
-#include <sys/types.h>
-#include <sys/stat.h>
-#include <map>
-#include <stack>
 
 #include "interpret.hh"
 #include "disassemble.hh"
@@ -32,12 +23,6 @@ std::ostream &operator<<(std::ostream &out, const state_t & s) {
   out << "icnt : " << s.icnt << "\n";
   return out;
 }
-
-void initState(state_t *s) {
-  memset(s, 0, sizeof(state_t));
-}
-
-
 
 void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
@@ -142,15 +127,18 @@ void execRiscv(state_t *s) {
 
       simm32 |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       int64_t simm64 = simm32;
+      //sign extend!
+      simm64 = (simm64 <<32) >> 32;
       uint32_t subop =(inst>>12)&7;
       uint32_t shamt = (inst>>20) & (s->xlen()-1);
 
       if(rd != 0) {
 	switch(m.i.sel)
 	  {
-	  case 0: /* addi */
-	    s->sext_xlen((s->gpr[m.i.rs1] + simm64), rd);
+	  case 0: {/* addi */
+	    s->sext_xlen(s->gpr[m.i.rs1] + simm64, rd);
 	    break;
+	  }
 	  case 1: /* slli */
 	    s->sext_xlen((*reinterpret_cast<uint64_t*>(&s->gpr[m.i.rs1])) << shamt, rd);
 	    break;
@@ -344,7 +332,9 @@ void execRiscv(state_t *s) {
     case 0x17: /* is this sign extended */
       if(rd != 0) {
 	int64_t imm = inst & (~4095);
-	s->sext_xlen(s->pc + imm, rd);
+	imm = (imm << 32) >> 32;
+	int64_t y = s->pc + imm;
+	s->sext_xlen(y, rd);
       }
       s->pc += 4;
       break;
@@ -354,6 +344,7 @@ void execRiscv(state_t *s) {
       int32_t tgt = m.jj.imm11_0;
       tgt |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       int64_t tgt64 = tgt;
+      tgt64 = (tgt64<<32)>>32;
       tgt64 += s->gpr[m.jj.rs1];
       tgt64 &= ~(1UL);
       if(m.jj.rd != 0) {
@@ -367,16 +358,18 @@ void execRiscv(state_t *s) {
       
       //imm[20|10:1|11|19:12] rd 1101111 JAL
     case 0x6f: {
-      int32_t jaddr =
+      int32_t jaddr32 =
 	(m.j.imm10_1 << 1)   |
 	(m.j.imm11 << 11)    |
 	(m.j.imm19_12 << 12) |
 	(m.j.imm20 << 20);
-      jaddr |= ((inst>>31)&1) ? 0xffe00000 : 0x0;
+      jaddr32 |= ((inst>>31)&1) ? 0xffe00000 : 0x0;
+      int64_t jaddr = jaddr32;
+      jaddr = (jaddr << 32) >> 32;
       if(rd != 0) {
 	s->gpr[rd] = s->pc + 4;
       }
-      s->pc += static_cast<int64_t>(jaddr);
+      s->pc += jaddr;
       break;
     }
     case 0x33: {      
@@ -437,8 +430,8 @@ void execRiscv(state_t *s) {
 		s->gpr[m.r.rd] = u_rs1 < u_rs2;
 		break;
 	      case 0x1: {/* MULHU */
-		uint64_t t = static_cast<uint64_t>(u_rs1) * static_cast<uint64_t>(u_rs2);
-		*reinterpret_cast<uint32_t*>(&s->gpr[m.r.rd]) = (t>>32);
+		__uint128_t t = static_cast<__uint128_t>(u_rs1) * static_cast<__uint128_t>(u_rs2);
+		*reinterpret_cast<uint64_t*>(&s->gpr[m.r.rd]) = (t>>64);
 		break;
 	      }
 	      default:
@@ -528,15 +521,17 @@ void execRiscv(state_t *s) {
     imm[12|10:5] rs2 rs1 111 imm[4:1|11] 1100011 BGEU
 #endif
     case 0x63: {
-      int32_t disp =
+      int32_t disp32 =
 	(m.b.imm4_1 << 1)  |
 	(m.b.imm10_5 << 5) |	
         (m.b.imm11 << 11)  |
         (m.b.imm12 << 12);
-      disp |= m.b.imm12 ? 0xffffe000 : 0x0;
+      disp32 |= m.b.imm12 ? 0xffffe000 : 0x0;
+      int64_t disp = disp32;
+      disp = (disp << 32) >> 32;
       bool takeBranch = false;
-      uint32_t u_rs1 = *reinterpret_cast<uint32_t*>(&s->gpr[m.b.rs1]);
-      uint32_t u_rs2 = *reinterpret_cast<uint32_t*>(&s->gpr[m.b.rs2]);
+      uint64_t u_rs1 = *reinterpret_cast<uint64_t*>(&s->gpr[m.b.rs1]);
+      uint64_t u_rs2 = *reinterpret_cast<uint64_t*>(&s->gpr[m.b.rs2]);
       switch(m.b.sel)
 	{
 	case 0: /* beq */
@@ -631,100 +626,3 @@ void runRiscv(state_t *s, uint64_t dumpIcnt) {
   }
 }
 
-void handle_syscall(state_t *s, uint64_t tohost) {
-  uint8_t *mem = s->mem;  
-  if(tohost & 1) {
-    /* exit */
-    s->brk = 1;
-    return;
-  }
-  uint64_t *buf = reinterpret_cast<uint64_t*>(mem + tohost);
-  switch(buf[0])
-    {
-    case SYS_write: /* int write(int file, char *ptr, int len) */
-      //std::cout << "got write syscall, fd = " << buf[1] << ", ptr = "
-      //<< std::hex << buf[2] << std::dec
-      //<< ", len = " << buf[3] << "\n";
-
-      
-      buf[0] = write(buf[1], (void*)(s->mem + buf[2]), buf[3]);
-      if(buf[1]==1)
-	fflush(stdout);
-      else if(buf[1]==2)
-	fflush(stderr);
-      break;
-    case SYS_open: {
-      const char *path = reinterpret_cast<const char*>(s->mem + buf[1]);
-      buf[0] = open(path, remapIOFlags(buf[2]), S_IRUSR|S_IWUSR);
-      break;
-    }
-    case SYS_close: {
-      buf[0] = 0;
-      if(buf[1] > 2) {
-	buf[0] = close(buf[1]);
-      }
-      break;
-    }
-    case SYS_read: {
-      buf[0] = read(buf[1], reinterpret_cast<char*>(s->mem + buf[2]), buf[3]); 
-      break;
-    }
-    case SYS_lseek: {
-      buf[0] = lseek(buf[1], buf[2], buf[3]);
-      break;
-    }
-    case SYS_fstat : {
-      struct stat native_stat;
-      stat32_t *host_stat = reinterpret_cast<stat32_t*>(s->mem + buf[2]);
-      int rc = fstat(buf[1], &native_stat);
-      host_stat->st_dev = native_stat.st_dev;
-      host_stat->st_ino = native_stat.st_ino;
-      host_stat->st_mode = native_stat.st_mode;
-      host_stat->st_nlink = native_stat.st_nlink;
-      host_stat->st_uid = native_stat.st_uid;
-      host_stat->st_gid = native_stat.st_gid;
-      host_stat->st_size = native_stat.st_size;
-      host_stat->_st_atime = native_stat.st_atime;
-      host_stat->_st_mtime = 0;
-      host_stat->_st_ctime = 0;
-      host_stat->st_blksize = native_stat.st_blksize;
-      host_stat->st_blocks = native_stat.st_blocks;
-      buf[0] = rc;
-      break;
-    }
-    case SYS_stat : {
-      buf[0] = 0;
-      break;
-    }
-    case SYS_gettimeofday: {
-      static_assert(sizeof(struct timeval)==16, "struct timeval size");
-      struct timeval *tp = reinterpret_cast<struct timeval*>(s->mem + buf[1]);
-      struct timezone *tzp = reinterpret_cast<struct timezone*>(s->mem + buf[2]);
-      buf[0] = gettimeofday(tp, tzp);
-      break;
-    }
-    case SYS_times: {
-      struct tms32 {
-	uint32_t tms_utime;
-	uint32_t tms_stime;  /* system time */
-	uint32_t tms_cutime; /* user time of children */
-	uint32_t tms_cstime; /* system time of children */
-      };
-      tms32 *t = reinterpret_cast<tms32*>(s->mem + buf[1]);
-      struct tms tt;
-      buf[0] = times(&tt);
-      t->tms_utime = tt.tms_utime;
-      t->tms_stime = tt.tms_stime;
-      t->tms_cutime = tt.tms_cutime;
-      t->tms_cstime = tt.tms_cstime;
-      break;
-    }
-    default:
-      std::cout << "syscall " << buf[0] << " unsupported\n";
-      std::cout << *s << "\n";
-      exit(-1);
-    }
-  //ack
-  *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr) = 0;
-  *reinterpret_cast<uint64_t*>(mem + globals::fromhost_addr) = 1;
-}
