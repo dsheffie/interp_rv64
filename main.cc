@@ -25,6 +25,9 @@
 #include "globals.hh"
 
 extern const char* githash;
+
+void load_raw(const char* fn, state_t *ms, uint64_t where = 0x80000000);
+
 uint64_t globals::tohost_addr = 0;
 uint64_t globals::fromhost_addr = 0;
 bool globals::log = false;
@@ -70,7 +73,7 @@ int main(int argc, char *argv[]) {
   size_t pgSize = getpagesize();
   std::string sysArgs, filename;
   uint64_t maxinsns = ~(0UL), dumpIcnt = ~(0UL);
-  bool hash = false;
+  bool hash = false, raw = false;
 
   try {
     po::options_description desc("Options");
@@ -83,6 +86,7 @@ int main(int argc, char *argv[]) {
       ("dump", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
       ("log,l", po::value<bool>(&globals::log)->default_value(false), "log instructions")
+      ("raw,r", po::value<bool>(&raw)->default_value(false), "load raw binary")
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -128,8 +132,12 @@ int main(int argc, char *argv[]) {
     std::cerr << "INTERP : couldn't allocate backing memory!\n";
     exit(-1);
   }
-  
-  load_elf(filename.c_str(), s);
+  if(raw) {
+    load_raw(filename.c_str(), s);
+  }
+  else {
+    load_elf(filename.c_str(), s);
+  }
   initCapstone();
 
   double runtime = timestamp();

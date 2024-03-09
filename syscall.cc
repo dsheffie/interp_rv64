@@ -53,7 +53,6 @@ void handle_syscall(state_t *s, uint64_t tohost) {
     }
     case SYS_close: {
       buf[0] = 0;
-      std::cout << "close " << buf[1] << "\n";
       if(buf[1] > 2) {
 	buf[0] = close(buf[1]);
       }

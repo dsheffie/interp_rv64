@@ -24,6 +24,17 @@ std::ostream &operator<<(std::ostream &out, const state_t & s) {
   return out;
 }
 
+static int64_t read_csr(int csr_id, state_t *s) {
+  switch(csr_id)
+    {
+    case 0xc00:
+      return s->icnt;
+    default:
+      break;
+    }
+  return 0;
+}
+
 void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
 
@@ -566,27 +577,38 @@ void execRiscv(state_t *s) {
       break;
     }
 
-    case 0x73:
-      if((inst >> 7) == 0) {
+    case 0x73: {
+      uint32_t csr_id = (inst>>20);
+      bool is_ecall = ((inst >> 7) == 0);
+      bool is_ebreak = ((inst>>7) == 0x2000);
+      
+      if(is_ecall) {
 	s->brk = 1;
       }
-      else if( ((inst >> 12) & 3) == 2) {
-	switch(inst>>20)
-	  {
-	  case 0xc00:
-	    s->gpr[(inst>>7) & 31] = s->icnt;
-	    break;
-	  default:
-	    break;
-	  }
-	    
-	s->pc += 4;
+      else if(is_ebreak) {
+	/* used as monitor in RTL */
       }
       else {
-	s->pc += 4;
+	switch((inst>>12) & 7)
+	  {
+	  case 1: /* CSRRW */
+	    assert(false);
+	  case 2: /* CSRRS */
+	    s->gpr[(inst>>7) & 31] = read_csr(csr_id, s);
+	    break;
+	  case 3: /* CSRRC */
+	  case 5: /* CSRRWI */
+	  case 6: /* CSRRSI */
+	  case 7: /* CSRRCI */
+	  default:
+	    assert(false);
+	    break;
+	  }
       }
+      s->pc += 4;
       break;
-    
+    }
+      
     default:
       std::cout << std::hex << s->pc << std::dec
 		<< " : " << getAsmString(inst, s->pc)
