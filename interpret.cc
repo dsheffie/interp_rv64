@@ -27,9 +27,16 @@ std::ostream &operator<<(std::ostream &out, const state_t & s) {
 static int64_t read_csr(int csr_id, state_t *s) {
   switch(csr_id)
     {
+    case 0x301: /* misa */
+      return 2; /* 64b riscv only */
+    case 0xf14:
+      return s->mhartid;
     case 0xc00:
       return s->icnt;
+      
     default:
+      printf("csr id %x unimplemented\n", csr_id);
+      assert(false);
       break;
     }
   return 0;
@@ -40,6 +47,9 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
     {
     case 0x340:
       s->mscratch = v;
+      break;
+    default:
+      assert(false);
       break;
     }
 }
@@ -90,7 +100,7 @@ void execRiscv(state_t *s) {
 	  disp |= 0xfffff000;
 	}
 	int64_t ea = static_cast<int64_t>(disp) + s->gpr[m.l.rs1];
-      
+	//std::cout << std::hex << ea << std::dec << "\n";
 	switch(m.s.sel)
 	  {
 	  case 0x0: /* lb */
@@ -614,6 +624,7 @@ void execRiscv(state_t *s) {
 	    break;
 	  }
 	  case 2: /* CSRRS */
+	    assert(rs == 0);
 	    s->gpr[rd] = read_csr(csr_id, s);
 	    break;
 	  case 3: /* CSRRC */
