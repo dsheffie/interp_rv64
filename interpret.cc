@@ -35,6 +35,15 @@ static int64_t read_csr(int csr_id, state_t *s) {
   return 0;
 }
 
+static void write_csr(int csr_id, state_t *s, int64_t v) {
+  switch(csr_id)
+    {
+    case 0x340:
+      s->mscratch = v;
+      break;
+    }
+}
+
 void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
 
@@ -589,12 +598,23 @@ void execRiscv(state_t *s) {
 	/* used as monitor in RTL */
       }
       else {
+	int rd = (inst>>7) & 31;
+        int rs = (inst >> 15) & 31;
 	switch((inst>>12) & 7)
 	  {
-	  case 1: /* CSRRW */
-	    assert(false);
+	  case 1: { /* CSRRW */
+	    int64_t v = 0;
+	    if(rd != 0) {
+	      v = read_csr(csr_id, s);
+	    }
+	    write_csr(csr_id, s, s->gpr[rs]);
+	    if(rd != 0) {
+	      s->gpr[rd] = v;
+	    }
+	    break;
+	  }
 	  case 2: /* CSRRS */
-	    s->gpr[(inst>>7) & 31] = read_csr(csr_id, s);
+	    s->gpr[rd] = read_csr(csr_id, s);
 	    break;
 	  case 3: /* CSRRC */
 	  case 5: /* CSRRWI */
