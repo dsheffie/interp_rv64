@@ -4,14 +4,84 @@
 #include <cstdlib>
 #include <cstring>
 #include <limits>
+#include <set>
 
 #include "interpret.hh"
 #include "disassemble.hh"
 #include "helper.hh"
 #include "globals.hh"
 
+/* stolen from tinyemu */
+#define MSTATUS_SPIE_SHIFT 5
+#define MSTATUS_MPIE_SHIFT 7
+#define MSTATUS_SPP_SHIFT 8
+#define MSTATUS_MPP_SHIFT 11
+#define MSTATUS_FS_SHIFT 13
+#define MSTATUS_UXL_SHIFT 32
+#define MSTATUS_SXL_SHIFT 34
+#define MSTATUS_UIE (1 << 0)
+#define MSTATUS_SIE (1 << 1)
+#define MSTATUS_HIE (1 << 2)
+#define MSTATUS_MIE (1 << 3)
+#define MSTATUS_UPIE (1 << 4)
+#define MSTATUS_SPIE (1 << MSTATUS_SPIE_SHIFT)
+#define MSTATUS_HPIE (1 << 6)
+#define MSTATUS_MPIE (1 << MSTATUS_MPIE_SHIFT)
+#define MSTATUS_SPP (1 << MSTATUS_SPP_SHIFT)
+#define MSTATUS_HPP (3 << 9)
+#define MSTATUS_MPP (3 << MSTATUS_MPP_SHIFT)
+#define MSTATUS_FS (3 << MSTATUS_FS_SHIFT)
+#define MSTATUS_XS (3 << 15)
+#define MSTATUS_MPRV (1 << 17)
+#define MSTATUS_SUM (1 << 18)
+#define MSTATUS_MXR (1 << 19)
+#define MSTATUS_UXL_MASK ((uint64_t)3 << MSTATUS_UXL_SHIFT)
+#define MSTATUS_SXL_MASK ((uint64_t)3 << MSTATUS_SXL_SHIFT)
+
+#define MSTATUS_MASK (MSTATUS_UIE | MSTATUS_SIE | MSTATUS_MIE |		\
+                      MSTATUS_UPIE | MSTATUS_SPIE | MSTATUS_MPIE |	\
+                      MSTATUS_SPP | MSTATUS_MPP |			\
+                      MSTATUS_FS |					\
+                      MSTATUS_MPRV | MSTATUS_SUM | MSTATUS_MXR )
 
 
+static std::set<int> written_csrs;
+
+void initState(state_t *s) {
+  memset(s, 0, sizeof(state_t));
+  s->misa = 0x800000000014112dL;
+  s->priv = priv_machine;
+  s->mstatus = ((uint64_t)2 << MSTATUS_UXL_SHIFT) |((uint64_t)2 << MSTATUS_SXL_SHIFT);
+  written_csrs.insert(0x301);
+  written_csrs.insert(0xf14);
+}
+
+
+static void set_priv(state_t *s, int priv) {
+  if (s->priv != priv) {
+    //tlb_flush_all(s);
+    int mxl;
+    if (priv == priv_supervisor) {
+      mxl = (s->mstatus >> MSTATUS_SXL_SHIFT) & 3;
+      assert(mxl == 2);
+    }
+    else if (priv == priv_user) {
+      mxl = (s->mstatus >> MSTATUS_UXL_SHIFT) & 3;
+      assert(mxl == 2);
+    }
+  }
+  s->priv = static_cast<riscv_priv>(priv);
+}
+
+static void set_mstatus(state_t *s, int64_t v) {
+  int64_t mask = MSTATUS_MASK;
+  s->mstatus = (s->mstatus & ~mask) | (v & mask);
+  //std::cout << "write mstatus = " << std::hex << s->mstatus << std::dec << "\n";  
+}
+    
+
+
+/* shitty dsheffie code */
 std::ostream &operator<<(std::ostream &out, const state_t & s) {
   using namespace std;
   out << "PC : " << hex << s.last_pc << dec << "\n";
@@ -25,6 +95,10 @@ std::ostream &operator<<(std::ostream &out, const state_t & s) {
 }
 
 static int64_t read_csr(int csr_id, state_t *s) {
+  if(written_csrs.find(csr_id) == written_csrs.end()) {
+    std::cout << std::hex << "reading msr " << csr_id << std::dec << " before writing\n";
+    assert(false);
+  }
   switch(csr_id)
     {
     case 0x300:
@@ -61,6 +135,7 @@ static int64_t read_csr(int csr_id, state_t *s) {
 }
 
 static void write_csr(int csr_id, state_t *s, int64_t v) {
+  written_csrs.insert(csr_id);
   switch(csr_id)
     {
     case 0x106:
@@ -70,7 +145,7 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
       s->satp = v;
       break;
     case 0x300:
-      s->mstatus = v;
+      set_mstatus(s,v);
       break;
     case 0x301:
       s->misa = v;
@@ -746,7 +821,19 @@ void execRiscv(state_t *s) {
 	assert(false);
       }            
       else if(bits19to7z and (csr_id == 0x302)) {  /* mret */
-	assert(false);
+	/* stolen from tinyemu */
+	int mpp = (s->mstatus >> MSTATUS_MPP_SHIFT) & 3;
+	/* set the IE state to previous IE state */
+	int mpie = (s->mstatus >> MSTATUS_MPIE_SHIFT) & 1;
+	s->mstatus = (s->mstatus & ~(1 << mpp)) |(mpie << mpp);
+	/* set MPIE to 1 */
+	s->mstatus |= MSTATUS_MPIE;
+	/* set MPP to U */
+	s->mstatus &= ~MSTATUS_MPP;
+	set_priv(s, mpp);
+	s->pc = s->mepc;
+	//std::cout << "mret jump to " << std::hex << s->pc << std::dec << "\n";
+	break;
       }
       else if(is_ebreak) {
 	/* used as monitor in RTL */

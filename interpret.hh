@@ -10,6 +10,14 @@
 
 #define MARGS 20
 
+enum riscv_priv {
+  priv_user = 0,
+  priv_supervisor,
+  priv_hypervisor,
+  priv_machine,
+};
+
+
 struct state_t{
   uint64_t pc;
   uint64_t last_pc;
@@ -20,6 +28,7 @@ struct state_t{
   uint64_t epc;
   uint64_t maxicnt;
   uint64_t icnt;
+  riscv_priv priv;
   /* lots of CSRs */
   int64_t mstatus;
   int64_t misa;

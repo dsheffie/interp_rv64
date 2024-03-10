@@ -19,10 +19,6 @@
 #include "helper.hh"
 #include "globals.hh"
 
-void initState(state_t *s) {
-  memset(s, 0, sizeof(state_t));
-  s->misa = 0x800000000014112dL;
-}
 
 void handle_syscall(state_t *s, uint64_t tohost) {
   uint8_t *mem = s->mem;  
