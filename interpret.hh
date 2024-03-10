@@ -20,9 +20,25 @@ struct state_t{
   uint64_t epc;
   uint64_t maxicnt;
   uint64_t icnt;
+  /* lots of CSRs */
+  int64_t mstatus;
+  int64_t misa;
+  int64_t mideleg;
+  int64_t medeleg;
   int64_t mscratch;
   int64_t mhartid;
   int64_t mtvec;
+  int64_t mcounteren;
+  int64_t mie;
+  int64_t mip;
+  int64_t mepc;
+  int64_t satp;
+  int64_t scounteren;
+  int64_t pmpaddr0;
+  int64_t pmpaddr1;
+  int64_t pmpaddr2;
+  int64_t pmpaddr3;
+  int64_t pmpcfg0;
   int xlen() const {
     return 64;
   }

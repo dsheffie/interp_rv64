@@ -27,18 +27,33 @@ std::ostream &operator<<(std::ostream &out, const state_t & s) {
 static int64_t read_csr(int csr_id, state_t *s) {
   switch(csr_id)
     {
+    case 0x300:
+      return s->mstatus;
     case 0x301: /* misa */
-      return 0x800000000014112dL; /* 64b riscv only */
+      return s->misa;
+    case 0x302:
+      return s->medeleg;
+    case 0x303:
+      return s->mideleg;
     case 0x305:
       return s->mtvec;
-      break;
+    case 0x341:
+      return s->mepc;
     case 0xf14:
       return s->mhartid;
+    case 0x3b0:
+      return s->pmpaddr0;
+    case 0x3b1:
+      return s->pmpaddr1;      
+    case 0x3b2:
+      return s->pmpaddr2;
+    case 0x3b3:
+      return s->pmpaddr3;      
     case 0xc00:
       return s->icnt;
       
     default:
-      printf("rd csr id %x unimplemented\n", csr_id);
+      printf("rd csr id 0x%x unimplemented\n", csr_id);
       assert(false);
       break;
     }
@@ -48,14 +63,59 @@ static int64_t read_csr(int csr_id, state_t *s) {
 static void write_csr(int csr_id, state_t *s, int64_t v) {
   switch(csr_id)
     {
+    case 0x106:
+      s->scounteren = v;
+      break;
+    case 0x180:
+      s->satp = v;
+      break;
+    case 0x300:
+      s->mstatus = v;
+      break;
+    case 0x301:
+      s->misa = v;
+      break;
+    case 0x302:
+      s->medeleg = v;
+      break;
+    case 0x303:
+      s->mideleg = v;
+      break;
+    case 0x304:
+      s->mie = v;
+      break;
     case 0x305:
       s->mtvec = v;
+      break;
+    case 0x306:
+      s->mcounteren = v;
       break;
     case 0x340:
       s->mscratch = v;
       break;
+    case 0x341:
+      s->mepc = v;
+      break;
+    case 0x344:
+      s->mip = v;
+      break;
+    case 0x3a0:
+      s->pmpcfg0 = v;
+      break;
+    case 0x3b0:
+      s->pmpaddr0 = v;
+      break;
+    case 0x3b1:
+      s->pmpaddr1 = v;
+      break;
+    case 0x3b2:
+      s->pmpaddr2 = v;
+      break;
+    case 0x3b3:
+      s->pmpaddr3 = v;
+      break;                  
     default:
-      printf("wr csr id %x unimplemented\n", csr_id);
+      printf("wr csr id 0x%x unimplemented\n", csr_id);
       assert(false);
       break;
     }
@@ -116,6 +176,15 @@ void execRiscv(state_t *s) {
 	  s->sext_xlen(s->gpr[rd] + simm64, rd);
 	}
 	s->pc += 2;
+	break;
+      case 0xd:
+	if(rd == 2) {
+	  assert(0);
+	}
+	else if(rd != 0) { /* lui */
+	  assert(0);
+	}
+	s->pc += 2;	
 	break;
       case 0x12: /* jr, mv, ebreak, jalr, or add */
 	if((cinst>>12) & 1) { /* ebreak, jalr, add */
@@ -693,8 +762,20 @@ void execRiscv(state_t *s) {
 	    }
 	    //std::cout << "read " << std::hex << s->gpr[rd]  << std::dec << "\n";
 	    break;
-	  case 3: /* CSRRC */
-	  case 5: /* CSRRWI */
+	  case 3: {/* CSRRC */
+	    int64_t t = read_csr(csr_id, s);
+	    if(rs != 0) {
+	      write_csr(csr_id, s, t & (~s->gpr[rs]));
+	    }
+	    s->gpr[rd] = t;
+	    break;
+	  }
+	  case 5: {/* CSRRWI */
+	    assert(rd == 0);
+	    write_csr(csr_id, s, rs);
+	    break;
+	  }
+	    
 	  case 6: /* CSRRSI */
 	  case 7: /* CSRRCI */
 	  default:
