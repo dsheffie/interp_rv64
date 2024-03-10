@@ -22,6 +22,7 @@ struct state_t{
   uint64_t icnt;
   int64_t mscratch;
   int64_t mhartid;
+  int64_t mtvec;
   int xlen() const {
     return 64;
   }

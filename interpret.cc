@@ -28,14 +28,17 @@ static int64_t read_csr(int csr_id, state_t *s) {
   switch(csr_id)
     {
     case 0x301: /* misa */
-      return 2; /* 64b riscv only */
+      return 0x800000000014112dL; /* 64b riscv only */
+    case 0x305:
+      return s->mtvec;
+      break;
     case 0xf14:
       return s->mhartid;
     case 0xc00:
       return s->icnt;
       
     default:
-      printf("csr id %x unimplemented\n", csr_id);
+      printf("rd csr id %x unimplemented\n", csr_id);
       assert(false);
       break;
     }
@@ -45,10 +48,14 @@ static int64_t read_csr(int csr_id, state_t *s) {
 static void write_csr(int csr_id, state_t *s, int64_t v) {
   switch(csr_id)
     {
+    case 0x305:
+      s->mtvec = v;
+      break;
     case 0x340:
       s->mscratch = v;
       break;
     default:
+      printf("wr csr id %x unimplemented\n", csr_id);
       assert(false);
       break;
     }
@@ -67,13 +74,15 @@ void execRiscv(state_t *s) {
   if(tohost) {
     handle_syscall(s, tohost);
   }
-
+  uint32_t lop = (opcode & 3);
 
   if(globals::log) {
     std::cout << std::hex << s->pc << std::dec
 	      << " : " << getAsmString(inst, s->pc)
 	      << " , opcode " << std::hex
 	      << opcode
+	      << " , op "
+	      << lop
 	      << std::dec
 	      << " , icnt " << s->icnt
 	      << "\n";
@@ -91,6 +100,58 @@ void execRiscv(state_t *s) {
   memcpy(old_gpr, s->gpr, sizeof(old_gpr));
 #endif
 
+  if(lop != 3) {
+    uint16_t cinst = *reinterpret_cast<uint16_t*>(mem + s->pc);
+    std::cout << std::hex <<cinst << std::dec << "\n";
+    uint16_t cop = cinst >> 13;
+    uint16_t oix = (cop << 2) | lop;
+    uint16_t rd = (cinst >> 7) & 31;
+    uint16_t rs2 = ((cinst >> 2) & 31);
+    switch(oix)
+      {
+      case 1: /* nop or addi*/
+	if(cinst != 1) {
+	  int64_t simm64 = ((cinst >> 2) & 31) | ((cinst & 4096) >> 7);
+	  simm64 = (simm64 << 58)>>58;
+	  s->sext_xlen(s->gpr[rd] + simm64, rd);
+	}
+	s->pc += 2;
+	break;
+      case 0x12: /* jr, mv, ebreak, jalr, or add */
+	if((cinst>>12) & 1) { /* ebreak, jalr, add */
+	  assert(0);
+	}
+	else { /* jr or mv */
+	  if( rs2 == 0 ) { /* jalr */
+	    assert(0);
+	  }
+	  else { /* add */
+	    if(rd != 0) {
+	      s->sext_xlen(s->gpr[rs2] + s->gpr[rd], rd);
+	    }
+	    s->pc += 2;
+	  }
+	}
+	break;
+      case 0x1e:{ /* SDSP */
+	uint16_t off = (cinst>>7) & 63;
+	uint16_t disp = off & 0x38;
+	disp |= (off & 7) << 6;
+	int64_t ea = s->gpr[2] + disp;
+	*(reinterpret_cast<int64_t*>(s->mem + ea)) = s->gpr[rs2];
+	s->pc += 2;
+	break;
+      }
+      default:
+	std::cout << std::hex << lop << std::dec << "\n";
+	std::cout << std::hex << cop << std::dec << "\n";
+	std::cout << std::hex << oix << std::dec << "\n";
+	assert(0);
+      }
+    return;
+  }
+
+  assert(lop == 3);
   switch(opcode)
     {
     case 0x3: {
@@ -99,7 +160,8 @@ void execRiscv(state_t *s) {
 	if((inst>>31)&1) {
 	  disp |= 0xfffff000;
 	}
-	int64_t ea = static_cast<int64_t>(disp) + s->gpr[m.l.rs1];
+	int64_t disp64 = disp;
+	int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.l.rs1];
 	//std::cout << std::hex << ea << std::dec << "\n";
 	switch(m.s.sel)
 	  {
@@ -327,7 +389,8 @@ void execRiscv(state_t *s) {
     case 0x23: {
       int32_t disp = m.s.imm4_0 | (m.s.imm11_5 << 5);
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
-      int64_t ea = static_cast<int64_t>(disp) + s->gpr[m.s.rs1];
+      int64_t disp64 = disp;
+      int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.s.rs1];
       switch(m.s.sel)
 	{
 	case 0x0: /* sb */
@@ -625,7 +688,10 @@ void execRiscv(state_t *s) {
 	  }
 	  case 2: /* CSRRS */
 	    assert(rs == 0);
-	    s->gpr[rd] = read_csr(csr_id, s);
+	    if(rd != 0) {
+	      s->gpr[rd] = read_csr(csr_id, s);
+	    }
+	    //std::cout << "read " << std::hex << s->gpr[rd]  << std::dec << "\n";
 	    break;
 	  case 3: /* CSRRC */
 	  case 5: /* CSRRWI */
@@ -643,8 +709,11 @@ void execRiscv(state_t *s) {
     default:
       std::cout << std::hex << s->pc << std::dec
 		<< " : " << getAsmString(inst, s->pc)
-		<< " , opcode " << std::hex
+		<< " , opcode "
+		<< std::hex
 		<< opcode
+		<< " , insn "
+		<< inst
 		<< std::dec
 		<< " , icnt " << s->icnt
 		<< "\n";
