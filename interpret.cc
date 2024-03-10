@@ -732,9 +732,21 @@ void execRiscv(state_t *s) {
       uint32_t csr_id = (inst>>20);
       bool is_ecall = ((inst >> 7) == 0);
       bool is_ebreak = ((inst>>7) == 0x2000);
-      
+      bool bits19to7z = (((inst >> 7) & 8191) == 0);
       if(is_ecall) {
 	s->brk = 1;
+      }
+      else if(bits19to7z and (csr_id == 0x002)) {  /* uret */
+	assert(false);
+      }
+      else if(bits19to7z and (csr_id == 0x102)) {  /* sret */
+	assert(false);
+      }
+      else if(bits19to7z and (csr_id == 0x202)) {  /* hret */
+	assert(false);
+      }            
+      else if(bits19to7z and (csr_id == 0x302)) {  /* mret */
+	assert(false);
       }
       else if(is_ebreak) {
 	/* used as monitor in RTL */
