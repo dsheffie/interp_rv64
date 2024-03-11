@@ -191,6 +191,9 @@ void load_elf(const char* fn, state_t *ms) {
   globals::tohost_addr = globals::symtab.at("tohost");
   globals::fromhost_addr = globals::symtab.at("fromhost");
 
+  //std::cout << std::hex << globals::tohost_addr << "\n"
+  //<< std::hex << globals::fromhost_addr << "\n";
+  
 #define WRITE_WORD(EA,WORD) { *reinterpret_cast<uint32_t*>(mem + EA) = WORD; }
 
   WRITE_WORD(0x1000, 0x00000297); //0

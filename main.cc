@@ -35,6 +35,7 @@ std::map<std::string, uint64_t> globals::symtab;
 char **globals::sysArgv = nullptr;
 int globals::sysArgc = 0;
 bool globals::silent = true;
+bool globals::fullsim = true;
 
 static state_t *s = nullptr;
 
@@ -74,7 +75,7 @@ int main(int argc, char *argv[]) {
   std::string sysArgs, filename;
   uint64_t maxinsns = ~(0UL), dumpIcnt = ~(0UL);
   bool hash = false, raw = false;
-
+  std::string tohost, fromhost;
   try {
     po::options_description desc("Options");
     desc.add_options() 
@@ -87,6 +88,8 @@ int main(int argc, char *argv[]) {
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
       ("log,l", po::value<bool>(&globals::log)->default_value(false), "log instructions")
       ("raw,r", po::value<bool>(&raw)->default_value(false), "load raw binary")
+      ("tohost", po::value<std::string>(&tohost)->default_value("0"), "to host address")
+      ("fromhost", po::value<std::string>(&fromhost)->default_value("0"), "from host address")
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -134,6 +137,8 @@ int main(int argc, char *argv[]) {
   }
   if(raw) {
     load_raw(filename.c_str(), s);
+    globals::tohost_addr = strtol(tohost.c_str(), nullptr, 16);
+    globals::fromhost_addr = strtol(fromhost.c_str(), nullptr, 16);
   }
   else {
     load_elf(filename.c_str(), s);

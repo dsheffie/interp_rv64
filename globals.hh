@@ -8,6 +8,7 @@ namespace globals {
   extern char **sysArgv;
   extern bool silent;
   extern bool log;
+  extern bool fullsim;
   extern std::map<std::string, uint64_t> symtab;
 };
 

@@ -220,12 +220,30 @@ void execRiscv(state_t *s) {
   uint32_t inst = *reinterpret_cast<uint32_t*>(mem + s->pc);
   uint32_t opcode = inst & 127;
   
-  
-  
   uint64_t tohost = *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr);
-  tohost &= ((1UL<<32)-1);
   if(tohost) {
-    handle_syscall(s, tohost);
+    if(globals::fullsim) {
+      uint64_t dev = tohost >> 56;
+      uint64_t cmd = (tohost >> 48) & 255;
+      uint64_t payload = tohost & ((1UL<<48)-1);
+      if(tohost == 1) { /* shutdown */
+	s->brk = 1;
+	return;
+      }
+      assert(dev == 1);
+      if(cmd == 1) {
+	std::cout << static_cast<char>(payload & 0xff);
+	*reinterpret_cast<uint64_t*>(mem + globals::tohost_addr) = 0;
+	*reinterpret_cast<uint64_t*>(mem + globals::fromhost_addr) = (dev << 56) | (cmd << 48);
+      }
+      else {
+	abort();
+      }
+    }
+    else {
+      tohost &= ((1UL<<32)-1);      
+      handle_syscall(s, tohost);
+    }
   }
   uint32_t lop = (opcode & 3);
   int except_cause = -1, tval = -1;
@@ -325,7 +343,6 @@ void execRiscv(state_t *s) {
 	}
 	int64_t disp64 = disp;
 	int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.l.rs1];
-	//std::cout << std::hex << ea << std::dec << "\n";
 	switch(m.s.sel)
 	  {
 	  case 0x0: /* lb */
@@ -499,7 +516,7 @@ void execRiscv(state_t *s) {
 	    break;
 	  }
 	  default:
-	      std::cout << "m.a.hiop " << m.a.hiop << "\n";
+	    std::cout << "m.a.hiop " << m.a.hiop << "\n";
 	    assert(false);
 	  }
       }
@@ -850,9 +867,13 @@ void execRiscv(state_t *s) {
       bool is_ebreak = ((inst>>7) == 0x2000);
       bool bits19to7z = (((inst >> 7) & 8191) == 0);
       if(is_ecall) { /* ecall and ebreak dont increment the retired instruction count */
-	//s->brk = 1;
-	except_cause = CAUSE_USER_ECALL + static_cast<int>(s->priv);
-	goto handle_exception;
+	if(not(globals::fullsim)) {
+	  s->brk = 1;
+	}
+	else {
+	  except_cause = CAUSE_USER_ECALL + static_cast<int>(s->priv);
+	  goto handle_exception;
+	}
       }
       else if(bits19to7z and (csr_id == 0x002)) {  /* uret */
 	assert(false);
