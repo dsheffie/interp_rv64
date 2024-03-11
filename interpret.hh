@@ -29,6 +29,7 @@ struct state_t{
   uint64_t maxicnt;
   uint64_t icnt;
   riscv_priv priv;
+  
   /* lots of CSRs */
   int64_t mstatus;
   int64_t misa;
@@ -40,7 +41,12 @@ struct state_t{
   int64_t mcounteren;
   int64_t mie;
   int64_t mip;
+  int64_t mcause;
   int64_t mepc;
+  int64_t mtval;
+  int64_t scause;
+  int64_t sepc;
+  int64_t stval;
   int64_t satp;
   int64_t scounteren;
   int64_t pmpaddr0;

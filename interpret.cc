@@ -12,6 +12,25 @@
 #include "globals.hh"
 
 /* stolen from tinyemu */
+#define CAUSE_MISALIGNED_FETCH    0x0
+#define CAUSE_FAULT_FETCH         0x1
+#define CAUSE_ILLEGAL_INSTRUCTION 0x2
+#define CAUSE_BREAKPOINT          0x3
+#define CAUSE_MISALIGNED_LOAD     0x4
+#define CAUSE_FAULT_LOAD          0x5
+#define CAUSE_MISALIGNED_STORE    0x6
+#define CAUSE_FAULT_STORE         0x7
+#define CAUSE_USER_ECALL          0x8
+#define CAUSE_SUPERVISOR_ECALL    0x9
+#define CAUSE_HYPERVISOR_ECALL    0xa
+#define CAUSE_MACHINE_ECALL       0xb
+#define CAUSE_FETCH_PAGE_FAULT    0xc
+#define CAUSE_LOAD_PAGE_FAULT     0xd
+#define CAUSE_STORE_PAGE_FAULT    0xf
+/* Note: converted to correct bit position at runtime */
+#define CAUSE_INTERRUPT  ((uint32_t)1 << 31)
+
+
 #define MSTATUS_SPIE_SHIFT 5
 #define MSTATUS_MPIE_SHIFT 7
 #define MSTATUS_SPP_SHIFT 8
@@ -52,6 +71,7 @@ void initState(state_t *s) {
   s->misa = 0x800000000014112dL;
   s->priv = priv_machine;
   s->mstatus = ((uint64_t)2 << MSTATUS_UXL_SHIFT) |((uint64_t)2 << MSTATUS_SXL_SHIFT);
+  
   written_csrs.insert(0x301);
   written_csrs.insert(0xf14);
 }
@@ -210,7 +230,8 @@ void execRiscv(state_t *s) {
     handle_syscall(s, tohost);
   }
   uint32_t lop = (opcode & 3);
-
+  int except_cause = -1, tval = -1;
+  
   if(globals::log) {
     std::cout << std::hex << s->pc << std::dec
 	      << " : " << getAsmString(inst, s->pc)
@@ -808,8 +829,10 @@ void execRiscv(state_t *s) {
       bool is_ecall = ((inst >> 7) == 0);
       bool is_ebreak = ((inst>>7) == 0x2000);
       bool bits19to7z = (((inst >> 7) & 8191) == 0);
-      if(is_ecall) {
-	s->brk = 1;
+      if(is_ecall) { /* ecall and ebreak dont increment the retired instruction count */
+	//s->brk = 1;
+	except_cause = CAUSE_USER_ECALL + static_cast<int>(s->priv);
+	goto handle_exception;
       }
       else if(bits19to7z and (csr_id == 0x002)) {  /* uret */
 	assert(false);
@@ -903,7 +926,36 @@ void execRiscv(state_t *s) {
     }
 
   s->icnt++;
+  return;
+  
+ handle_exception: {
+    bool delegate = false;
+    if(s->priv == priv_user || s->priv == priv_supervisor) {
+      if(except_cause & CAUSE_INTERRUPT) {
+	assert(false);
+      }
+      else {
+	delegate = (s->medeleg >> except_cause) & 1;
+      }
+    }
 
+    if(delegate) {
+      assert(0);
+    }
+    else {
+      s->mcause = except_cause;
+      s->mepc = s->pc;
+      s->mtval = tval;
+      s->mstatus = (s->mstatus & ~MSTATUS_MPIE) |
+	(((s->mstatus >> s->priv) & 1) << MSTATUS_MPIE_SHIFT);
+      s->mstatus = (s->mstatus & ~MSTATUS_MPP) |
+	(s->priv << MSTATUS_MPP_SHIFT);
+      s->mstatus &= ~MSTATUS_MIE;
+      set_priv(s, priv_machine);
+      s->pc = s->mtvec;      
+    }
+  }
+  
 #ifdef OLD_GPR
   for(int i = 0; i < 32; i++){
     if(old_gpr[i] != s->gpr[i]) {
