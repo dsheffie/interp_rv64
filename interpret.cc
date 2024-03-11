@@ -115,10 +115,6 @@ std::ostream &operator<<(std::ostream &out, const state_t & s) {
 }
 
 static int64_t read_csr(int csr_id, state_t *s) {
-  if(written_csrs.find(csr_id) == written_csrs.end()) {
-    std::cout << std::hex << "reading msr " << csr_id << std::dec << " before writing\n";
-    assert(false);
-  }
   switch(csr_id)
     {
     case 0x300:
@@ -131,10 +127,12 @@ static int64_t read_csr(int csr_id, state_t *s) {
       return s->mideleg;
     case 0x305:
       return s->mtvec;
+    case 0x340:
+      return s->mscratch;
     case 0x341:
       return s->mepc;
-    case 0xf14:
-      return s->mhartid;
+    case 0x342:
+      return s->mcause;
     case 0x3b0:
       return s->pmpaddr0;
     case 0x3b1:
@@ -145,7 +143,8 @@ static int64_t read_csr(int csr_id, state_t *s) {
       return s->pmpaddr3;      
     case 0xc00:
       return s->icnt;
-      
+    case 0xf14:
+      return s->mhartid;      
     default:
       printf("rd csr id 0x%x unimplemented\n", csr_id);
       assert(false);
@@ -155,7 +154,6 @@ static int64_t read_csr(int csr_id, state_t *s) {
 }
 
 static void write_csr(int csr_id, state_t *s, int64_t v) {
-  written_csrs.insert(csr_id);
   switch(csr_id)
     {
     case 0x106:
@@ -486,6 +484,28 @@ void execRiscv(state_t *s) {
 	    assert(0);
 	    break;
 	  }
+      }
+      s->pc += 4;
+      break;
+    }
+    case 0x2f: {
+      if(m.a.sel == 2) {
+	switch(m.a.hiop)
+	  {
+	  case 0x1: {/* amoswap.w */
+	    int32_t x = *reinterpret_cast<int32_t*>(s->mem + s->gpr[m.a.rs1]);
+	    *reinterpret_cast<int32_t*>(s->mem + s->gpr[m.a.rs1]) = s->gpr[m.a.rs2];
+	    s->sext_xlen(x, m.a.rd);
+	    break;
+	  }
+	  default:
+	      std::cout << "m.a.hiop " << m.a.hiop << "\n";
+	    assert(false);
+	  }
+      }
+      else {
+	
+	assert(false);
       }
       s->pc += 4;
       break;

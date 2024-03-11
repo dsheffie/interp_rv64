@@ -142,6 +142,17 @@ struct load_t {
   uint32_t imm11_0 : 12; //32
 };
 
+struct amo_t {
+  uint32_t opcode : 7;
+  uint32_t rd : 5; //12
+  uint32_t sel : 3; //15
+  uint32_t rs1 : 5; //20
+  uint32_t rs2 : 5; //25
+  uint32_t rl : 1; //27
+  uint32_t aq : 1;
+  uint32_t hiop : 5;
+};
+
 union riscv_t {
   rtype_t r;
   itype_t i;
@@ -151,6 +162,7 @@ union riscv_t {
   branch_t b;
   store_t s;
   load_t l;
+  amo_t a;
   uint32_t raw;
   riscv_t(uint32_t x) : raw(x) {}
 };
