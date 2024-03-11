@@ -46,6 +46,7 @@ struct state_t{
   int64_t mtval;
   int64_t scause;
   int64_t sepc;
+  int64_t sie;
   int64_t stval;
   int64_t satp;
   int64_t scounteren;

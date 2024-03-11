@@ -117,6 +117,8 @@ std::ostream &operator<<(std::ostream &out, const state_t & s) {
 static int64_t read_csr(int csr_id, state_t *s) {
   switch(csr_id)
     {
+    case 0x104:
+      return s->sie;
     case 0x300:
       return s->mstatus;
     case 0x301: /* misa */
@@ -156,6 +158,9 @@ static int64_t read_csr(int csr_id, state_t *s) {
 static void write_csr(int csr_id, state_t *s, int64_t v) {
   switch(csr_id)
     {
+    case 0x104:
+      s->sie = v;
+      break;
     case 0x106:
       s->scounteren = v;
       break;
@@ -272,6 +277,7 @@ void execRiscv(state_t *s) {
   memcpy(old_gpr, s->gpr, sizeof(old_gpr));
 #endif
 
+  assert(lop == 3);
   if(lop != 3) {
     uint16_t cinst = *reinterpret_cast<uint16_t*>(mem + s->pc);
     std::cout << std::hex <<cinst << std::dec << "\n";
