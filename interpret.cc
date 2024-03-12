@@ -96,6 +96,8 @@ static void set_priv(state_t *s, int priv) {
 static void set_mstatus(state_t *s, int64_t v) {
   int64_t mask = MSTATUS_MASK;
   s->mstatus = (s->mstatus & ~mask) | (v & mask);
+  csr_t c(v);
+  std::cout << c.mstatus << "\n";
   //std::cout << "write mstatus = " << std::hex << s->mstatus << std::dec << "\n";  
 }
     
@@ -156,6 +158,7 @@ static int64_t read_csr(int csr_id, state_t *s) {
 }
 
 static void write_csr(int csr_id, state_t *s, int64_t v) {
+  csr_t c(v);
   switch(csr_id)
     {
     case 0x104:
@@ -165,10 +168,12 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
       s->scounteren = v;
       break;
     case 0x180:
+      assert(c.satp.mode==0);
       s->satp = v;
       break;
     case 0x300:
       set_mstatus(s,v);
+      
       break;
     case 0x301:
       s->misa = v;

@@ -168,6 +168,73 @@ union riscv_t {
   riscv_t(uint32_t x) : raw(x) {}
 };
 
+struct satp_t {
+  uint64_t ppn : 44;
+  uint64_t asid : 16;
+  uint64_t mode : 4;
+};
+
+struct mstatus_t {
+  uint64_t j0 : 1;
+  uint64_t sie : 1;
+  uint64_t j2 : 1;
+  uint64_t mie : 1;
+  uint64_t j4 : 1;
+  uint64_t spie : 1;
+  uint64_t ube : 1;
+  uint64_t mpie : 1;
+  uint64_t spp : 1;
+  uint64_t vs : 2;
+  uint64_t mpp : 2;
+  uint64_t fs : 2;
+  uint64_t xs : 2;
+  uint64_t mprv : 1;
+  uint64_t sum : 1;
+  uint64_t mxr : 1;
+  uint64_t tvm : 1;
+  uint64_t tw : 1;
+  uint64_t tsr : 1;
+  uint64_t junk23 : 9;
+  uint64_t uxl : 2;
+  uint64_t sxl : 2;
+  uint64_t sbe : 1;
+  uint64_t mbe : 1;
+  uint64_t junk38 : 25;
+  uint64_t sd : 1;
+};
+
+static inline std::ostream &operator<<(std::ostream &out, mstatus_t mstatus) {
+  out << "sie  " << mstatus.sie << "\n";
+  out << "mie  " << mstatus.mie << "\n";
+  out << "spie " << mstatus.spie << "\n";
+  out << "ube  " << mstatus.ube << "\n";  
+  out << "mpie " << mstatus.mpie << "\n";
+  out << "spp  " << mstatus.spp << "\n";
+  out << "mpp  " << mstatus.mpp << "\n";
+  out << "fs   " << mstatus.fs << "\n";
+  out << "xs   " << mstatus.xs << "\n";      
+  out << "mprv " << mstatus.mprv << "\n";
+  out << "sum  " << mstatus.sum << "\n";
+  out << "mxr  " << mstatus.mxr << "\n";
+  out << "tvm  " << mstatus.tvm << "\n";
+  out << "tw   " << mstatus.tw << "\n";      
+  out << "tsr  " << mstatus.tsr << "\n";
+  out << "uxl  " << mstatus.uxl << "\n";
+  out << "sxl  " << mstatus.sxl << "\n";
+  out << "sbe  " << mstatus.sbe << "\n";
+  out << "mbe  " << mstatus.mbe << "\n";
+  out << "sd   " << mstatus.sd << "\n";
+  return out;
+}
+
+union csr_t {
+  satp_t satp;
+  mstatus_t mstatus;
+  uint64_t raw;
+  csr_t(uint64_t x) : raw(x) {}
+};
+
+
 void initState(state_t *s);
 void runRiscv(state_t *s, uint64_t dumpIcnt);
 

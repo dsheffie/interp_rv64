@@ -484,14 +484,17 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   fd = open("kernel-riscv64.bin", O_RDONLY);
   rc = fstat(fd, &s);
   uint64_t kern_start = 0x10000000;
-  uint64_t kern_size = s.st_size;
+  uint64_t kern_size = 0;
+
+#if 0
+  kern_size = s.st_size;
   buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
   for(size_t i = 0; i < s.st_size; i++) {
     mem[kern_start+i] = buf[i];
   }
   munmap(buf, s.st_size);
   close(fd);
-
+#endif
 
   
   fd = open(fn, O_RDONLY);
