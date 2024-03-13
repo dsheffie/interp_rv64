@@ -77,6 +77,23 @@ void initState(state_t *s) {
 }
 
 
+uint64_t state_t::translate(uint64_t ea, bool &fault) const {
+  fault = false;
+  csr_t c(satp);
+  if(c.satp.mode == 0) {
+    return ea;
+  }
+  assert(c.satp.mode == 8);
+  uint64_t vpn0 = (ea >> 12) & 511;
+  uint64_t vpn1 = (ea >> 21) & 511;
+  uint64_t vpn2 = (ea >> 30) & 511;
+  
+  std::cout << "should translate?, mode = "
+	  << c.satp.mode
+	  << ", asid  = " << c.satp.asid << "\n";
+  return ea;
+}
+
 static void set_priv(state_t *s, int priv) {
   if (s->priv != priv) {
     //tlb_flush_all(s);
@@ -119,8 +136,14 @@ std::ostream &operator<<(std::ostream &out, const state_t & s) {
 static int64_t read_csr(int csr_id, state_t *s) {
   switch(csr_id)
     {
+    case 0x100:
+      return s->sstatus;
     case 0x104:
       return s->sie;
+    case 0x144:
+      return s->sip;
+    case 0x180:
+      return s->satp;
     case 0x300:
       return s->mstatus;
     case 0x301: /* misa */
@@ -161,15 +184,28 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
   csr_t c(v);
   switch(csr_id)
     {
+    case 0x100:
+      s->sstatus = v;
+      break;
     case 0x104:
       s->sie = v;
+      break;
+    case 0x105:
+      s->stvec = v;
       break;
     case 0x106:
       s->scounteren = v;
       break;
+    case 0x144:
+      s->sip = v;
+      break;
     case 0x180:
-      assert(c.satp.mode==0);
-      s->satp = v;
+      std::cout << "attempting to set mode to " << c.satp.mode << "\n";
+      if(c.satp.mode == 8) {
+	std::cout << "set mode to " << c.satp.mode << "\n";
+	//assert(c.satp.mode==0);
+	s->satp = v;
+      }
       break;
     case 0x300:
       set_mstatus(s,v);
@@ -226,8 +262,13 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
 
 void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
-
-  uint32_t inst = *reinterpret_cast<uint32_t*>(mem + s->pc);
+  bool fetch_fault = false;
+  
+  assert(s->pc < (1UL << 32));
+  uint64_t phys_pc = s->translate(s->pc, fetch_fault);
+  assert(!fetch_fault);
+  
+  uint32_t inst = *reinterpret_cast<uint32_t*>(mem + phys_pc);
   uint32_t opcode = inst & 127;
   
   uint64_t tohost = *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr);
@@ -354,6 +395,10 @@ void execRiscv(state_t *s) {
 	}
 	int64_t disp64 = disp;
 	int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.l.rs1];
+	bool page_fault = false;
+	ea = s->translate(ea, page_fault);
+	assert(!page_fault);
+	
 	switch(m.s.sel)
 	  {
 	  case 0x0: /* lb */
@@ -521,8 +566,11 @@ void execRiscv(state_t *s) {
 	switch(m.a.hiop)
 	  {
 	  case 0x1: {/* amoswap.w */
-	    int32_t x = *reinterpret_cast<int32_t*>(s->mem + s->gpr[m.a.rs1]);
-	    *reinterpret_cast<int32_t*>(s->mem + s->gpr[m.a.rs1]) = s->gpr[m.a.rs2];
+	    bool page_fault = false;
+	    uint64_t ea = s->translate(s->gpr[m.a.rs1], page_fault);
+	    assert(!page_fault);
+	    int32_t x = *reinterpret_cast<int32_t*>(s->mem + ea);
+	    *reinterpret_cast<int32_t*>(s->mem + ea) = s->gpr[m.a.rs2];
 	    s->sext_xlen(x, m.a.rd);
 	    break;
 	  }
@@ -604,6 +652,10 @@ void execRiscv(state_t *s) {
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       int64_t disp64 = disp;
       int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.s.rs1];
+      bool page_fault = false;
+      ea = s->translate(ea, page_fault);
+      assert(!page_fault);
+      
       switch(m.s.sel)
 	{
 	case 0x0: /* sb */
@@ -877,6 +929,7 @@ void execRiscv(state_t *s) {
       bool is_ecall = ((inst >> 7) == 0);
       bool is_ebreak = ((inst>>7) == 0x2000);
       bool bits19to7z = (((inst >> 7) & 8191) == 0);
+      uint64_t upper7 = (inst>>25);
       if(is_ecall) { /* ecall and ebreak dont increment the retired instruction count */
 	if(not(globals::fullsim)) {
 	  s->brk = 1;
@@ -885,6 +938,9 @@ void execRiscv(state_t *s) {
 	  except_cause = CAUSE_USER_ECALL + static_cast<int>(s->priv);
 	  goto handle_exception;
 	}
+      }
+      else if(upper7 == 9 && ((inst & (16384-1)) == 0x73 )) {
+	std::cout << "warn : got sfence\n";
       }
       else if(bits19to7z and (csr_id == 0x002)) {  /* uret */
 	assert(false);
@@ -945,8 +1001,14 @@ void execRiscv(state_t *s) {
 	    break;
 	  }
 	  case 5: {/* CSRRWI */
-	    assert(rd == 0);
+	    int64_t t = 0;
+	    if(rd != 0) {
+	      t = read_csr(csr_id, s);
+	    }
 	    write_csr(csr_id, s, rs);
+	    if(rd != 0) {
+	      s->gpr[rd] = t;
+	    }
 	    break;
 	  }
 	    

@@ -44,9 +44,12 @@ struct state_t{
   int64_t mcause;
   int64_t mepc;
   int64_t mtval;
+  int64_t sstatus;  
   int64_t scause;
+  int64_t stvec;
   int64_t sepc;
   int64_t sie;
+  int64_t sip;
   int64_t stval;
   int64_t satp;
   int64_t scounteren;
@@ -69,7 +72,10 @@ struct state_t{
   }
   uint64_t get_reg_u64(int id) const {
     return *reinterpret_cast<const uint64_t*>(&gpr[id]);
-  }    
+  }
+  uint64_t translate(uint64_t ea, bool &fault) const;
+
+   
 };
 
 void handle_syscall(state_t *s, uint64_t tohost);
@@ -232,6 +238,24 @@ union csr_t {
   mstatus_t mstatus;
   uint64_t raw;
   csr_t(uint64_t x) : raw(x) {}
+};
+
+union Sv39_t {
+  uint64_t v : 1;
+  uint64_t r : 1;
+  uint64_t w : 1;
+  uint64_t x : 1;
+  uint64_t u : 1;
+  uint64_t g : 1;
+  uint64_t a : 1;
+  uint64_t d : 1;
+  uint64_t rsw : 2;
+  uint64_t ppn0 : 9;
+  uint64_t ppn1 : 9;
+  uint64_t ppn2 : 26;
+  uint64_t mbz : 7;
+  uint64_t pbmt : 2;
+  uint64_t n : 1;
 };
 
 
