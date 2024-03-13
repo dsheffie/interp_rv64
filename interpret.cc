@@ -77,20 +77,41 @@ void initState(state_t *s) {
 }
 
 
-uint64_t state_t::translate(uint64_t ea, bool &fault) const {
+uint64_t state_t::translate(uint64_t ea, int &fault) const {
   fault = false;
   csr_t c(satp);
   if(c.satp.mode == 0) {
     return ea;
   }
+  std::cout << std::hex << "ea = " << ea << std::dec << "\n";
   assert(c.satp.mode == 8);
   uint64_t vpn0 = (ea >> 12) & 511;
   uint64_t vpn1 = (ea >> 21) & 511;
   uint64_t vpn2 = (ea >> 30) & 511;
+
+  std::cout << "page table root = "
+	    << std::hex
+	    << (c.satp.ppn << 12)
+	    << std::dec
+	    << "\n";
+  
+  uint64_t a = (c.satp.ppn * 4096) + (vpn0*8);
+  std::cout << std::hex << "a = " << a << std::dec << "\n";
+  uint64_t u0 = *reinterpret_cast<uint64_t*>(mem + a);
+  std::cout << std::hex << "u0 = " << std::hex
+	    << u0
+	    << std::dec
+	    << "\n";
+  
+  
+  pte_t r(u0);
+
+  std::cout << "r.v = " << r.sv39.v << "\n";
   
   std::cout << "should translate?, mode = "
 	  << c.satp.mode
 	  << ", asid  = " << c.satp.asid << "\n";
+  
   return ea;
 }
 
@@ -262,10 +283,11 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
 
 void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
-  bool fetch_fault = false;
+  int fetch_fault = 0;
+  
+  uint64_t phys_pc = s->translate(s->pc, fetch_fault);
   
   assert(s->pc < (1UL << 32));
-  uint64_t phys_pc = s->translate(s->pc, fetch_fault);
   assert(!fetch_fault);
   
   uint32_t inst = *reinterpret_cast<uint32_t*>(mem + phys_pc);
@@ -395,7 +417,7 @@ void execRiscv(state_t *s) {
 	}
 	int64_t disp64 = disp;
 	int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.l.rs1];
-	bool page_fault = false;
+	int page_fault = 0;
 	ea = s->translate(ea, page_fault);
 	assert(!page_fault);
 	
@@ -566,7 +588,7 @@ void execRiscv(state_t *s) {
 	switch(m.a.hiop)
 	  {
 	  case 0x1: {/* amoswap.w */
-	    bool page_fault = false;
+	    int page_fault = 0;
 	    uint64_t ea = s->translate(s->gpr[m.a.rs1], page_fault);
 	    assert(!page_fault);
 	    int32_t x = *reinterpret_cast<int32_t*>(s->mem + ea);
@@ -652,9 +674,9 @@ void execRiscv(state_t *s) {
       disp |= ((inst>>31)&1) ? 0xfffff000 : 0x0;
       int64_t disp64 = disp;
       int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.s.rs1];
-      bool page_fault = false;
-      ea = s->translate(ea, page_fault);
-      assert(!page_fault);
+      int fault;
+      ea = s->translate(ea, fault);
+      assert(!fault);
       
       switch(m.s.sel)
 	{

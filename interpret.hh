@@ -73,7 +73,7 @@ struct state_t{
   uint64_t get_reg_u64(int id) const {
     return *reinterpret_cast<const uint64_t*>(&gpr[id]);
   }
-  uint64_t translate(uint64_t ea, bool &fault) const;
+  uint64_t translate(uint64_t ea, int &fault) const;
 
    
 };
@@ -240,7 +240,7 @@ union csr_t {
   csr_t(uint64_t x) : raw(x) {}
 };
 
-union Sv39_t {
+union sv39_t {
   uint64_t v : 1;
   uint64_t r : 1;
   uint64_t w : 1;
@@ -258,6 +258,11 @@ union Sv39_t {
   uint64_t n : 1;
 };
 
+union pte_t {
+  sv39_t sv39;
+  uint64_t r;
+  pte_t(uint64_t x) : r(x) {}
+};
 
 void initState(state_t *s);
 void runRiscv(state_t *s, uint64_t dumpIcnt);
