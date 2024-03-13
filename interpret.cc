@@ -80,38 +80,43 @@ void initState(state_t *s) {
 uint64_t state_t::translate(uint64_t ea, int &fault) const {
   fault = false;
   csr_t c(satp);
-  if(c.satp.mode == 0) {
+  if((c.satp.mode == 0) or
+     (priv == priv_hypervisor) or
+     (priv == priv_machine)) {
     return ea;
   }
-  std::cout << std::hex << "ea = " << ea << std::dec << "\n";
+  //std::cout << std::hex << "ea = " << ea << std::dec << "\n";
   assert(c.satp.mode == 8);
   uint64_t vpn0 = (ea >> 12) & 511;
   uint64_t vpn1 = (ea >> 21) & 511;
   uint64_t vpn2 = (ea >> 30) & 511;
 
-  std::cout << "page table root = "
-	    << std::hex
-	    << (c.satp.ppn << 12)
-	    << std::dec
-	    << "\n";
+  //std::cout << "page table root = "
+  //	    << std::hex
+  //<< (c.satp.ppn << 12)
+  //<< std::dec
+  //<< "\n";
   
   uint64_t a = (c.satp.ppn * 4096) + (vpn0*8);
-  std::cout << std::hex << "a = " << a << std::dec << "\n";
-  uint64_t u0 = *reinterpret_cast<uint64_t*>(mem + a);
-  std::cout << std::hex << "u0 = " << std::hex
-	    << u0
-	    << std::dec
-	    << "\n";
+  //std::cout << std::hex << "a = " << a << std::dec << "\n";
   
+  uint64_t u0 = *reinterpret_cast<uint64_t*>(mem + a);
+
+  //std::cout << std::hex << "u0 = " << std::hex
+  //<< u0
+  //<< std::dec
+  //<< "\n";
   
   pte_t r(u0);
-
-  std::cout << "r.v = " << r.sv39.v << "\n";
-  
-  std::cout << "should translate?, mode = "
-	  << c.satp.mode
-	  << ", asid  = " << c.satp.asid << "\n";
-  
+  if(r.sv39.v == 0) {
+    fault = 1;
+    return ~(0UL);
+  }
+  // std::cout << "r.v = " << r.sv39.v << "\n";
+  //std::cout << "should translate?, mode = "
+  //<< c.satp.mode
+  //<< ", asid  = " << c.satp.asid << "\n";
+  exit(-1);
   return ea;
 }
 
@@ -135,7 +140,7 @@ static void set_mstatus(state_t *s, int64_t v) {
   int64_t mask = MSTATUS_MASK;
   s->mstatus = (s->mstatus & ~mask) | (v & mask);
   csr_t c(v);
-  std::cout << c.mstatus << "\n";
+  //std::cout << c.mstatus << "\n";
   //std::cout << "write mstatus = " << std::hex << s->mstatus << std::dec << "\n";  
 }
     
@@ -161,6 +166,8 @@ static int64_t read_csr(int csr_id, state_t *s) {
       return s->sstatus;
     case 0x104:
       return s->sie;
+    case 0x105:
+      return s->stvec;
     case 0x144:
       return s->sip;
     case 0x180:
@@ -181,6 +188,8 @@ static int64_t read_csr(int csr_id, state_t *s) {
       return s->mepc;
     case 0x342:
       return s->mcause;
+    case 0x343:
+      return s->mtvec;
     case 0x3b0:
       return s->pmpaddr0;
     case 0x3b1:
@@ -216,6 +225,15 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
       break;
     case 0x106:
       s->scounteren = v;
+      break;
+    case 0x141:
+      s->sepc = v;
+      break;
+    case 0x142:
+      s->scause = v;
+      break;
+    case 0x143:
+      s->stvec = v;
       break;
     case 0x144:
       s->sip = v;
@@ -283,17 +301,26 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
 
 void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
-  int fetch_fault = 0;
-  
+  int fetch_fault = 0, except_cause = -1, tval = -1;
+  uint64_t tohost = 0;
   uint64_t phys_pc = s->translate(s->pc, fetch_fault);
-  
+  uint32_t inst = 0, opcode = 0, rd = 0, lop = 0;
+  riscv_t m(0);
+  if(fetch_fault) {
+    except_cause = CAUSE_FAULT_FETCH;
+    tval = s->pc;
+    std::cout << "taking iside page fault for " << std::hex << tval << std::dec << "\n";
+    //std::cout << csr_t(s->mstatus).mstatus << "\n";
+    goto handle_exception;
+  }
   assert(s->pc < (1UL << 32));
   assert(!fetch_fault);
   
-  uint32_t inst = *reinterpret_cast<uint32_t*>(mem + phys_pc);
-  uint32_t opcode = inst & 127;
+  inst = *reinterpret_cast<uint32_t*>(mem + phys_pc);
+  m.raw = inst;
+  opcode = inst & 127;
   
-  uint64_t tohost = *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr);
+  tohost = *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr);
   if(tohost) {
     if(globals::fullsim) {
       uint64_t dev = tohost >> 56;
@@ -318,8 +345,10 @@ void execRiscv(state_t *s) {
       handle_syscall(s, tohost);
     }
   }
-  uint32_t lop = (opcode & 3);
-  int except_cause = -1, tval = -1;
+  lop = (opcode & 3);
+  rd = (inst>>7) & 31;
+
+
   
   if(globals::log) {
     std::cout << std::hex << s->pc << std::dec
@@ -334,8 +363,6 @@ void execRiscv(state_t *s) {
   }
   s->last_pc = s->pc;  
 
-  uint32_t rd = (inst>>7) & 31;
-  riscv_t m(inst);
 
   //#define OLD_GPR
   
@@ -985,7 +1012,7 @@ void execRiscv(state_t *s) {
 	s->mstatus &= ~MSTATUS_MPP;
 	set_priv(s, mpp);
 	s->pc = s->mepc;
-	//std::cout << "mret jump to " << std::hex << s->pc << std::dec << "\n";
+	std::cout << "mret jump to " << std::hex << s->pc << std::dec << "\n";
 	break;
       }
       else if(is_ebreak) {
