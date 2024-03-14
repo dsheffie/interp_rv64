@@ -19,6 +19,8 @@
 #include "globals.hh"
 #include "fdt.hh"
 
+static const char cmdline[] = "console=hvc0 root=/dev/vda rw";
+
 void load_raw(const char* fn, state_t *ms, uint64_t where) {
   struct stat s;
   int fd,rc;
@@ -28,14 +30,14 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   //hack linux kernel
   fd = open("kernel.bin", O_RDONLY);
   rc = fstat(fd, &s);
-  uint64_t kern_start = 0x10000000;
+  uint64_t kern_addr = 0x200000 + 0x80000000;
   uint64_t kern_size = 0;
 
 #if 1
   kern_size = s.st_size;
   buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
   for(size_t i = 0; i < s.st_size; i++) {
-    mem[kern_start+i] = buf[i];
+    mem[kern_addr+i] = buf[i];
   }
   munmap(buf, s.st_size);
   close(fd);
@@ -54,9 +56,10 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   int64_t fdt_addr = 0x1000 + 8 * 8;
   
   riscv_build_fdt(mem + fdt_addr,
-		  kern_start,kern_size,
+		  kern_addr,
+		  kern_size,
 		  0,0,
-		  nullptr);
+		  cmdline);
 
   
 #define WRITE_WORD(EA,WORD) { *reinterpret_cast<uint32_t*>(mem + EA) = WORD; }

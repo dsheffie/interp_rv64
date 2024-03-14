@@ -77,7 +77,7 @@ void initState(state_t *s) {
 }
 
 
-uint64_t state_t::translate(uint64_t ea, int &fault) const {
+uint64_t state_t::translate(uint64_t ea, int &fault, bool store) const {
   fault = false;
   csr_t c(satp);
   if((c.satp.mode == 0) or
@@ -90,34 +90,70 @@ uint64_t state_t::translate(uint64_t ea, int &fault) const {
   uint64_t vpn0 = (ea >> 12) & 511;
   uint64_t vpn1 = (ea >> 21) & 511;
   uint64_t vpn2 = (ea >> 30) & 511;
-
+  uint64_t a, u;
+  int mask_bits = -1;
+  pte_t r(0);  
   //std::cout << "page table root = "
   //	    << std::hex
   //<< (c.satp.ppn << 12)
   //<< std::dec
   //<< "\n";
   
-  uint64_t a = (c.satp.ppn * 4096) + (vpn0*8);
-  //std::cout << std::hex << "a = " << a << std::dec << "\n";
-  
-  uint64_t u0 = *reinterpret_cast<uint64_t*>(mem + a);
-
-  //std::cout << std::hex << "u0 = " << std::hex
-  //<< u0
-  //<< std::dec
-  //<< "\n";
-  
-  pte_t r(u0);
-  if(r.sv39.v == 0) {
+  a = (c.satp.ppn * 4096) + (vpn2*8);
+  //std::cout << std::hex << "L2 " << a << std::dec << "\n";  
+  u = *reinterpret_cast<uint64_t*>(mem + a);
+  if((u&1) == 0) {
     fault = 1;
-    return ~(0UL);
+    return 2;
+  }  
+  r.r = u;
+  if(r.sv39.x || r.sv39.w || r.sv39.r) {
+    mask_bits = 30;
+    goto translation_complete;
   }
-  // std::cout << "r.v = " << r.sv39.v << "\n";
-  //std::cout << "should translate?, mode = "
-  //<< c.satp.mode
-  //<< ", asid  = " << c.satp.asid << "\n";
-  exit(-1);
-  return ea;
+  
+  a = (r.sv39.ppn * 4096) + (vpn1*8);
+  //std::cout << std::hex << "L1 " << a << std::dec << "\n";
+  
+  u = *reinterpret_cast<uint64_t*>(mem + a);
+  if((u&1) == 0) {
+    fault = 1;
+    return 1;
+  }  
+  r.r = u;
+  if(r.sv39.x || r.sv39.w || r.sv39.r) {
+    mask_bits = 21;
+    goto translation_complete;
+  }
+  
+  a = (r.sv39.ppn * 4096) + (vpn0*8);
+  //std::cout << std::hex << "L0 " << a << std::dec << "\n";
+  
+  u = *reinterpret_cast<uint64_t*>(mem + a);  
+  if((u&1) == 0) {
+    fault = 1;
+    return 0;
+  }
+  assert(r.sv39.x || r.sv39.w || r.sv39.r);
+  mask_bits = 12;
+  
+ translation_complete:
+  assert(mask_bits != -1);
+  if(r.sv39.a == 0) {
+    r.sv39.a = 1;
+    *reinterpret_cast<uint64_t*>(mem + a) = r.r;
+  }
+  if((r.sv39.d == 0) && store) {
+    r.sv39.d = 1;
+    *reinterpret_cast<uint64_t*>(mem + a) = r.r;    
+  }
+  int64_t m = ((1L << mask_bits) - 1);
+  int64_t pa = ((r.sv39.ppn * 4096) & (~m)) | (ea & m);
+
+  //std::cout << std::hex << ea << " mapped to " << pa << std::dec << "\n";
+
+  //assert(pa == (ea & ((1UL<<32) - 1)));
+  return pa;
 }
 
 static void set_priv(state_t *s, int priv) {
@@ -226,6 +262,9 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
     case 0x106:
       s->scounteren = v;
       break;
+    case 0x140:
+      s->sscratch = v;
+      break;
     case 0x141:
       s->sepc = v;
       break;
@@ -299,6 +338,8 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
     }
 }
 
+uint64_t last_tval = 0;
+
 void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
   int fetch_fault = 0, except_cause = -1, tval = -1;
@@ -307,14 +348,22 @@ void execRiscv(state_t *s) {
   uint32_t inst = 0, opcode = 0, rd = 0, lop = 0;
   riscv_t m(0);
   if(fetch_fault) {
-    except_cause = CAUSE_FAULT_FETCH;
+    except_cause = CAUSE_FETCH_PAGE_FAULT;
     tval = s->pc;
-    std::cout << "taking iside page fault for " << std::hex << tval << std::dec << "\n";
+    std::cout << "taking iside page fault for "
+	      << std::hex << tval << std::dec
+	      << " at icnt "
+	      << s->icnt
+	      << "\n";
+    if(tval == last_tval) {
+      abort();
+    }
+    last_tval = tval;
     //std::cout << csr_t(s->mstatus).mstatus << "\n";
     goto handle_exception;
   }
-  assert(s->pc < (1UL << 32));
-  assert(!fetch_fault);
+  assert(phys_pc < (1UL << 32));
+  // assert(!fetch_fault);
   
   inst = *reinterpret_cast<uint32_t*>(mem + phys_pc);
   m.raw = inst;
@@ -353,10 +402,8 @@ void execRiscv(state_t *s) {
   if(globals::log) {
     std::cout << std::hex << s->pc << std::dec
 	      << " : " << getAsmString(inst, s->pc)
-	      << " , opcode " << std::hex
-	      << opcode
-	      << " , op "
-	      << lop
+	      << " , raw " << std::hex
+	      << inst
 	      << std::dec
 	      << " , icnt " << s->icnt
 	      << "\n";
@@ -445,35 +492,44 @@ void execRiscv(state_t *s) {
 	int64_t disp64 = disp;
 	int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.l.rs1];
 	int page_fault = 0;
-	ea = s->translate(ea, page_fault);
-	assert(!page_fault);
+	int64_t pa = s->translate(ea, page_fault);
+	if(page_fault) {
+	  except_cause = CAUSE_LOAD_PAGE_FAULT;
+	  tval = ea;
+	  std::cout << "load page fault for   " << std::hex << ea << " at pc " << s->pc << std::dec << "\n";
+	  std::cout << "load page fault depth " << std::hex << pa << std::dec << "\n";
+	  if(ea == 0) {
+	    abort();
+	  }
+	  goto handle_exception;
+	}
 	
 	switch(m.s.sel)
 	  {
 	  case 0x0: /* lb */
-	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int8_t*>(s->mem + ea)));	 
+	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int8_t*>(s->mem + pa)));	 
 	    break;
 	  case 0x1: /* lh */
-	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int16_t*>(s->mem + ea)));	 
+	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int16_t*>(s->mem + pa)));	 
 	    break;
 	  case 0x2: /* lw */
-	    s->sext_xlen( *reinterpret_cast<int32_t*>(s->mem + ea), m.l.rd);
+	    s->sext_xlen( *reinterpret_cast<int32_t*>(s->mem + pa), m.l.rd);
 	    break;
 	  case 0x3: /* ld */
-	    s->sext_xlen( *reinterpret_cast<int64_t*>(s->mem + ea), m.l.rd);	    
+	    s->sext_xlen( *reinterpret_cast<int64_t*>(s->mem + pa), m.l.rd);	    
 	    break;
 	  case 0x4: {/* lbu */
-	    uint32_t b = s->mem[ea];
+	    uint32_t b = s->mem[pa];
 	    *reinterpret_cast<uint64_t*>(&s->gpr[m.l.rd]) = b;
 	    break;
 	  }
 	  case 0x5: { /* lhu */
-	    uint16_t b = *reinterpret_cast<uint16_t*>(s->mem + ea);
+	    uint16_t b = *reinterpret_cast<uint16_t*>(s->mem + pa);
 	    *reinterpret_cast<uint64_t*>(&s->gpr[m.l.rd]) = b;
 	    break;
 	  }
 	  case 0x6: { /* lwu */
-	    uint32_t b = *reinterpret_cast<uint32_t*>(s->mem + ea);
+	    uint32_t b = *reinterpret_cast<uint32_t*>(s->mem + pa);
 	    *reinterpret_cast<uint64_t*>(&s->gpr[m.l.rd]) = b;
 	    break;
 	  }	    
@@ -616,7 +672,7 @@ void execRiscv(state_t *s) {
 	  {
 	  case 0x1: {/* amoswap.w */
 	    int page_fault = 0;
-	    uint64_t ea = s->translate(s->gpr[m.a.rs1], page_fault);
+	    uint64_t ea = s->translate(s->gpr[m.a.rs1], page_fault, true);
 	    assert(!page_fault);
 	    int32_t x = *reinterpret_cast<int32_t*>(s->mem + ea);
 	    *reinterpret_cast<int32_t*>(s->mem + ea) = s->gpr[m.a.rs2];
@@ -702,7 +758,7 @@ void execRiscv(state_t *s) {
       int64_t disp64 = disp;
       int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.s.rs1];
       int fault;
-      ea = s->translate(ea, fault);
+      ea = s->translate(ea, fault, true);
       assert(!fault);
       
       switch(m.s.sel)
@@ -1093,20 +1149,31 @@ void execRiscv(state_t *s) {
   
  handle_exception: {
     bool delegate = false;
+    
     if(s->priv == priv_user || s->priv == priv_supervisor) {
       if(except_cause & CAUSE_INTERRUPT) {
 	assert(false);
       }
       else {
 	delegate = (s->medeleg >> except_cause) & 1;
+	
       }
     }
-
+    
     if(delegate) {
-      assert(0);
+      s->scause = except_cause & 0x7fffffff;
+      s->sepc = s->pc;
+      s->stval = tval;
+      s->mstatus = (s->mstatus & ~MSTATUS_SPIE) |
+	(((s->mstatus >> s->priv) & 1) << MSTATUS_SPIE_SHIFT);
+      s->mstatus = (s->mstatus & ~MSTATUS_SPP) |
+	(s->priv << MSTATUS_SPP_SHIFT);
+      s->mstatus &= ~MSTATUS_SIE;
+      set_priv(s, priv_supervisor);
+      s->pc = s->stvec;
     }
     else {
-      s->mcause = except_cause;
+      s->mcause = except_cause & 0x7fffffff;
       s->mepc = s->pc;
       s->mtval = tval;
       s->mstatus = (s->mstatus & ~MSTATUS_MPIE) |
