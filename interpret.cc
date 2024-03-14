@@ -68,7 +68,7 @@ static std::set<int> written_csrs;
 
 void initState(state_t *s) {
   memset(s, 0, sizeof(state_t));
-  s->misa = 0x800000000014112dL;
+  s->misa = 0x8000000000141101L;
   s->priv = priv_machine;
   s->mstatus = ((uint64_t)2 << MSTATUS_UXL_SHIFT) |((uint64_t)2 << MSTATUS_SXL_SHIFT);
   
@@ -98,10 +98,14 @@ uint64_t state_t::translate(uint64_t ea, int &fault, bool store) const {
   //<< (c.satp.ppn << 12)
   //<< std::dec
   //<< "\n";
+
+  bool v = false;//(icnt > 88074400);
   
+  if(v) std::cout << "translating " << std::hex << ea << std::dec << "\n";
   a = (c.satp.ppn * 4096) + (vpn2*8);
-  //std::cout << std::hex << "L2 " << a << std::dec << "\n";  
   u = *reinterpret_cast<uint64_t*>(mem + a);
+  if(v) std::cout << std::hex << "L2 " << a << ", u = " << u << std::dec << ", vpn2 " << vpn2 <<  "\n";  
+
   if((u&1) == 0) {
     fault = 1;
     return 2;
@@ -113,26 +117,32 @@ uint64_t state_t::translate(uint64_t ea, int &fault, bool store) const {
   }
   
   a = (r.sv39.ppn * 4096) + (vpn1*8);
-  //std::cout << std::hex << "L1 " << a << std::dec << "\n";
-  
   u = *reinterpret_cast<uint64_t*>(mem + a);
+  if(v) std::cout << std::hex << "L1 " << a << ", u = " << u << std::dec << ", vpn1 " << vpn1 << "\n";
   if((u&1) == 0) {
     fault = 1;
     return 1;
-  }  
+  }
+  
   r.r = u;
   if(r.sv39.x || r.sv39.w || r.sv39.r) {
     mask_bits = 21;
     goto translation_complete;
   }
-  
+
   a = (r.sv39.ppn * 4096) + (vpn0*8);
-  //std::cout << std::hex << "L0 " << a << std::dec << "\n";
+  if(v) std::cout << std::hex << "L0 " << a << std::dec << ", vpn0 " << vpn0 << "\n";
   
   u = *reinterpret_cast<uint64_t*>(mem + a);  
   if((u&1) == 0) {
     fault = 1;
     return 0;
+  }
+  r.r = u;  
+  if(not(r.sv39.x || r.sv39.w || r.sv39.r)) {
+    std::cout << "huh no translation for " << std::hex << pc << std::dec << "\n";
+    std::cout << "huh no translation for " << std::hex << ea << std::dec << "\n";
+    std::cout << "u = " << std::hex << u << std::dec << "\n";
   }
   assert(r.sv39.x || r.sv39.w || r.sv39.r);
   mask_bits = 12;
@@ -149,8 +159,13 @@ uint64_t state_t::translate(uint64_t ea, int &fault, bool store) const {
   }
   int64_t m = ((1L << mask_bits) - 1);
   int64_t pa = ((r.sv39.ppn * 4096) & (~m)) | (ea & m);
-
-  //std::cout << std::hex << ea << " mapped to " << pa << std::dec << "\n";
+  if(v)
+  std::cout << std::hex << ea << " mapped to " << pa << std::dec << "\n";  
+  //if(mask_bits == 30) {
+  //
+  //std::cout << std::hex << ((r.sv39.ppn * 4096) & (~m)) << std::dec << "\n";
+  //std::cout << std::hex <<(ea & m) << std::dec << "\n";;
+  //}
 
   //assert(pa == (ea & ((1UL<<32) - 1)));
   return pa;
@@ -239,7 +254,7 @@ static int64_t read_csr(int csr_id, state_t *s) {
     case 0xf14:
       return s->mhartid;      
     default:
-      printf("rd csr id 0x%x unimplemented\n", csr_id);
+      printf("rd csr id 0x%x unimplemented, pc %lx\n", csr_id, s->pc);
       assert(false);
       break;
     }
@@ -278,9 +293,8 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
       s->sip = v;
       break;
     case 0x180:
-      std::cout << "attempting to set mode to " << c.satp.mode << "\n";
       if(c.satp.mode == 8) {
-	std::cout << "set mode to " << c.satp.mode << "\n";
+	std::cout << "set mode to " << c.satp.mode << " at icnt " << s->icnt << " pc " << std::hex << s->pc << std::dec << "\n";
 	//assert(c.satp.mode==0);
 	s->satp = v;
       }
@@ -419,8 +433,11 @@ void execRiscv(state_t *s) {
   memcpy(old_gpr, s->gpr, sizeof(old_gpr));
 #endif
 
-  assert(lop == 3);
+
   if(lop != 3) {
+    std::cout << "will die at pc " << std::hex << s->pc << std::dec
+	      << " icnt " << s->icnt << "\n";
+    assert(lop == 3);
     uint16_t cinst = *reinterpret_cast<uint16_t*>(mem + s->pc);
     std::cout << std::hex <<cinst << std::dec << "\n";
     uint16_t cop = cinst >> 13;
@@ -670,15 +687,75 @@ void execRiscv(state_t *s) {
       if(m.a.sel == 2) {
 	switch(m.a.hiop)
 	  {
+	  case 0x0: {/* amoadd.w */
+	    int page_fault = 0;
+	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, true);
+	    assert(!page_fault);
+	    int32_t x = *reinterpret_cast<int32_t*>(s->mem + pa);
+	    *reinterpret_cast<int32_t*>(s->mem + pa) = (s->gpr[m.a.rs2] + x);
+	    s->sext_xlen(x, m.a.rd);	    
+	    break;
+	  }
 	  case 0x1: {/* amoswap.w */
 	    int page_fault = 0;
-	    uint64_t ea = s->translate(s->gpr[m.a.rs1], page_fault, true);
+	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, true);
 	    assert(!page_fault);
-	    int32_t x = *reinterpret_cast<int32_t*>(s->mem + ea);
-	    *reinterpret_cast<int32_t*>(s->mem + ea) = s->gpr[m.a.rs2];
+	    int32_t x = *reinterpret_cast<int32_t*>(s->mem + pa);
+	    *reinterpret_cast<int32_t*>(s->mem + pa) = s->gpr[m.a.rs2];
 	    s->sext_xlen(x, m.a.rd);
 	    break;
 	  }
+	  case 0x2: { /* lr.w */
+	    int page_fault = 0;
+	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, true);
+	    assert(!page_fault);
+	    int32_t x = *reinterpret_cast<int32_t*>(s->mem + pa);
+	    s->sext_xlen(x, m.a.rd);
+	    break;
+	  }
+	  case 0x3 : { /* sc.w */
+	    int page_fault = 0;
+	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, true);
+	    assert(!page_fault);
+	    int32_t x = *reinterpret_cast<int32_t*>(s->mem + pa);
+	    *reinterpret_cast<int32_t*>(s->mem + pa) = s->gpr[m.a.rs2];
+	    s->gpr[m.a.rd] = 0;
+	    break;
+	  }	    
+	  default:
+	    std::cout << "m.a.hiop " << m.a.hiop << "\n";
+	    assert(false);
+	  }
+      }
+      else if(m.a.sel == 3) {
+	switch(m.a.hiop)
+	  {
+	  case 0x2: { /* lr.d */
+	    int page_fault = 0;
+	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, true);
+	    assert(!page_fault);
+	    int64_t x = *reinterpret_cast<int64_t*>(s->mem + pa);
+	    s->gpr[m.a.rd] = x;
+	    break;
+	  }
+	  case 0x3 : { /* sc.d */
+	    int page_fault = 0;
+	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, true);
+	    assert(!page_fault);
+	    int64_t x = *reinterpret_cast<int64_t*>(s->mem + pa);
+	    *reinterpret_cast<int64_t*>(s->mem + pa) = s->gpr[m.a.rs2];
+	    s->gpr[m.a.rd] = 0;
+	    break;
+	  }
+	  case 0x8: {/* amoor.d */
+	    int page_fault = 0;
+	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, true);
+	    assert(!page_fault);
+	    int64_t x = *reinterpret_cast<int64_t*>(s->mem + pa);
+	    *reinterpret_cast<int64_t*>(s->mem + pa) = (s->gpr[m.a.rs2] | x);
+	    s->gpr[m.a.rd] = x;
+	    break;
+	  }	    
 	  default:
 	    std::cout << "m.a.hiop " << m.a.hiop << "\n";
 	    assert(false);
@@ -758,22 +835,22 @@ void execRiscv(state_t *s) {
       int64_t disp64 = disp;
       int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.s.rs1];
       int fault;
-      ea = s->translate(ea, fault, true);
+      int64_t pa = s->translate(ea, fault, true);
       assert(!fault);
       
       switch(m.s.sel)
 	{
 	case 0x0: /* sb */
-	  s->mem[ea] = *reinterpret_cast<uint8_t*>(&s->gpr[m.s.rs2]);
+	  s->mem[pa] = *reinterpret_cast<uint8_t*>(&s->gpr[m.s.rs2]);
 	  break;
 	case 0x1: /* sh */
-	  *(reinterpret_cast<uint16_t*>(s->mem + ea)) = *reinterpret_cast<uint16_t*>(&s->gpr[m.s.rs2]);
+	  *(reinterpret_cast<uint16_t*>(s->mem + pa)) = *reinterpret_cast<uint16_t*>(&s->gpr[m.s.rs2]);
 	  break;
 	case 0x2: /* sw */
-	  *(reinterpret_cast<int32_t*>(s->mem + ea)) = s->gpr[m.s.rs2];
+	  *(reinterpret_cast<int32_t*>(s->mem + pa)) = s->gpr[m.s.rs2];
 	  break;
 	case 0x3: /* sd */
-	  *(reinterpret_cast<int64_t*>(s->mem + ea)) = s->gpr[m.s.rs2];
+	  *(reinterpret_cast<int64_t*>(s->mem + pa)) = s->gpr[m.s.rs2];
 	  break;
 	default:
 	  assert(0);
@@ -1045,7 +1122,7 @@ void execRiscv(state_t *s) {
 	}
       }
       else if(upper7 == 9 && ((inst & (16384-1)) == 0x73 )) {
-	std::cout << "warn : got sfence\n";
+	//std::cout << "warn : got sfence\n";
       }
       else if(bits19to7z and (csr_id == 0x002)) {  /* uret */
 	assert(false);
@@ -1068,7 +1145,7 @@ void execRiscv(state_t *s) {
 	s->mstatus &= ~MSTATUS_MPP;
 	set_priv(s, mpp);
 	s->pc = s->mepc;
-	std::cout << "mret jump to " << std::hex << s->pc << std::dec << "\n";
+	std::cout << "mret jump to " << std::hex << s->pc << std::dec << " at " << s->icnt << "\n";
 	break;
       }
       else if(is_ebreak) {
@@ -1090,19 +1167,24 @@ void execRiscv(state_t *s) {
 	    }
 	    break;
 	  }
-	  case 2: /* CSRRS */
-	    assert(rs == 0);
-	    if(rd != 0) {
-	      s->gpr[rd] = read_csr(csr_id, s);
+	  case 2: {/* CSRRS */
+	    int64_t t = read_csr(csr_id, s);	    
+	    if(rs != 0) {
+	      write_csr(csr_id, s, t | s->gpr[rs]);
 	    }
-	    //std::cout << "read " << std::hex << s->gpr[rd]  << std::dec << "\n";
+	    if(rd != 0) {
+	      s->gpr[rd] = t;
+	    }
 	    break;
+	  }
 	  case 3: {/* CSRRC */
 	    int64_t t = read_csr(csr_id, s);
 	    if(rs != 0) {
 	      write_csr(csr_id, s, t & (~s->gpr[rs]));
 	    }
-	    s->gpr[rd] = t;
+	    if(rd != 0) {
+	      s->gpr[rd] = t;
+	    }
 	    break;
 	  }
 	  case 5: {/* CSRRWI */
@@ -1116,9 +1198,22 @@ void execRiscv(state_t *s) {
 	    }
 	    break;
 	  }
-	    
-	  case 6: /* CSRRSI */
-	  case 7: /* CSRRCI */
+	  case 6:{ /* CSRRSI */
+	    int64_t t = read_csr(csr_id, s);
+	    if(rs != 0) {
+	      write_csr(csr_id, s, t | rs);
+	    }
+	    s->gpr[rd] = t;
+	    break;
+	  }
+	  case 7: {/* CSRRCI */
+	    int64_t t = read_csr(csr_id, s);
+	    if(rs != 0) {
+	      write_csr(csr_id, s, t & (~rs));
+	    }
+	    s->gpr[rd] = t;
+	    break;
+	  }
 	  default:
 	    assert(false);
 	    break;

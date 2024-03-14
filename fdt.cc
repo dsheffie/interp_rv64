@@ -355,7 +355,16 @@ int riscv_build_fdt(uint8_t *dst,
 
     //misa = riscv_cpu_get_misa(m->cpu_state);
     /* blindly copied from tinyemu */
-    misa = 0x14112d;
+    misa = 0x141101;
+    //misa &= (~4UL);
+    //misa &= (~8UL);
+    //misa &= (~32UL);
+    //for(int i = 0; i < 26; i++) {
+    //if(misa & (1<<i)) {
+    //std::cout << "bit " << i << " set\n";
+    //}
+    //}
+    //std::cout << std::hex << misa << std::dec << "\n";
     
     q = isa_string;
     q += snprintf(isa_string, sizeof(isa_string), "rv%d", max_xlen);
@@ -364,9 +373,10 @@ int riscv_build_fdt(uint8_t *dst,
             *q++ = 'a' + i;
     }
     *q = '\0';
+    //std::cout << isa_string << "\n";
     fdt_prop_str(s, "riscv,isa", isa_string);
     
-    fdt_prop_str(s, "mmu-type", max_xlen <= 32 ? "riscv,sv32" : "riscv,sv48");
+    fdt_prop_str(s, "mmu-type", max_xlen <= 32 ? "riscv,sv32" : "riscv,sv39");
     fdt_prop_u32(s, "clock-frequency", 2000000000);
 
     fdt_begin_node(s, "interrupt-controller");
