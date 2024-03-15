@@ -12,20 +12,16 @@
 #include "helper.hh"
 #include "globals.hh"
 
-static std::set<int> written_csrs;
-
 void initState(state_t *s) {
   memset(s, 0, sizeof(state_t));
   s->misa = 0x8000000000141101L;
   s->priv = priv_machine;
   s->mstatus = ((uint64_t)2 << MSTATUS_UXL_SHIFT) |((uint64_t)2 << MSTATUS_SXL_SHIFT);
-  
-  written_csrs.insert(0x301);
-  written_csrs.insert(0xf14);
+
 }
 
 
-uint64_t state_t::translate(uint64_t ea, int &fault, bool store) const {
+uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store) const {
   fault = false;
   csr_t c(satp);
   if((c.satp.mode == 0) or
@@ -33,6 +29,9 @@ uint64_t state_t::translate(uint64_t ea, int &fault, bool store) const {
      (priv == priv_machine)) {
     return ea;
   }
+
+  assert((ea & (sz-1)) == 0);
+  
   //std::cout << std::hex << "ea = " << ea << std::dec << "\n";
   assert(c.satp.mode == 8);
   uint64_t vpn0 = (ea >> 12) & 511;
@@ -244,7 +243,7 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
       break;
     case 0x180:
       if(c.satp.mode == 8) {
-	std::cout << "set mode to " << c.satp.mode << " at icnt " << s->icnt << " pc " << std::hex << s->pc << std::dec << "\n";
+	//std::cout << "set mode to " << c.satp.mode << " at icnt " << s->icnt << " pc " << std::hex << s->pc << std::dec << "\n";
 	//assert(c.satp.mode==0);
 	s->satp = v;
       }
@@ -308,7 +307,7 @@ void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
   int fetch_fault = 0, except_cause = -1, tval = -1;
   uint64_t tohost = 0;
-  uint64_t phys_pc = s->translate(s->pc, fetch_fault);
+  uint64_t phys_pc = s->translate(s->pc, fetch_fault, 4);
   uint32_t inst = 0, opcode = 0, rd = 0, lop = 0;
   int64_t irq = 0;
   riscv_t m(0);
@@ -472,7 +471,7 @@ void execRiscv(state_t *s) {
 	int64_t disp64 = disp;
 	int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.l.rs1];
 	int page_fault = 0;
-	int64_t pa = s->translate(ea, page_fault);
+	int64_t pa = s->translate(ea, page_fault, 1<<(m.s.sel & 2));
 	if(page_fault) {
 	  except_cause = CAUSE_LOAD_PAGE_FAULT;
 	  tval = ea;
@@ -652,7 +651,7 @@ void execRiscv(state_t *s) {
 	  {
 	  case 0x0: {/* amoadd.w */
 	    int page_fault = 0;
-	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, true);
+	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
 	    assert(!page_fault);
 	    int32_t x = *reinterpret_cast<int32_t*>(s->mem + pa);
 	    *reinterpret_cast<int32_t*>(s->mem + pa) = (s->gpr[m.a.rs2] + x);
@@ -661,7 +660,7 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0x1: {/* amoswap.w */
 	    int page_fault = 0;
-	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, true);
+	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, 4,  true);
 	    assert(!page_fault);
 	    int32_t x = *reinterpret_cast<int32_t*>(s->mem + pa);
 	    *reinterpret_cast<int32_t*>(s->mem + pa) = s->gpr[m.a.rs2];
@@ -670,7 +669,7 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0x2: { /* lr.w */
 	    int page_fault = 0;
-	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, true);
+	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, 4);
 	    assert(!page_fault);
 	    int32_t x = *reinterpret_cast<int32_t*>(s->mem + pa);
 	    s->sext_xlen(x, m.a.rd);
@@ -678,7 +677,7 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0x3 : { /* sc.w */
 	    int page_fault = 0;
-	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, true);
+	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
 	    assert(!page_fault);
 	    int32_t x = *reinterpret_cast<int32_t*>(s->mem + pa);
 	    *reinterpret_cast<int32_t*>(s->mem + pa) = s->gpr[m.a.rs2];
@@ -695,7 +694,7 @@ void execRiscv(state_t *s) {
 	  {
 	  case 0x2: { /* lr.d */
 	    int page_fault = 0;
-	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, true);
+	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, 8);
 	    assert(!page_fault);
 	    int64_t x = *reinterpret_cast<int64_t*>(s->mem + pa);
 	    s->gpr[m.a.rd] = x;
@@ -703,7 +702,7 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0x3 : { /* sc.d */
 	    int page_fault = 0;
-	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, true);
+	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, 8,  true);
 	    assert(!page_fault);
 	    int64_t x = *reinterpret_cast<int64_t*>(s->mem + pa);
 	    *reinterpret_cast<int64_t*>(s->mem + pa) = s->gpr[m.a.rs2];
@@ -712,7 +711,7 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0x8: {/* amoor.d */
 	    int page_fault = 0;
-	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, true);
+	    uint64_t pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
 	    assert(!page_fault);
 	    int64_t x = *reinterpret_cast<int64_t*>(s->mem + pa);
 	    *reinterpret_cast<int64_t*>(s->mem + pa) = (s->gpr[m.a.rs2] | x);
@@ -798,7 +797,7 @@ void execRiscv(state_t *s) {
       int64_t disp64 = disp;
       int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.s.rs1];
       int fault;
-      int64_t pa = s->translate(ea, fault, true);
+      int64_t pa = s->translate(ea, fault, 1<<m.s.sel, true);
       assert(!fault);
       
       switch(m.s.sel)
