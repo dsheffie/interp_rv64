@@ -7,62 +7,10 @@
 #include <set>
 
 #include "interpret.hh"
+#include "temu_code.hh"
 #include "disassemble.hh"
 #include "helper.hh"
 #include "globals.hh"
-
-/* stolen from tinyemu */
-#define CAUSE_MISALIGNED_FETCH    0x0
-#define CAUSE_FAULT_FETCH         0x1
-#define CAUSE_ILLEGAL_INSTRUCTION 0x2
-#define CAUSE_BREAKPOINT          0x3
-#define CAUSE_MISALIGNED_LOAD     0x4
-#define CAUSE_FAULT_LOAD          0x5
-#define CAUSE_MISALIGNED_STORE    0x6
-#define CAUSE_FAULT_STORE         0x7
-#define CAUSE_USER_ECALL          0x8
-#define CAUSE_SUPERVISOR_ECALL    0x9
-#define CAUSE_HYPERVISOR_ECALL    0xa
-#define CAUSE_MACHINE_ECALL       0xb
-#define CAUSE_FETCH_PAGE_FAULT    0xc
-#define CAUSE_LOAD_PAGE_FAULT     0xd
-#define CAUSE_STORE_PAGE_FAULT    0xf
-/* Note: converted to correct bit position at runtime */
-#define CAUSE_INTERRUPT  ((uint32_t)1 << 31)
-
-
-#define MSTATUS_SPIE_SHIFT 5
-#define MSTATUS_MPIE_SHIFT 7
-#define MSTATUS_SPP_SHIFT 8
-#define MSTATUS_MPP_SHIFT 11
-#define MSTATUS_FS_SHIFT 13
-#define MSTATUS_UXL_SHIFT 32
-#define MSTATUS_SXL_SHIFT 34
-#define MSTATUS_UIE (1 << 0)
-#define MSTATUS_SIE (1 << 1)
-#define MSTATUS_HIE (1 << 2)
-#define MSTATUS_MIE (1 << 3)
-#define MSTATUS_UPIE (1 << 4)
-#define MSTATUS_SPIE (1 << MSTATUS_SPIE_SHIFT)
-#define MSTATUS_HPIE (1 << 6)
-#define MSTATUS_MPIE (1 << MSTATUS_MPIE_SHIFT)
-#define MSTATUS_SPP (1 << MSTATUS_SPP_SHIFT)
-#define MSTATUS_HPP (3 << 9)
-#define MSTATUS_MPP (3 << MSTATUS_MPP_SHIFT)
-#define MSTATUS_FS (3 << MSTATUS_FS_SHIFT)
-#define MSTATUS_XS (3 << 15)
-#define MSTATUS_MPRV (1 << 17)
-#define MSTATUS_SUM (1 << 18)
-#define MSTATUS_MXR (1 << 19)
-#define MSTATUS_UXL_MASK ((uint64_t)3 << MSTATUS_UXL_SHIFT)
-#define MSTATUS_SXL_MASK ((uint64_t)3 << MSTATUS_SXL_SHIFT)
-
-#define MSTATUS_MASK (MSTATUS_UIE | MSTATUS_SIE | MSTATUS_MIE |		\
-                      MSTATUS_UPIE | MSTATUS_SPIE | MSTATUS_MPIE |	\
-                      MSTATUS_SPP | MSTATUS_MPP |			\
-                      MSTATUS_FS |					\
-                      MSTATUS_MPRV | MSTATUS_SUM | MSTATUS_MXR )
-
 
 static std::set<int> written_csrs;
 
@@ -251,6 +199,8 @@ static int64_t read_csr(int csr_id, state_t *s) {
       return s->pmpaddr3;      
     case 0xc00:
       return s->icnt;
+    case 0xc01:
+      return (s->icnt >> 20);
     case 0xf14:
       return s->mhartid;      
     default:
@@ -360,7 +310,21 @@ void execRiscv(state_t *s) {
   uint64_t tohost = 0;
   uint64_t phys_pc = s->translate(s->pc, fetch_fault);
   uint32_t inst = 0, opcode = 0, rd = 0, lop = 0;
+  int64_t irq = 0;
   riscv_t m(0);
+
+  if(s->pc == 0xffffffff808aa140L) {
+    std::cout << "linux is panic'd, last call " << std::hex << s->last_call << std::dec << "\n";
+    s->brk = 1;
+  }
+
+  /* lightly modified from tinyemu */
+  irq = take_interrupt(s);
+  if(irq) {
+    except_cause = CAUSE_INTERRUPT | irq;
+    goto handle_exception;
+  }
+  
   if(fetch_fault) {
     except_cause = CAUSE_FETCH_PAGE_FAULT;
     tval = s->pc;
@@ -410,7 +374,6 @@ void execRiscv(state_t *s) {
   }
   lop = (opcode & 3);
   rd = (inst>>7) & 31;
-
 
   
   if(globals::log) {
@@ -891,6 +854,7 @@ void execRiscv(state_t *s) {
 	s->gpr[m.jj.rd] = s->pc + 4;
       }
       //std::cout << "target = " << std::hex << tgt64 << std::dec << "\n";
+      s->last_call = s->pc;
       s->pc = tgt64;
       break;
     }
@@ -909,6 +873,7 @@ void execRiscv(state_t *s) {
       if(rd != 0) {
 	s->gpr[rd] = s->pc + 4;
       }
+      s->last_call = s->pc;
       s->pc += jaddr;
       break;
     }

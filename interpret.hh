@@ -21,6 +21,7 @@ enum riscv_priv {
 struct state_t{
   uint64_t pc;
   uint64_t last_pc;
+  uint64_t last_call;
   int64_t gpr[32];
   uint8_t *mem;
   uint8_t brk;
