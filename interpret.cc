@@ -29,7 +29,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store) const {
      (priv == priv_machine)) {
     return ea;
   }
-
+  //if we are unaligned assert out (for now)
   assert((ea & (sz-1)) == 0);
   
   //std::cout << std::hex << "ea = " << ea << std::dec << "\n";
@@ -303,6 +303,9 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
 
 uint64_t last_tval = 0;
 
+#include <stack>
+static std::stack<int64_t> calls;
+
 void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
   int fetch_fault = 0, except_cause = -1, tval = -1;
@@ -314,6 +317,12 @@ void execRiscv(state_t *s) {
 
   if(s->pc == 0xffffffff808aa140L) {
     std::cout << "linux is panic'd, last call " << std::hex << s->last_call << std::dec << "\n";
+    std::cout << "took " << calls.size() << " calls\n";
+    while(!calls.empty()) {
+      int64_t ip = calls.top();
+      std::cout << std::hex << ip << std::dec << "\n";
+      calls.pop();
+    }
     s->brk = 1;
   }
 
@@ -854,6 +863,17 @@ void execRiscv(state_t *s) {
       }
       //std::cout << "target = " << std::hex << tgt64 << std::dec << "\n";
       s->last_call = s->pc;
+      bool rs1_is_link = m.jj.rs1==1 or m.jj.rs1==5;
+      bool rd_is_link = m.jj.rd==1 or m.jj.rd==5;
+      
+      if((m.jj.rd == 0) and rs1_is_link) {
+	if(!calls.empty())
+	  calls.pop();
+      }
+      if(rd_is_link) {
+	calls.push(s->pc);
+      }
+      
       s->pc = tgt64;
       break;
     }
@@ -873,6 +893,10 @@ void execRiscv(state_t *s) {
 	s->gpr[rd] = s->pc + 4;
       }
       s->last_call = s->pc;
+      bool rd_is_link = rd==1 or rd==5;      
+      if(rd_is_link) {
+	calls.push(s->pc);
+      }
       s->pc += jaddr;
       break;
     }
