@@ -5,6 +5,7 @@
 #include <cstring>
 #include <limits>
 #include <set>
+#include <unordered_map>
 
 #include "interpret.hh"
 #include "temu_code.hh"
@@ -33,47 +34,42 @@ void initState(state_t *s) {
 
 }
 
+static std::unordered_map<uint64_t, std::pair<uint64_t, uint64_t>> tlb;
 
 uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fetch) const {
   fault = false;
-  csr_t c(satp);
-  if((c.satp.mode == 0) or
-     (priv == priv_hypervisor) or
-     (priv == priv_machine)) {
+  if(unpaged_mode()) {
     return ea;
-  }
-
+  }  
+  csr_t c(satp);
+  pte_t r(0);
   uint64_t ea0 = ea & (~4095L);
   uint64_t ea1 = ((ea + sz - 1) & (~4095L));
   bool same_page = (ea0 == ea1);
+  uint64_t a = 0, u = 0;
+  int mask_bits = -1;
+  uint64_t tlb_pa = 0;
   
   //if we are unaligned assert out (for now)
   if(!same_page) {
     fault = 1;
     return 2;
   }
-  
-  //std::cout << std::hex << "ea = " << ea << std::dec << "\n";
+
+  // auto &t = tlb[ea >> 12];
+  // r.r = t.first;
+  // if(r.sv39.v and not((r.sv39.d == 0) && store)) {
+  //   mask_bits = t.second & 4095;
+  //   int64_t m = ((1L << mask_bits) - 1);
+  //   tlb_pa = (t.second & (~m)) | (ea & m);
+  //   return tlb_pa;
+  // }
+  // r.r = 0;
+  // mask_bits = -1;
+
   assert(c.satp.mode == 8);
-  uint64_t vpn0 = (ea >> 12) & 511;
-  uint64_t vpn1 = (ea >> 21) & 511;
-  uint64_t vpn2 = (ea >> 30) & 511;
-  uint64_t a, u;
-  int mask_bits = -1;
-  pte_t r(0);  
-  //std::cout << "page table root = "
-  //	    << std::hex
-  //<< (c.satp.ppn << 12)
-  //<< std::dec
-  //<< "\n";
-
-  bool v = false;//(icnt > 88074400);
-  
-  if(v) std::cout << "translating " << std::hex << ea << std::dec << "\n";
-  a = (c.satp.ppn * 4096) + (vpn2*8);
+  a = (c.satp.ppn * 4096) + (((ea >> 30) & 511)*8);
   u = *reinterpret_cast<uint64_t*>(mem + a);
-  if(v) std::cout << std::hex << "L2 " << a << ", u = " << u << std::dec << ", vpn2 " << vpn2 <<  "\n";  
-
   if((u&1) == 0) {
     fault = 1;
     return 2;
@@ -84,9 +80,9 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     goto translation_complete;
   }
   
-  a = (r.sv39.ppn * 4096) + (vpn1*8);
+  a = (r.sv39.ppn * 4096) + (((ea >> 21) & 511)*8);
   u = *reinterpret_cast<uint64_t*>(mem + a);
-  if(v) std::cout << std::hex << "L1 " << a << ", u = " << u << std::dec << ", vpn1 " << vpn1 << "\n";
+
   if((u&1) == 0) {
     fault = 1;
     return 1;
@@ -97,9 +93,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     mask_bits = 21;
     goto translation_complete;
   }
-
-  a = (r.sv39.ppn * 4096) + (vpn0*8);
-  if(v) std::cout << std::hex << "L0 " << a << std::dec << ", vpn0 " << vpn0 << "\n";
+  a = (r.sv39.ppn * 4096) + (((ea >> 12) & 511)*8);
   
   u = *reinterpret_cast<uint64_t*>(mem + a);  
   if((u&1) == 0) {
@@ -112,6 +106,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     std::cout << "huh no translation for " << std::hex << ea << std::dec << "\n";
     std::cout << "u = " << std::hex << u << std::dec << "\n";
   }
+
   assert(r.sv39.x || r.sv39.w || r.sv39.r);
   mask_bits = 12;
   
@@ -134,7 +129,6 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     fault = 1;
     return 0;
   }
-  
   assert(mask_bits != -1);
 
   
@@ -148,21 +142,22 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   }
   int64_t m = ((1L << mask_bits) - 1);
   int64_t pa = ((r.sv39.ppn * 4096) & (~m)) | (ea & m);
-  if(v)
-  std::cout << std::hex << ea << " mapped to " << pa << std::dec << "\n";  
-  //if(mask_bits == 30) {
-  //
-  //std::cout << std::hex << ((r.sv39.ppn * 4096) & (~m)) << std::dec << "\n";
-  //std::cout << std::hex <<(ea & m) << std::dec << "\n";;
-  //}
-
-  //assert(pa == (ea & ((1UL<<32) - 1)));
+  
+  //tlb[ea >>  12] = std::pair<uint64_t, uint64_t>(r.r, (r.sv39.ppn << 12) | mask_bits );
+  // if(tlb_pa != 0 && (pa != tlb_pa)) {
+  //   std::cout << "m = " << std::hex << m << std::dec << "\n";
+  //   printf("ea     = %lx\n", ea);
+  //   printf("pa     = %lx\n", pa);
+  //   printf("tlb pa = %lx\n", tlb_pa);
+  //   assert(pa == tlb_pa);
+  // }
   return pa;
 }
 
 static void set_priv(state_t *s, int priv) {
   if (s->priv != priv) {
-    //tlb_flush_all(s);
+    //printf("tlb had %lu entries\n", tlb.size());
+    tlb.clear();
     int mxl;
     if (priv == priv_supervisor) {
       mxl = (s->mstatus >> MSTATUS_SXL_SHIFT) & 3;
@@ -289,6 +284,8 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
       if(c.satp.mode == 8 &&
 	 c.satp.asid == 0) {
 	s->satp = v;
+	//printf("tlb had %lu entries\n", tlb.size());
+	tlb.clear();	
       }
       break;
     case 0x300:
@@ -1240,7 +1237,9 @@ void execRiscv(state_t *s) {
       }
       else if(upper7 == 9 && ((inst & (16384-1)) == 0x73 )) {
 	//std::cout << "warn : got sfence\n";
-      }
+	//printf("tlb had %lu entries\n", tlb.size());	
+	tlb.clear();
+      }      
       else if(bits19to7z and (csr_id == 0x002)) {  /* uret */
 	assert(false);
       }
@@ -1366,7 +1365,8 @@ void execRiscv(state_t *s) {
   return;
   
  handle_exception: {
-    std::cout << "took exception at " << std::hex << s->pc << std::dec << "\n";
+    std::cout << "took exception at "
+	      << std::hex << s->pc << std::dec << "\n";
     bool delegate = false;
     
     if(s->priv == priv_user || s->priv == priv_supervisor) {

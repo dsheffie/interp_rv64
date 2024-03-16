@@ -18,6 +18,13 @@ enum riscv_priv {
 };
 
 
+struct satp_t {
+  uint64_t ppn : 44;
+  uint64_t asid : 16;
+  uint64_t mode : 4;
+};
+
+
 struct state_t{
   uint64_t pc;
   uint64_t last_pc;
@@ -74,6 +81,15 @@ struct state_t{
   }
   uint64_t get_reg_u64(int id) const {
     return *reinterpret_cast<const uint64_t*>(&gpr[id]);
+  }
+  bool unpaged_mode() const {
+    if((priv == priv_machine) or (priv == priv_hypervisor)) {
+      return true;
+    }
+    if( ((satp >> 60)&0xf) == 0) {
+      return true;
+    }
+    return false;
   }
   uint64_t translate(uint64_t ea, int &fault, int sz,
 		     bool store = false, bool fetch = false) const;
@@ -177,12 +193,6 @@ union riscv_t {
   riscv_t(uint32_t x) : raw(x) {}
 };
 
-struct satp_t {
-  uint64_t ppn : 44;
-  uint64_t asid : 16;
-  uint64_t mode : 4;
-};
-
 struct mstatus_t {
   uint64_t j0 : 1;
   uint64_t sie : 1;
@@ -212,6 +222,13 @@ struct mstatus_t {
   uint64_t sd : 1;
 };
 
+union csr_t {
+  satp_t satp;
+  mstatus_t mstatus;
+  uint64_t raw;
+  csr_t(uint64_t x) : raw(x) {}
+};
+
 static inline std::ostream &operator<<(std::ostream &out, mstatus_t mstatus) {
   out << "sie  " << mstatus.sie << "\n";
   out << "mie  " << mstatus.mie << "\n";
@@ -236,12 +253,6 @@ static inline std::ostream &operator<<(std::ostream &out, mstatus_t mstatus) {
   return out;
 }
 
-union csr_t {
-  satp_t satp;
-  mstatus_t mstatus;
-  uint64_t raw;
-  csr_t(uint64_t x) : raw(x) {}
-};
 
 struct sv39_t {
   uint64_t v : 1;
