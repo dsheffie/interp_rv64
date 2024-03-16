@@ -43,13 +43,14 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store) const {
     return ea;
   }
 
-  bool same_page = ((ea + sz - 1) & (~4095L)) == (ea & (~4095L));
+  uint64_t ea0 = ea & (~4095L);
+  uint64_t ea1 = ((ea + sz - 1) & (~4095L));
+  bool same_page = (ea0 == ea1);
   
   //if we are unaligned assert out (for now)
   if(!same_page) {
-    std::cout << "unaligned page fault!\n";
-    dump_calls();
-    abort();
+    fault = 1;
+    return 2;
   }
   
   //std::cout << std::hex << "ea = " << ea << std::dec << "\n";
@@ -333,7 +334,7 @@ void execRiscv(state_t *s) {
   int64_t irq = 0;
   riscv_t m(0);
 
-  if(s->pc == 0xffffffff8089767cL) {
+  if(s->pc == 0xffffffff80897848L) {
     std::cout << "linux is panic'd, last call " << std::hex << s->last_call << std::dec << "\n";
     dump_calls();
     s->brk = 1;
@@ -432,6 +433,7 @@ void execRiscv(state_t *s) {
   if(lop != 3) {
     std::cout << "will die at pc " << std::hex << s->pc << std::dec
 	      << " icnt " << s->icnt << "\n";
+    dump_calls();
     assert(lop == 3);
     uint16_t cinst = *reinterpret_cast<uint16_t*>(mem + s->pc);
     std::cout << std::hex <<cinst << std::dec << "\n";
@@ -503,8 +505,31 @@ void execRiscv(state_t *s) {
 	}
 	int64_t disp64 = disp;
 	int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.l.rs1];
+	int sz = 1<<(m.s.sel & 3);
+	
+	// uint64_t ea0 = ea & (~4095L);
+	// uint64_t ea1 = ((ea + sz - 1) & (~4095L));
+	// bool same_page = (ea0 == ea1);
+	// if(!same_page) {
+	//   int64_t x = 0;
+	//   for(int i = 0; i < sz; i++) {
+	//     int page_fault = 0;
+	//     int64_t pa = s->translate(ea+i, page_fault, 1);
+	//     if(page_fault) {
+	//       except_cause = CAUSE_LOAD_PAGE_FAULT;
+	//       tval = ea;
+	//       goto handle_exception;
+	//     }
+	//     x |= (s->mem[pa] << (8*i));
+	//   }
+	//   //abort();
+	//   s->pc += 4;
+	//   break;
+	// }
+	// assert(same_page);
+	
 	int page_fault = 0;
-	int64_t pa = s->translate(ea, page_fault, 1<<(m.s.sel & 2));
+	int64_t pa = s->translate(ea, page_fault, sz);
 	if(page_fault) {
 	  except_cause = CAUSE_LOAD_PAGE_FAULT;
 	  store_pf |= (s->pc == 0xffffffff8015e314);
@@ -515,10 +540,10 @@ void execRiscv(state_t *s) {
 	switch(m.s.sel)
 	  {
 	  case 0x0: /* lb */
-	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int8_t*>(s->mem + pa)));	 
+	    s->gpr[m.l.rd] = *(reinterpret_cast<int8_t*>(s->mem + pa));	 
 	    break;
 	  case 0x1: /* lh */
-	    s->gpr[m.l.rd] = static_cast<int32_t>(*(reinterpret_cast<int16_t*>(s->mem + pa)));	 
+	    s->gpr[m.l.rd] = *(reinterpret_cast<int16_t*>(s->mem + pa));	 
 	    break;
 	  case 0x2: /* lw */
 	    s->sext_xlen( *reinterpret_cast<int32_t*>(s->mem + pa), m.l.rd);
@@ -873,7 +898,31 @@ void execRiscv(state_t *s) {
       int64_t disp64 = disp;
       int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.s.rs1];
       int fault;
-      int64_t pa = s->translate(ea, fault, 1<<m.s.sel, true);
+
+      int sz = 1<<(m.s.sel);
+      // uint64_t ea0 = ea & (~4095L);
+      // uint64_t ea1 = ((ea + sz - 1) & (~4095L));
+      // bool same_page = (ea0 == ea1);
+      // if(!same_page) {
+      // 	uint64_t x = *reinterpret_cast<uint64_t*>(&s->gpr[m.s.rs2]);
+      // 	for(int i = 0; i < sz; i++) {
+      // 	  int page_fault = 0;
+      // 	    int64_t pa = s->translate(ea+i, page_fault, 1);
+      // 	    if(page_fault) {
+      // 	      except_cause = CAUSE_STORE_PAGE_FAULT;
+      // 	      tval = ea;
+      // 	      goto handle_exception;
+      // 	    }	  
+      // 	    s->mem[pa] = (x  >> (8*i)) & 0xff;
+      // 	}
+      // 	//abort();
+      // 	s->pc += 4;
+      // 	break;	
+      // }
+
+
+      
+      int64_t pa = s->translate(ea, fault, sz, true);
       if(fault) {
 	except_cause = CAUSE_STORE_PAGE_FAULT;
 	tval = ea;
