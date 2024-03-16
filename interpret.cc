@@ -406,7 +406,7 @@ void execRiscv(state_t *s) {
   phys_pc = s->translate(s->pc, fetch_fault, 4, false, true);
   
   if(s->pc == 0xffffffff80ba287cL) {
-    std::cout << "linux is panic'd, last call " << std::hex << s->last_call << std::dec << "\n";
+    printf("linux panic, last call %lx\n", s->last_call);
     dump_calls();
     s->brk = 1;
   }
@@ -487,76 +487,12 @@ void execRiscv(state_t *s) {
   s->last_pc = s->pc;  
 
 
-  if(lop != 3) {
+  if(lop != 3) { /* compressed instructions generate exceptions */
     except_cause = CAUSE_ILLEGAL_INSTRUCTION;
     tval = s->pc;
     goto handle_exception;
-    
-    std::cout << "will die at pc " << std::hex << s->pc << std::dec
-	      << " icnt " << s->icnt << "\n";
-    dump_calls();
-    assert(lop == 3);
-    uint16_t cinst = s->load16(phys_pc);
-    std::cout << std::hex <<cinst << std::dec << "\n";
-    uint16_t cop = cinst >> 13;
-    uint16_t oix = (cop << 2) | lop;
-    uint16_t rd = (cinst >> 7) & 31;
-    uint16_t rs2 = ((cinst >> 2) & 31);
-    switch(oix)
-      {
-      case 1: /* nop or addi*/
-	if(cinst != 1) {
-	  int64_t simm64 = ((cinst >> 2) & 31) | ((cinst & 4096) >> 7);
-	  simm64 = (simm64 << 58)>>58;
-	  s->sext_xlen(s->gpr[rd] + simm64, rd);
-	}
-	s->pc += 2;
-	break;
-      case 0xd:
-	if(rd == 2) {
-	  assert(0);
-	}
-	else if(rd != 0) { /* lui */
-	  assert(0);
-	}
-	s->pc += 2;	
-	break;
-      case 0x12: /* jr, mv, ebreak, jalr, or add */
-	if((cinst>>12) & 1) { /* ebreak, jalr, add */
-	  assert(0);
-	}
-	else { /* jr or mv */
-	  if( rs2 == 0 ) { /* jalr */
-	    assert(0);
-	  }
-	  else { /* add */
-	    if(rd != 0) {
-	      s->sext_xlen(s->gpr[rs2] + s->gpr[rd], rd);
-	    }
-	    s->pc += 2;
-	  }
-	}
-	break;
-      case 0x1e:{ /* SDSP */
-	uint16_t off = (cinst>>7) & 63;
-	uint16_t disp = off & 0x38;
-	disp |= (off & 7) << 6;
-	int64_t ea = s->gpr[2] + disp;
-	*(reinterpret_cast<int64_t*>(s->mem + ea)) = s->gpr[rs2];
-	s->pc += 2;
-	break;
-      }
-      default:
-	std::cout << std::hex << lop << std::dec << "\n";
-	std::cout << std::hex << cop << std::dec << "\n";
-	std::cout << std::hex << oix << std::dec << "\n";
-	goto report_unimplemented;
-	assert(0);
-      }
-    return;
   }
 
-  assert(lop == 3);
   switch(opcode)
     {
     case 0x3: {
@@ -568,27 +504,6 @@ void execRiscv(state_t *s) {
 	int64_t disp64 = disp;
 	int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.l.rs1];
 	int sz = 1<<(m.s.sel & 3);
-	
-	// uint64_t ea0 = ea & (~4095L);
-	// uint64_t ea1 = ((ea + sz - 1) & (~4095L));
-	// bool same_page = (ea0 == ea1);
-	// if(!same_page) {
-	//   int64_t x = 0;
-	//   for(int i = 0; i < sz; i++) {
-	//     int page_fault = 0;
-	//     int64_t pa = s->translate(ea+i, page_fault, 1);
-	//     if(page_fault) {
-	//       except_cause = CAUSE_LOAD_PAGE_FAULT;
-	//       tval = ea;
-	//       goto handle_exception;
-	//     }
-	//     x |= (s->mem[pa] << (8*i));
-	//   }
-	//   //abort();
-	//   s->pc += 4;
-	//   break;
-	// }
-	// assert(same_page);
 	
 	int page_fault = 0;
 	int64_t pa = s->translate(ea, page_fault, sz);
@@ -771,9 +686,8 @@ void execRiscv(state_t *s) {
 	  case 0x2: { /* lr.w */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4);
 	    assert(!page_fault);
-	    int32_t x = s->load32(pa);
 	    if(m.a.rd != 0) {
-	      s->sext_xlen(x, m.a.rd);
+	      s->sext_xlen(s->load32(pa), m.a.rd);
 	    }
 	    break;
 	  }
@@ -817,9 +731,8 @@ void execRiscv(state_t *s) {
 	  case 0x2: { /* lr.d */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8);
 	    assert(!page_fault);
-	    int64_t x = s->load64(pa);
 	    if(m.a.rd != 0) {
-	      s->gpr[m.a.rd] = x;
+	      s->gpr[m.a.rd] = s->load64(pa);
 	    }
 	    break;
 	  }
@@ -932,28 +845,6 @@ void execRiscv(state_t *s) {
       int fault;
 
       int sz = 1<<(m.s.sel);
-      // uint64_t ea0 = ea & (~4095L);
-      // uint64_t ea1 = ((ea + sz - 1) & (~4095L));
-      // bool same_page = (ea0 == ea1);
-      // if(!same_page) {
-      // 	uint64_t x = *reinterpret_cast<uint64_t*>(&s->gpr[m.s.rs2]);
-      // 	for(int i = 0; i < sz; i++) {
-      // 	  int page_fault = 0;
-      // 	    int64_t pa = s->translate(ea+i, page_fault, 1);
-      // 	    if(page_fault) {
-      // 	      except_cause = CAUSE_STORE_PAGE_FAULT;
-      // 	      tval = ea;
-      // 	      goto handle_exception;
-      // 	    }	  
-      // 	    s->mem[pa] = (x  >> (8*i)) & 0xff;
-      // 	}
-      // 	//abort();
-      // 	s->pc += 4;
-      // 	break;	
-      // }
-
-
-      
       int64_t pa = s->translate(ea, fault, sz, true);
       if(fault) {
 	except_cause = CAUSE_STORE_PAGE_FAULT;
