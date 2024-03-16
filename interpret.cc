@@ -19,10 +19,12 @@ static uint64_t last_tval = 0;
 static std::stack<int64_t> calls;
 
 static void dump_calls() {
-  while(!calls.empty()) {
+  int cnt = 0;
+  while(!calls.empty() && (cnt < 5)) {
     int64_t ip = calls.top();
     std::cout << std::hex << ip << std::dec << "\n";
     calls.pop();
+    cnt++;
   }
 }
 
@@ -40,7 +42,7 @@ bool state_t::memory_map_check(uint64_t pa, bool store) {
     return true;
   }
   if(pa >= PLIC_BASE_ADDR and (pa < (PLIC_BASE_ADDR + PLIC_SIZE))) {
-    printf("%s plic range at pc %lx\n", store ? "write" : "read", pc);
+    printf("%s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
     return true;
   }  
   return false;
