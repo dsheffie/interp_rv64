@@ -34,6 +34,48 @@ void initState(state_t *s) {
 
 }
 
+
+int8_t state_t::load8(uint64_t pa) {
+  return *reinterpret_cast<int8_t*>(mem + pa);
+}
+int64_t state_t::load8u(uint64_t pa) {
+  uint64_t z = 0;
+  *reinterpret_cast<uint64_t*>(&z) = *reinterpret_cast<uint8_t*>(mem + pa);
+  return z;
+}  
+int16_t state_t::load16(uint64_t pa) {
+  return *reinterpret_cast<int16_t*>(mem + pa);
+}
+int64_t state_t::load16u(uint64_t pa) {
+  uint64_t z = 0;
+  *reinterpret_cast<uint64_t*>(&z) = *reinterpret_cast<uint16_t*>(mem + pa);
+  return z;
+}  
+int32_t state_t::load32(uint64_t pa) {
+  return *reinterpret_cast<int32_t*>(mem + pa);
+}
+int64_t state_t::load32u(uint64_t pa) {
+  uint64_t z = 0;
+  *reinterpret_cast<uint64_t*>(&z) = *reinterpret_cast<uint32_t*>(mem + pa);
+  return z;
+}  
+int64_t state_t::load64(uint64_t pa) {
+  return *reinterpret_cast<int64_t*>(mem + pa);
+}
+void state_t::store8(uint64_t pa,  int8_t x) {
+  *reinterpret_cast<int8_t*>(mem + pa) = x;
+}
+void state_t::store16(uint64_t pa, int16_t x) {
+  *reinterpret_cast<int16_t*>(mem + pa) = x;
+}
+void state_t::store32(uint64_t pa, int32_t x) {
+  *reinterpret_cast<int32_t*>(mem + pa) = x;
+}
+void state_t::store64(uint64_t pa, int64_t x) {
+  *reinterpret_cast<int64_t*>(mem + pa) = x;
+}
+
+
 static std::unordered_map<uint64_t, std::pair<uint64_t, uint64_t>> tlb;
 
 uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fetch) const {
@@ -365,9 +407,7 @@ void execRiscv(state_t *s) {
     s->brk = 1;
   }
 
-  //if(!(s->icnt % 10000000)) {
-  //
-  //
+
   /* lightly modified from tinyemu */
   
   if(fetch_fault) {
@@ -384,7 +424,7 @@ void execRiscv(state_t *s) {
   assert(phys_pc < (1UL << 32));
   // assert(!fetch_fault);
   
-  inst = *reinterpret_cast<uint32_t*>(mem + phys_pc);
+  inst = s->load32(phys_pc);
   m.raw = inst;
   opcode = inst & 127;
 
@@ -448,7 +488,7 @@ void execRiscv(state_t *s) {
 	      << " icnt " << s->icnt << "\n";
     dump_calls();
     assert(lop == 3);
-    uint16_t cinst = *reinterpret_cast<uint16_t*>(mem + phys_pc);
+    uint16_t cinst = s->load16(phys_pc);
     std::cout << std::hex <<cinst << std::dec << "\n";
     uint16_t cop = cinst >> 13;
     uint16_t oix = (cop << 2) | lop;
@@ -554,32 +594,26 @@ void execRiscv(state_t *s) {
 	switch(m.s.sel)
 	  {
 	  case 0x0: /* lb */
-	    s->gpr[m.l.rd] = *(reinterpret_cast<int8_t*>(s->mem + pa));	 
+	    s->gpr[m.l.rd] = s->load8(pa);
 	    break;
 	  case 0x1: /* lh */
-	    s->gpr[m.l.rd] = *(reinterpret_cast<int16_t*>(s->mem + pa));	 
+	    s->gpr[m.l.rd] = s->load16(pa);
 	    break;
 	  case 0x2: /* lw */
-	    s->sext_xlen( *reinterpret_cast<int32_t*>(s->mem + pa), m.l.rd);
+	    s->sext_xlen( s->load32(pa), m.l.rd);
 	    break;
 	  case 0x3: /* ld */
-	    s->sext_xlen( *reinterpret_cast<int64_t*>(s->mem + pa), m.l.rd);	    
+	    s->gpr[m.l.rd] = s->load64(pa);
 	    break;
-	  case 0x4: {/* lbu */
-	    uint32_t b = s->mem[pa];
-	    *reinterpret_cast<uint64_t*>(&s->gpr[m.l.rd]) = b;
+	  case 0x4:/* lbu */
+	    s->gpr[m.l.rd] = s->load8u(pa);
 	    break;
-	  }
-	  case 0x5: { /* lhu */
-	    uint16_t b = *reinterpret_cast<uint16_t*>(s->mem + pa);
-	    *reinterpret_cast<uint64_t*>(&s->gpr[m.l.rd]) = b;
+	  case 0x5: /* lhu */
+	    s->gpr[m.l.rd] = s->load16u(pa);	    
 	    break;
-	  }
-	  case 0x6: { /* lwu */
-	    uint32_t b = *reinterpret_cast<uint32_t*>(s->mem + pa);
-	    *reinterpret_cast<uint64_t*>(&s->gpr[m.l.rd]) = b;
+	  case 0x6: /* lwu */
+	    s->gpr[m.l.rd] = s->load32u(pa);	    	    
 	    break;
-	  }	    
 	  default:
 	    goto report_unimplemented;
 	    assert(0);
@@ -938,16 +972,16 @@ void execRiscv(state_t *s) {
       switch(m.s.sel)
 	{
 	case 0x0: /* sb */
-	  s->mem[pa] = *reinterpret_cast<uint8_t*>(&s->gpr[m.s.rs2]);
+	  s->store8(pa, s->gpr[m.s.rs2]);
 	  break;
 	case 0x1: /* sh */
-	  *(reinterpret_cast<uint16_t*>(s->mem + pa)) = *reinterpret_cast<uint16_t*>(&s->gpr[m.s.rs2]);
+	  s->store16(pa, s->gpr[m.s.rs2]);
 	  break;
 	case 0x2: /* sw */
-	  *(reinterpret_cast<int32_t*>(s->mem + pa)) = s->gpr[m.s.rs2];
+	  s->store32(pa, s->gpr[m.s.rs2]);
 	  break;
 	case 0x3: /* sd */
-	  *(reinterpret_cast<int64_t*>(s->mem + pa)) = s->gpr[m.s.rs2];
+	  s->store64(pa, s->gpr[m.s.rs2]);
 	  break;
 	default:
 	  assert(0);

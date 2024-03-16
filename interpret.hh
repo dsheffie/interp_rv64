@@ -91,6 +91,19 @@ struct state_t{
     }
     return false;
   }
+  int8_t load8(uint64_t pa);
+  int64_t load8u(uint64_t pa);  
+  int16_t load16(uint64_t pa);
+  int64_t load16u(uint64_t pa);   
+  int32_t load32(uint64_t pa);
+  int64_t load32u(uint64_t pa);  
+  int64_t load64(uint64_t pa);
+  void store8(uint64_t pa,  int8_t x);
+  void store16(uint64_t pa, int16_t x); 
+  void store32(uint64_t pa, int32_t x);
+  void store64(uint64_t pa, int64_t x);
+
+  
   uint64_t translate(uint64_t ea, int &fault, int sz,
 		     bool store = false, bool fetch = false) const;
 
