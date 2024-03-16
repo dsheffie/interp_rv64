@@ -173,6 +173,7 @@ int main(int argc, char *argv[]) {
 	      << s->icnt << " ins executed, "
 	      << std::round((s->icnt/runtime)*1e-6) << " megains / sec "
 	      << KNRM  << "\n";
+    std::cerr << "final pc " << std::hex << s->pc << std::dec << "\n";
   }
 
   
