@@ -171,6 +171,10 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     fault = 1;
     return 0;
   }
+  if(r.sv39.u == 1 && fetch && (priv != priv_user)) {
+    fault = 1;
+    return 0;
+  }
   assert(mask_bits != -1);
 
   
