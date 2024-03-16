@@ -286,15 +286,13 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
       s->sip = v;
       break;
     case 0x180:
-      if(c.satp.mode == 8) {
-	//std::cout << "set mode to " << c.satp.mode << " at icnt " << s->icnt << " pc " << std::hex << s->pc << std::dec << "\n";
-	//assert(c.satp.mode==0);
+      if(c.satp.mode == 8 &&
+	 c.satp.asid == 0) {
 	s->satp = v;
       }
       break;
     case 0x300:
       set_mstatus(s,v);
-      
       break;
     case 0x301:
       s->misa = v;
@@ -429,7 +427,9 @@ void execRiscv(state_t *s) {
   rd = (inst>>7) & 31;
 
   if(s->gpr[0] != 0) {
-    std::cout << "you broke the zero reg : last_pc = " << std::hex << s->last_pc << std::dec << "\n";
+    std::cout << "you broke the zero reg : last_pc = "
+	      << std::hex << s->last_pc
+	      << std::dec << "\n";
     abort();
   }
 
@@ -444,15 +444,6 @@ void execRiscv(state_t *s) {
 	      << "\n";
   }
   s->last_pc = s->pc;  
-
-
-  //#define OLD_GPR
-  
-#ifdef OLD_GPR
-  int64_t old_gpr[32];
-  uint64_t old_pc = s->pc;
-  memcpy(old_gpr, s->gpr, sizeof(old_gpr));
-#endif
 
 
   if(lop != 3) {
@@ -514,6 +505,7 @@ void execRiscv(state_t *s) {
 	std::cout << std::hex << lop << std::dec << "\n";
 	std::cout << std::hex << cop << std::dec << "\n";
 	std::cout << std::hex << oix << std::dec << "\n";
+	goto report_unimplemented;
 	assert(0);
       }
     return;
@@ -592,27 +584,16 @@ void execRiscv(state_t *s) {
 	    break;
 	  }	    
 	  default:
+	    goto report_unimplemented;
 	    assert(0);
 	  }
 	s->pc += 4;
 	break;
       }
     }
-    case 0xf: { /* fence - there's a bunch of 'em */
+    case 0xf:/* fence - there's a bunch of 'em */
       s->pc += 4;
       break;
-    }
-#if 0
-    imm[11:0] rs1 000 rd 0010011 ADDI
-    imm[11:0] rs1 010 rd 0010011 SLTI
-    imm[11:0] rs1 011 rd 0010011 SLTIU
-    imm[11:0] rs1 100 rd 0010011 XORI
-    imm[11:0] rs1 110 rd 0010011 ORI
-    imm[11:0] rs1 111 rd 0010011 ANDI
-    0000000 shamt rs1 001 rd 0010011 SLLI
-    0000000 shamt rs1 101 rd 0010011 SRLI
-    0100000 shamt rs1 101 rd 0010011 SRAI
-#endif
     case 0x13: {
       int32_t simm32 = (inst >> 20);
 
@@ -662,14 +643,12 @@ void execRiscv(state_t *s) {
 	    s->sext_xlen((s->gpr[m.i.rs1] | simm64), rd);	    
 	    break;
 	  case 7: /* andi */
-	    //std::cout << std::hex << "pc     = " << s->pc << std::dec << "\n";
-	    //std::cout << std::hex << "simm64 = " << simm64 << std::dec << "\n";
-	    //std::cout << std::hex << "srcA   = " << s->gpr[m.i.rs1] << std::dec << "\n";
 	    s->sext_xlen((s->gpr[m.i.rs1] & simm64), rd);
 	    break;
 	    
 	  default:
 	    std::cout << "implement case " << subop << "\n";
+	    goto report_unimplemented;
 	    assert(false);
 	  }
       }
@@ -717,7 +696,7 @@ void execRiscv(state_t *s) {
 	  }
 	  default:
 	    std::cout << m.i.sel << "\n";
-	    assert(0);
+	    goto report_unimplemented;
 	    break;
 	  }
       }
@@ -849,8 +828,7 @@ void execRiscv(state_t *s) {
 	    goto report_unimplemented;
 	  }
       }
-      else {
-	
+      else {	
 	assert(false);
       }
       s->pc += 4;
@@ -910,7 +888,7 @@ void execRiscv(state_t *s) {
 	else {
 	  std::cout << "special = " << m.r.special << "\n";
 	  std::cout << "sel = " << m.r.sel << "\n";
-	  assert(0);
+	  goto report_unimplemented;
 	}
 	
       }
