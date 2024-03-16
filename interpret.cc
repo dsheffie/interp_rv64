@@ -334,7 +334,7 @@ void execRiscv(state_t *s) {
   int64_t irq = 0;
   riscv_t m(0);
 
-  if(s->pc == 0xffffffff80897848L) {
+  if(s->pc == 0xffffffff80ba287cL) {
     std::cout << "linux is panic'd, last call " << std::hex << s->last_call << std::dec << "\n";
     dump_calls();
     s->brk = 1;
@@ -435,7 +435,7 @@ void execRiscv(state_t *s) {
 	      << " icnt " << s->icnt << "\n";
     dump_calls();
     assert(lop == 3);
-    uint16_t cinst = *reinterpret_cast<uint16_t*>(mem + s->pc);
+    uint16_t cinst = *reinterpret_cast<uint16_t*>(mem + phys_pc);
     std::cout << std::hex <<cinst << std::dec << "\n";
     uint16_t cop = cinst >> 13;
     uint16_t oix = (cop << 2) | lop;
