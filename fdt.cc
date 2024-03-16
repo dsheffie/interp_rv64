@@ -32,17 +32,8 @@
 
 #include "helper.hh"
 
-#define RAM_BASE_ADDR  0x00000000
-#define CLINT_BASE_ADDR 0x02000000
-#define CLINT_SIZE      0x000c0000
-#define HTIF_BASE_ADDR 0x40008000
-#define IDE_BASE_ADDR  0x40009000
-#define VIRTIO_BASE_ADDR 0x40010000
-#define VIRTIO_SIZE      0x1000
-#define VIRTIO_IRQ       1
-#define PLIC_BASE_ADDR 0x40100000
-#define PLIC_SIZE      0x00400000
-#define FRAMEBUFFER_BASE_ADDR 0x41000000
+#define TEMU_JUST_DEFINES
+#include "temu_code.hh"
 
 #define RTC_FREQ 10000000
 
@@ -442,8 +433,8 @@ int riscv_build_fdt(uint8_t *dst,
     fdt_prop_u32(s, "phandle", plic_phandle);
 
     fdt_end_node(s); /* plic */
-#if 0
-    for(i = 0; i < m->virtio_count; i++) {
+
+    for(i = 0; i < 1; i++) {
         fdt_begin_node_num(s, "virtio", VIRTIO_BASE_ADDR + i * VIRTIO_SIZE);
         fdt_prop_str(s, "compatible", "virtio,mmio");
         fdt_prop_tab_u64_2(s, "reg", VIRTIO_BASE_ADDR + i * VIRTIO_SIZE,
@@ -453,7 +444,8 @@ int riscv_build_fdt(uint8_t *dst,
         fdt_prop_tab_u32(s, "interrupts-extended", tab, 2);
         fdt_end_node(s); /* virtio */
     }
-
+    
+#if 0
     FBDevice *fb_dev = m->common.fb_dev;
     if (fb_dev) {
         fdt_begin_node_num(s, "framebuffer", FRAMEBUFFER_BASE_ADDR);

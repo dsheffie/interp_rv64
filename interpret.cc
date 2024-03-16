@@ -34,44 +34,76 @@ void initState(state_t *s) {
 
 }
 
+bool state_t::memory_map_check(uint64_t pa, bool store) {
+  if(pa >= VIRTIO_BASE_ADDR and (pa < (VIRTIO_BASE_ADDR + VIRTIO_SIZE))) {
+    printf("%s virtio range at pc %lx\n", store ? "write" : "read", pc);
+    return true;
+  }
+  if(pa >= PLIC_BASE_ADDR and (pa < (PLIC_BASE_ADDR + PLIC_SIZE))) {
+    printf("%s plic range at pc %lx\n", store ? "write" : "read", pc);
+    return true;
+  }  
+  return false;
+}
 
 int8_t state_t::load8(uint64_t pa) {
+  memory_map_check(pa);
   return *reinterpret_cast<int8_t*>(mem + pa);
 }
+
 int64_t state_t::load8u(uint64_t pa) {
   uint64_t z = 0;
+  memory_map_check(pa);  
   *reinterpret_cast<uint64_t*>(&z) = *reinterpret_cast<uint8_t*>(mem + pa);
   return z;
 }  
+
 int16_t state_t::load16(uint64_t pa) {
+  memory_map_check(pa);
   return *reinterpret_cast<int16_t*>(mem + pa);
 }
+
 int64_t state_t::load16u(uint64_t pa) {
   uint64_t z = 0;
+  memory_map_check(pa);
   *reinterpret_cast<uint64_t*>(&z) = *reinterpret_cast<uint16_t*>(mem + pa);
   return z;
 }  
+
 int32_t state_t::load32(uint64_t pa) {
+  memory_map_check(pa);  
   return *reinterpret_cast<int32_t*>(mem + pa);
 }
+
 int64_t state_t::load32u(uint64_t pa) {
   uint64_t z = 0;
+  memory_map_check(pa);
   *reinterpret_cast<uint64_t*>(&z) = *reinterpret_cast<uint32_t*>(mem + pa);
   return z;
 }  
+
 int64_t state_t::load64(uint64_t pa) {
+  memory_map_check(pa);
   return *reinterpret_cast<int64_t*>(mem + pa);
 }
+
 void state_t::store8(uint64_t pa,  int8_t x) {
+  memory_map_check(pa,true);
   *reinterpret_cast<int8_t*>(mem + pa) = x;
 }
+
 void state_t::store16(uint64_t pa, int16_t x) {
+  memory_map_check(pa,true);
   *reinterpret_cast<int16_t*>(mem + pa) = x;
 }
+
 void state_t::store32(uint64_t pa, int32_t x) {
+  memory_map_check(pa,true);
   *reinterpret_cast<int32_t*>(mem + pa) = x;
 }
+
 void state_t::store64(uint64_t pa, int64_t x) {
+  memory_map_check(pa,true);
   *reinterpret_cast<int64_t*>(mem + pa) = x;
 }
 
@@ -1184,9 +1216,6 @@ void execRiscv(state_t *s) {
 	s->mstatus &= ~MSTATUS_MPP;
 	set_priv(s, mpp);
 	s->pc = s->mepc;
-	std::cout << "mret jump to " << std::hex << s->pc << std::dec
-		  << " at "
-		  << s->icnt << "\n";
 	break;
       }
       else if(is_ebreak) {
@@ -1288,8 +1317,6 @@ void execRiscv(state_t *s) {
   return;
   
  handle_exception: {
-    std::cout << "took exception at "
-	      << std::hex << s->pc << std::dec << "\n";
     bool delegate = false;
     
     if(s->priv == priv_user || s->priv == priv_supervisor) {

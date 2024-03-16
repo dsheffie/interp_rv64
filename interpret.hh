@@ -91,6 +91,7 @@ struct state_t{
     }
     return false;
   }
+  bool memory_map_check(uint64_t pa, bool store = false);
   int8_t load8(uint64_t pa);
   int64_t load8u(uint64_t pa);  
   int16_t load16(uint64_t pa);
