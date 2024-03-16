@@ -75,7 +75,8 @@ struct state_t{
   uint64_t get_reg_u64(int id) const {
     return *reinterpret_cast<const uint64_t*>(&gpr[id]);
   }
-  uint64_t translate(uint64_t ea, int &fault, int sz, bool store = false) const;
+  uint64_t translate(uint64_t ea, int &fault, int sz,
+		     bool store = false, bool fetch = false) const;
 
    
 };

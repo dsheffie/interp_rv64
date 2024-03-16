@@ -34,7 +34,7 @@ void initState(state_t *s) {
 }
 
 
-uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store) const {
+uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fetch) const {
   fault = false;
   csr_t c(satp);
   if((c.satp.mode == 0) or
@@ -116,7 +116,28 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store) const {
   mask_bits = 12;
   
  translation_complete:
+
+  //* permission checks */
+  if(fetch && (r.sv39.x == 0)) {
+    fault = 1;
+    return 0;
+  }
+  if(store && (r.sv39.w == 0)) {
+    fault = 1;
+    return 0;
+  }
+  if(not(store or fetch) && (r.sv39.r == 0)) {
+    fault = 1;
+    return 0;
+  }
+  if(r.sv39.u == 0 && (priv == priv_user)) {
+    fault = 1;
+    return 0;
+  }
+  
   assert(mask_bits != -1);
+
+  
   if(r.sv39.a == 0) {
     r.sv39.a = 1;
     *reinterpret_cast<uint64_t*>(mem + a) = r.r;
@@ -329,11 +350,20 @@ void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
   int fetch_fault = 0, except_cause = -1, tval = -1;
   uint64_t tohost = 0;
-  uint64_t phys_pc = s->translate(s->pc, fetch_fault, 4);
+  uint64_t phys_pc = 0;
   uint32_t inst = 0, opcode = 0, rd = 0, lop = 0;
   int64_t irq = 0;
   riscv_t m(0);
 
+  irq = take_interrupt(s);
+  if(irq) {
+    except_cause = CAUSE_INTERRUPT | irq;
+    goto handle_exception;
+  }
+  
+
+  phys_pc = s->translate(s->pc, fetch_fault, 4, false, true);
+  
   if(s->pc == 0xffffffff80ba287cL) {
     std::cout << "linux is panic'd, last call " << std::hex << s->last_call << std::dec << "\n";
     dump_calls();
@@ -344,11 +374,6 @@ void execRiscv(state_t *s) {
   //
   //
   /* lightly modified from tinyemu */
-  irq = take_interrupt(s);
-  if(irq) {
-    except_cause = CAUSE_INTERRUPT | irq;
-    goto handle_exception;
-  }
   
   if(fetch_fault) {
     except_cause = CAUSE_FETCH_PAGE_FAULT;
