@@ -14,7 +14,6 @@
 #include "globals.hh"
 
 #include <stack>
-static int store_pf = 0;
 static uint64_t last_tval = 0;
 static std::stack<int64_t> calls;
 
@@ -38,11 +37,11 @@ void initState(state_t *s) {
 
 bool state_t::memory_map_check(uint64_t pa, bool store) {
   if(pa >= VIRTIO_BASE_ADDR and (pa < (VIRTIO_BASE_ADDR + VIRTIO_SIZE))) {
-    printf("%s virtio range at pc %lx\n", store ? "write" : "read", pc);
+    //printf("%s virtio range at pc %lx\n", store ? "write" : "read", pc);
     return true;
   }
   if(pa >= PLIC_BASE_ADDR and (pa < (PLIC_BASE_ADDR + PLIC_SIZE))) {
-    printf("%s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
+    //printf("%s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
     return true;
   }  
   return false;
@@ -274,7 +273,8 @@ std::ostream &operator<<(std::ostream &out, const state_t & s) {
   return out;
 }
 
-static int64_t read_csr(int csr_id, state_t *s) {
+static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
+  undef = false;
   switch(csr_id)
     {
     case 0x100:
@@ -285,6 +285,12 @@ static int64_t read_csr(int csr_id, state_t *s) {
       return s->stvec;
     case 0x140:
       return s->sscratch;
+    case 0x141:
+      return s->sepc;
+    case 0x142:
+      return s->scause;
+    case 0x143:
+      return s->stval;
     case 0x144:
       return s->sip;
     case 0x180:
@@ -323,13 +329,14 @@ static int64_t read_csr(int csr_id, state_t *s) {
       return s->mhartid;      
     default:
       printf("rd csr id 0x%x unimplemented, pc %lx\n", csr_id, s->pc);
-      assert(false);
+      undef = true;
       break;
     }
   return 0;
 }
 
-static void write_csr(int csr_id, state_t *s, int64_t v) {
+static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
+  undef = false;
   csr_t c(v);
   switch(csr_id)
     {
@@ -412,10 +419,21 @@ static void write_csr(int csr_id, state_t *s, int64_t v) {
       break;
     case 0x3b3:
       s->pmpaddr3 = v;
-      break;                  
+      break;
+
+      /* linux hacking */
+    case 0xc03:
+      std::cout << (char)(v&0xff);
+      break;
+    case 0xc04:
+      s->brk = v&1;
+      if(s->brk) {
+	std::cout << "you have panicd linux, game over\n";
+      }
+      break;
     default:
       printf("wr csr id 0x%x unimplemented\n", csr_id);
-      assert(false);
+      undef = true;
       break;
     }
 }
@@ -439,11 +457,11 @@ void execRiscv(state_t *s) {
 
   phys_pc = s->translate(s->pc, fetch_fault, 4, false, true);
   
-  if(s->pc == 0xffffffff80ba287cL) {
-    printf("linux panic, last call %lx\n", s->last_call);
-    dump_calls();
-    s->brk = 1;
-  }
+  //if(s->pc == 0xffffffff80ba287cL) {
+  //printf("linux panic, last call %lx\n", s->last_call);
+  //dump_calls();
+  //s->brk = 1;
+  //}
 
 
   /* lightly modified from tinyemu */
@@ -466,6 +484,7 @@ void execRiscv(state_t *s) {
   m.raw = inst;
   opcode = inst & 127;
 
+  
   if(s->priv == priv_machine) {
     tohost = *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr);
     if(tohost) {
@@ -509,7 +528,7 @@ void execRiscv(state_t *s) {
   }
 
   
-  if(store_pf) {
+  if(globals::log) {
     std::cout << std::hex << s->pc << std::dec
 	      << " : " << getAsmString(inst, s->pc)
 	      << " , raw " << std::hex
@@ -543,7 +562,6 @@ void execRiscv(state_t *s) {
 	int64_t pa = s->translate(ea, page_fault, sz);
 	if(page_fault) {
 	  except_cause = CAUSE_LOAD_PAGE_FAULT;
-	  store_pf |= (s->pc == 0xffffffff8015e314);
 	  tval = ea;
 	  goto handle_exception;
 	}
@@ -1226,23 +1244,28 @@ void execRiscv(state_t *s) {
       else {
 	int rd = (inst>>7) & 31;
         int rs = (inst >> 15) & 31;
+	bool undef=false;
 	switch((inst>>12) & 7)
 	  {
 	  case 1: { /* CSRRW */
 	    int64_t v = 0;
 	    if(rd != 0) {
-	      v = read_csr(csr_id, s);
+	      v = read_csr(csr_id, s, undef);
+	      if(undef) goto report_unimplemented;
 	    }
-	    write_csr(csr_id, s, s->gpr[rs]);
+	    write_csr(csr_id, s, s->gpr[rs], undef);
+	    if(undef) goto report_unimplemented;
 	    if(rd != 0) {
 	      s->gpr[rd] = v;
 	    }
 	    break;
 	  }
 	  case 2: {/* CSRRS */
-	    int64_t t = read_csr(csr_id, s);	    
+	    int64_t t = read_csr(csr_id, s, undef);
+	    if(undef) goto report_unimplemented;
 	    if(rs != 0) {
-	      write_csr(csr_id, s, t | s->gpr[rs]);
+	      write_csr(csr_id, s, t | s->gpr[rs], undef);
+	      if(undef) goto report_unimplemented;
 	    }
 	    if(rd != 0) {
 	      s->gpr[rd] = t;
@@ -1250,9 +1273,11 @@ void execRiscv(state_t *s) {
 	    break;
 	  }
 	  case 3: {/* CSRRC */
-	    int64_t t = read_csr(csr_id, s);
+	    int64_t t = read_csr(csr_id, s,undef);
+	    if(undef) goto report_unimplemented;	    
 	    if(rs != 0) {
-	      write_csr(csr_id, s, t & (~s->gpr[rs]));
+	      write_csr(csr_id, s, t & (~s->gpr[rs]), undef);
+	      if(undef) goto report_unimplemented;	      
 	    }
 	    if(rd != 0) {
 	      s->gpr[rd] = t;
@@ -1262,18 +1287,22 @@ void execRiscv(state_t *s) {
 	  case 5: {/* CSRRWI */
 	    int64_t t = 0;
 	    if(rd != 0) {
-	      t = read_csr(csr_id, s);
+	      t = read_csr(csr_id, s, undef);
+	      if(undef) goto report_unimplemented;
 	    }
-	    write_csr(csr_id, s, rs);
+	    write_csr(csr_id, s, rs, undef);
+	    if(undef) goto report_unimplemented;
 	    if(rd != 0) {
 	      s->gpr[rd] = t;
 	    }
 	    break;
 	  }
 	  case 6:{ /* CSRRSI */
-	    int64_t t = read_csr(csr_id, s);
+	    int64_t t = read_csr(csr_id,s,undef);
+	    if(undef) goto report_unimplemented;
 	    if(rs != 0) {
-	      write_csr(csr_id, s, t | rs);
+	      write_csr(csr_id, s, t | rs, undef);
+	      if(undef) goto report_unimplemented;
 	    }
 	    if(rd != 0) {
 	      s->gpr[rd] = t;
@@ -1281,9 +1310,11 @@ void execRiscv(state_t *s) {
 	    break;
 	  }
 	  case 7: {/* CSRRCI */
-	    int64_t t = read_csr(csr_id, s);
+	    int64_t t = read_csr(csr_id, s, undef);
+	    if(undef) goto report_unimplemented;	    
 	    if(rs != 0) {
-	      write_csr(csr_id, s, t & (~rs));
+	      write_csr(csr_id, s, t & (~rs), undef);
+	      if(undef) goto report_unimplemented;	      
 	    }
 	    if(rd != 0) {
 	      s->gpr[rd] = t;
@@ -1291,8 +1322,7 @@ void execRiscv(state_t *s) {
 	    break;
 	  }
 	  default:
-	    assert(false);
-	    break;
+	    goto report_unimplemented;	    
 	  }
       }
       s->pc += 4;
