@@ -196,6 +196,10 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     fault = 1;
     return 0;
   }
+  if(r.sv39.w && (r.sv39.r == 0)) {
+    fault = 1;
+    return 0;
+  }
   if(not(store or fetch) && (r.sv39.r == 0)) {
     fault = 1;
     return 0;
@@ -426,10 +430,10 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       std::cout << (char)(v&0xff);
       break;
     case 0xc04:
-      s->brk = v&1;
-      if(s->brk) {
-	std::cout << "you have panicd linux, game over\n";
-      }
+      //s->brk = v&1;
+      //if(s->brk) {
+      //std::cout << "you have panicd linux, game over\n";
+      //}
       break;
     default:
       printf("wr csr id 0x%x unimplemented\n", csr_id);
