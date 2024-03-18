@@ -1,6 +1,5 @@
 #include <sys/stat.h>
 #include <fcntl.h>
-#include <sys/mman.h>
 #include <unistd.h>
 #include <errno.h>
 #include <cinttypes>
@@ -22,47 +21,62 @@
 static const char cmdline[] = "console=hvc0 root=/dev/vda rw";
 
 void load_raw(const char* fn, state_t *ms, uint64_t where) {
-  struct stat s;
   int fd,rc;
-  char *buf = nullptr;
-  uint8_t *mem = ms->mem;
-
+  uint8_t *buf = nullptr;
+  //uint8_t *mem = ms->mem;
+  
+  ms->prealloc(0, 16384);
   //hack linux kernel
   fd = open("kernel.bin", O_RDONLY);
-  rc = fstat(fd, &s);
   uint64_t kern_addr = 0x200000 + 0x80000000;
   uint64_t kern_size = 0;
 
-#if 1
-  kern_size = s.st_size;
-  buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  for(size_t i = 0; i < s.st_size; i++) {
-    mem[kern_addr+i] = buf[i];
-  }
-  munmap(buf, s.st_size);
-  close(fd);
-#endif
-
+  kern_size = lseek(fd, 0, SEEK_END);
+  lseek(fd, 0, SEEK_SET);
+  std::cout << "kern size : " << kern_size << " bytes\n";
   
-  fd = open(fn, O_RDONLY);
-  rc = fstat(fd,&s);
-  buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-
-  for(size_t i = 0; i < s.st_size; i++) {
-    mem[where+i] = buf[i];
+  ms->prealloc(kern_addr, kern_size);
+  
+  buf = new uint8_t[kern_size];
+  read(fd, buf, kern_size);
+  printf("mapping from %lx to %lx\n", kern_addr, kern_addr+kern_size);
+  for(size_t i = 0; i < kern_size; i++) {
+    uint64_t pa  = kern_addr + i;
+    uint8_t *ptr = ms->getpa8(pa);
+    //printf("%lu remapped to %lx\n", pa, ptr);
+    (*ptr) = buf[i];
   }
-  munmap(buf, s.st_size);
+  delete [] buf;
+  close(fd);
+
+
+  fd = open(fn, O_RDONLY);
+  size_t sz = lseek(fd, 0, SEEK_END);
+  std::cout << "bbl size : " << sz << " bytes\n";
+  lseek(fd, 0, SEEK_SET);
+  buf = new uint8_t[sz];
+  read(fd, buf, sz);
+
+  ms->prealloc(where, sz);
+  for(size_t i = 0; i < sz; i++) {
+    uint64_t pa = where + i;
+    *(ms->getpa8(pa)) = buf[i];    
+  }
+  delete [] buf;
+  close(fd);
+  
+
 
   int64_t fdt_addr = 0x1000 + 8 * 8;
   
-  riscv_build_fdt(mem + fdt_addr,
+  riscv_build_fdt(ms->getpa8(fdt_addr),
 		  kern_addr,
 		  kern_size,
 		  0,0,
 		  cmdline);
 
   
-#define WRITE_WORD(EA,WORD) { *reinterpret_cast<uint32_t*>(mem + EA) = WORD; }
+#define WRITE_WORD(EA,WORD) { *reinterpret_cast<uint32_t*>(ms->getpa8(EA)) = WORD; }
 
   WRITE_WORD(0x1000, 0x297 + 0x80000000 - 0x1000); //0
   WRITE_WORD(0x1004, 0x597); //1

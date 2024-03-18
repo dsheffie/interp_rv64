@@ -1,27 +1,13 @@
 UNAME_S = $(shell uname -s)
 
-OBJ = main.o elf.o disassemble.o helper.o interpret.o saveState.o githash.o syscall.o raw.o fdt.o temu_code.o
-
-ifeq ($(UNAME_S),Linux)
-	CXX = g++ -march=native -flto
-	EXTRA_LD = -ldl -lffi -lbfd -lunwind -lboost_program_options -lcapstone
-endif
-
-ifeq ($(UNAME_S),FreeBSD)
-	CXX = CC -march=native
-	EXTRA_LD = -L/usr/local/lib -lunwind -lboost_program_options -lcapstone
-endif
-
-ifeq ($(UNAME_S),Darwin)
-	CXX = clang++ -march=native -I/opt/local/include
-	EXTRA_LD = -L/opt/local/lib -lboost_program_options-mt -lcapstone
-endif
+OBJ = main.o disassemble.o helper.o interpret.o githash.o raw.o fdt.o temu_code.o
+CXX = riscv64-unknown-elf-g++
 
 CXXFLAGS = -std=c++11 -g $(OPT)
-LIBS =  $(EXTRA_LD) -lpthread
+LIBS = -specs=htif.specs
 
 DEP = $(OBJ:.o=.d)
-OPT = -O3 -std=c++11
+OPT = -O3 -std=c++11 -mcmodel=medany 
 EXE = interp_rv64
 
 .PHONY : all clean

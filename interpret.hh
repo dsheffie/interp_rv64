@@ -30,6 +30,7 @@ struct state_t{
   uint64_t last_pc;
   uint64_t last_call;
   int64_t gpr[32];
+  uint8_t *mem_tbl[1<<20];
   uint8_t *mem;
   uint8_t brk;
   uint8_t bad_addr;
@@ -107,6 +108,9 @@ struct state_t{
   
   uint64_t translate(uint64_t ea, int &fault, int sz,
 		     bool store = false, bool fetch = false) const;
+  void touch(uint64_t pa);
+  void prealloc(uint64_t start_pa, uint64_t len);
+  uint8_t *getpa8(uint64_t pa);
 
    
 };

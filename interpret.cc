@@ -27,15 +27,49 @@ static void dump_calls() {
   }
 }
 
+void state_t::touch(uint64_t pa) {
+  if(mem_tbl[pa>>12] == nullptr) {
+    mem_tbl[pa>>12] = new uint8_t[4096];
+    memset(mem_tbl[pa>>12], 0, 4096);
+  }
+}
+
+void state_t::prealloc(uint64_t start_pa, uint64_t len) {
+  uint64_t sidx = start_pa>>12;
+  uint64_t lidx = ((start_pa + len - 4095) / 4096)+1;
+  uint64_t bytes = ((lidx - sidx) + 1)*4096;
+  uint8_t *buf = nullptr;
+  buf = new uint8_t[bytes];
+  
+  for(uint64_t i = sidx, j= 0; i <= lidx; i++, j++) {
+    assert(mem_tbl[i] == nullptr);
+    mem_tbl[i] = buf + (j*4096);
+    memset(mem_tbl[i], 0, 4096);
+  }
+}
+
+uint8_t *state_t::getpa8(uint64_t pa) {
+  if(mem_tbl[pa>>12] == nullptr) {
+    abort();
+  }
+  uint8_t *ptr = mem_tbl[pa>>12] + (pa & 4095);
+  return ptr;
+}
 void initState(state_t *s) {
   memset(s, 0, sizeof(state_t));
   s->misa = 0x8000000000141101L;
   s->priv = priv_machine;
   s->mstatus = ((uint64_t)2 << MSTATUS_UXL_SHIFT) |((uint64_t)2 << MSTATUS_SXL_SHIFT);
-
+  //s->mem = new uint8_t[1UL<<32];
+  //for(uint64_t i = 0; i < (1UL<<20); i++) {
+  // s->mem_tbl[i] = &s->mem[i*4096];
+  //}
 }
 
+
+
 bool state_t::memory_map_check(uint64_t pa, bool store) {
+  touch(pa);
   if(pa >= VIRTIO_BASE_ADDR and (pa < (VIRTIO_BASE_ADDR + VIRTIO_SIZE))) {
     //printf("%s virtio range at pc %lx\n", store ? "write" : "read", pc);
     return true;
@@ -49,63 +83,63 @@ bool state_t::memory_map_check(uint64_t pa, bool store) {
 
 int8_t state_t::load8(uint64_t pa) {
   memory_map_check(pa);
-  return *reinterpret_cast<int8_t*>(mem + pa);
+  return *reinterpret_cast<int8_t*>(mem_tbl[pa >> 12] + (pa & 4095));
 }
 
 int64_t state_t::load8u(uint64_t pa) {
   uint64_t z = 0;
   memory_map_check(pa);  
-  *reinterpret_cast<uint64_t*>(&z) = *reinterpret_cast<uint8_t*>(mem + pa);
+  *reinterpret_cast<uint64_t*>(&z) = *reinterpret_cast<uint8_t*>(mem_tbl[pa>>12] + (pa & 4095));
   return z;
 }  
 
 int16_t state_t::load16(uint64_t pa) {
   memory_map_check(pa);
-  return *reinterpret_cast<int16_t*>(mem + pa);
+  return *reinterpret_cast<int16_t*>(mem_tbl[pa>>12] + (pa & 4095));
 }
 
 int64_t state_t::load16u(uint64_t pa) {
   uint64_t z = 0;
   memory_map_check(pa);
-  *reinterpret_cast<uint64_t*>(&z) = *reinterpret_cast<uint16_t*>(mem + pa);
+  *reinterpret_cast<uint64_t*>(&z) = *reinterpret_cast<uint16_t*>(mem_tbl[pa>>12] + (pa & 4095));
   return z;
 }  
 
 int32_t state_t::load32(uint64_t pa) {
   memory_map_check(pa);  
-  return *reinterpret_cast<int32_t*>(mem + pa);
+  return *reinterpret_cast<int32_t*>(mem_tbl[pa>>12] + (pa & 4095));
 }
 
 int64_t state_t::load32u(uint64_t pa) {
   uint64_t z = 0;
   memory_map_check(pa);
-  *reinterpret_cast<uint64_t*>(&z) = *reinterpret_cast<uint32_t*>(mem + pa);
+  *reinterpret_cast<uint64_t*>(&z) = *reinterpret_cast<uint32_t*>(mem_tbl[pa>>12] + (pa & 4095));
   return z;
 }  
 
 int64_t state_t::load64(uint64_t pa) {
   memory_map_check(pa);
-  return *reinterpret_cast<int64_t*>(mem + pa);
+  return *reinterpret_cast<int64_t*>(mem_tbl[pa>>12] + (pa & 4095));
 }
 
 void state_t::store8(uint64_t pa,  int8_t x) {
   memory_map_check(pa,true);
-  *reinterpret_cast<int8_t*>(mem + pa) = x;
+  *reinterpret_cast<int8_t*>(mem_tbl[pa>>12] + (pa & 4095)) = x;
 }
 
 void state_t::store16(uint64_t pa, int16_t x) {
   memory_map_check(pa,true);
-  *reinterpret_cast<int16_t*>(mem + pa) = x;
+  *reinterpret_cast<int16_t*>(mem_tbl[pa>>12] + (pa & 4095)) = x;
 }
 
 void state_t::store32(uint64_t pa, int32_t x) {
   memory_map_check(pa,true);
-  *reinterpret_cast<int32_t*>(mem + pa) = x;
+  *reinterpret_cast<int32_t*>(mem_tbl[pa>>12] + (pa & 4095)) = x;
 }
 
 void state_t::store64(uint64_t pa, int64_t x) {
   memory_map_check(pa,true);
-  *reinterpret_cast<int64_t*>(mem + pa) = x;
+  *reinterpret_cast<int64_t*>(mem_tbl[pa>>12] + (pa & 4095)) = x;
 }
 
 
@@ -144,7 +178,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
 
   assert(c.satp.mode == 8);
   a = (c.satp.ppn * 4096) + (((ea >> 30) & 511)*8);
-  u = *reinterpret_cast<uint64_t*>(mem + a);
+  u = *reinterpret_cast<uint64_t*>(mem_tbl[a>>12] + (a & 4095));
   if((u&1) == 0) {
     fault = 1;
     return 2;
@@ -156,7 +190,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   }
   
   a = (r.sv39.ppn * 4096) + (((ea >> 21) & 511)*8);
-  u = *reinterpret_cast<uint64_t*>(mem + a);
+  u = *reinterpret_cast<uint64_t*>(mem_tbl[a>>12] + (a & 4095));
 
   if((u&1) == 0) {
     fault = 1;
@@ -170,7 +204,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   }
   a = (r.sv39.ppn * 4096) + (((ea >> 12) & 511)*8);
   
-  u = *reinterpret_cast<uint64_t*>(mem + a);  
+  u = *reinterpret_cast<uint64_t*>(mem_tbl[a>>12] + (a & 4095));  
   if((u&1) == 0) {
     fault = 1;
     return 0;
@@ -213,11 +247,11 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   
   if(r.sv39.a == 0) {
     r.sv39.a = 1;
-    *reinterpret_cast<uint64_t*>(mem + a) = r.r;
+    *reinterpret_cast<uint64_t*>(mem_tbl[a>>12] + (a & 4095)) = r.r;
   }
   if((r.sv39.d == 0) && store) {
     r.sv39.d = 1;
-    *reinterpret_cast<uint64_t*>(mem + a) = r.r;    
+    *reinterpret_cast<uint64_t*>(mem_tbl[a>>12] + (a & 4095)) = r.r;    
   }
   int64_t m = ((1L << mask_bits) - 1);
   int64_t pa = ((r.sv39.ppn * 4096) & (~m)) | (ea & m);
@@ -440,7 +474,6 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
 
 
 void execRiscv(state_t *s) {
-  uint8_t *mem = s->mem;
   int fetch_fault = 0, except_cause = -1, tval = -1;
   uint64_t tohost = 0;
   uint64_t phys_pc = 0;
@@ -484,39 +517,6 @@ void execRiscv(state_t *s) {
   m.raw = inst;
   opcode = inst & 127;
 
-  
-  if(s->priv == priv_machine) {
-    tohost = *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr);
-    if(tohost) {
-      if(globals::fullsim) {
-	uint64_t dev = tohost >> 56;
-	uint64_t cmd = (tohost >> 48) & 255;
-	uint64_t payload = tohost & ((1UL<<48)-1);
-	if(tohost == 1) { /* shutdown */
-	  s->brk = 1;
-	  return;
-	}
-	if(dev != 1) {
-	  dump_calls();
-	  abort();
-	}
-	
-	if(cmd == 1) {
-	  std::cout << static_cast<char>(payload & 0xff);
-	  *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr) = 0;
-	  *reinterpret_cast<uint64_t*>(mem + globals::fromhost_addr) = (dev << 56) | (cmd << 48);
-	}
-	else {
-	  abort();
-	}
-      }
-      else {
-	tohost &= ((1UL<<32)-1);      
-	handle_syscall(s, tohost);
-      }
-    }
-  }
-  
   lop = (opcode & 3);
   rd = (inst>>7) & 31;
 
