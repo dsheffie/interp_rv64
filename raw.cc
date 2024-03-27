@@ -21,6 +21,8 @@
 
 static const char cmdline[] = "console=hvc0 root=/dev/vda rw";
 
+
+
 void load_raw(const char* fn, state_t *ms, uint64_t where) {
   struct stat s;
   int fd,rc;
@@ -31,7 +33,8 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   fd = open("kernel.bin", O_RDONLY);
   rc = fstat(fd, &s);
   uint64_t kern_addr = 0x200000 + 0x80000000;
-  uint64_t kern_size = 0;
+  uint64_t initrd_addr = 0;
+  uint64_t kern_size = 0, initrd_size = 0;
 
 #if 1
   kern_size = s.st_size;
@@ -58,7 +61,8 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   riscv_build_fdt(mem + fdt_addr,
 		  kern_addr,
 		  kern_size,
-		  0,0,
+		  initrd_addr,
+		  initrd_size,
 		  cmdline);
 
   

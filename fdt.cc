@@ -478,14 +478,10 @@ int riscv_build_fdt(uint8_t *dst,
     fdt_end_node(s); /* / */
 
     size = fdt_output(s, dst);
-#if 1
-    {
-        FILE *f;
-        f = fopen("/tmp/riscvemu.dtb", "wb");
-        fwrite(dst, 1, size, f);
-        fclose(f);
-    }
-#endif
+    FILE *f = fopen("/tmp/rv64.dtb", "wb");
+    fwrite(dst, 1, size, f);
+    fclose(f);
+
     fdt_end(s);
     return size;
 }

@@ -17,6 +17,37 @@ enum riscv_priv {
   priv_machine,
 };
 
+struct mip_t {
+  uint64_t z0 : 1;
+  uint64_t ssip : 1;
+  uint64_t z2 : 1;
+  uint64_t msip : 1;
+  uint64_t z4 : 1;
+  uint64_t stip : 1;
+  uint64_t z6 : 1;
+  uint64_t mtip : 1;
+  uint64_t z8 : 1;
+  uint64_t seip : 1;
+  uint64_t z10 : 1;
+  uint64_t meip : 1;
+  uint64_t z : 52;
+};
+
+struct mie_t {
+  uint64_t z0 : 1;
+  uint64_t ssie : 1;
+  uint64_t z2 : 1;
+  uint64_t msie : 1;
+  uint64_t z4 : 1;
+  uint64_t stie : 1;
+  uint64_t z6 : 1;
+  uint64_t mtie : 1;
+  uint64_t z8 : 1;
+  uint64_t seie : 1;
+  uint64_t z10 : 1;
+  uint64_t meie : 1;
+  uint64_t z : 52;
+};
 
 struct satp_t {
   uint64_t ppn : 44;
@@ -106,7 +137,7 @@ struct state_t{
 
   
   uint64_t translate(uint64_t ea, int &fault, int sz,
-		     bool store = false, bool fetch = false) const;
+		     bool store = false, bool fetch = false);
 
    
 };
@@ -238,6 +269,8 @@ struct mstatus_t {
 
 union csr_t {
   satp_t satp;
+  mip_t mip;
+  mie_t mie;
   mstatus_t mstatus;
   uint64_t raw;
   csr_t(uint64_t x) : raw(x) {}

@@ -14,6 +14,7 @@
 #include "globals.hh"
 
 #include <stack>
+static uint64_t curr_pc = 0;
 static uint64_t last_tval = 0;
 static std::stack<int64_t> calls;
 
@@ -111,7 +112,7 @@ void state_t::store64(uint64_t pa, int64_t x) {
 
 static std::unordered_map<uint64_t, std::pair<uint64_t, uint64_t>> tlb;
 
-uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fetch) const {
+uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fetch) {
   fault = false;
   if(unpaged_mode()) {
     return ea;
@@ -217,11 +218,11 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   
   if(r.sv39.a == 0) {
     r.sv39.a = 1;
-    *reinterpret_cast<uint64_t*>(mem + a) = r.r;
+    store64(a, r.r);
   }
   if((r.sv39.d == 0) && store) {
     r.sv39.d = 1;
-    *reinterpret_cast<uint64_t*>(mem + a) = r.r;    
+    store64(a, r.r);    
   }
   int64_t m = ((1L << mask_bits) - 1);
   int64_t pa = ((r.sv39.ppn * 4096) & (~m)) | (ea & m);
@@ -234,6 +235,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   //   printf("tlb pa = %lx\n", tlb_pa);
   //   assert(pa == tlb_pa);
   // }
+
   return pa;
 }
 
@@ -351,6 +353,7 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       s->sie = v;
       break;
     case 0x105:
+      assert((v&3)  == 0);
       s->stvec = v;
       break;
     case 0x106:
@@ -451,21 +454,17 @@ void execRiscv(state_t *s) {
   uint32_t inst = 0, opcode = 0, rd = 0, lop = 0;
   int64_t irq = 0;
   riscv_t m(0);
-
+  curr_pc = s->pc;
+  
   irq = take_interrupt(s);
   if(irq) {
     except_cause = CAUSE_INTERRUPT | irq;
+    printf("took interrupt\n");
+    abort();
     goto handle_exception;
   }
-  
 
   phys_pc = s->translate(s->pc, fetch_fault, 4, false, true);
-  
-  //if(s->pc == 0xffffffff80ba287cL) {
-  //printf("linux panic, last call %lx\n", s->last_call);
-  //dump_calls();
-  //s->brk = 1;
-  //}
 
 
   /* lightly modified from tinyemu */
@@ -530,7 +529,6 @@ void execRiscv(state_t *s) {
 	      << std::dec << "\n";
     abort();
   }
-
   
   if(globals::log) {
     std::cout << std::hex << s->pc << std::dec
@@ -569,6 +567,7 @@ void execRiscv(state_t *s) {
 	  tval = ea;
 	  goto handle_exception;
 	}
+
 	
 	switch(m.s.sel)
 	  {
@@ -597,6 +596,7 @@ void execRiscv(state_t *s) {
 	    goto report_unimplemented;
 	    assert(0);
 	  }
+
 	s->pc += 4;
 	break;
       }
@@ -717,6 +717,7 @@ void execRiscv(state_t *s) {
       int page_fault = 0;
       uint64_t pa = 0;
       if(m.a.sel == 2) {
+	pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
 	switch(m.a.hiop)
 	  {
 	  case 0x0: {/* amoadd.w */
@@ -762,6 +763,7 @@ void execRiscv(state_t *s) {
 	  }
       }
       else if(m.a.sel == 3) {
+	pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, false);
 	switch(m.a.hiop)
 	  {
 	  case 0x0: {/* amoadd.d */
@@ -778,14 +780,14 @@ void execRiscv(state_t *s) {
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
 	    assert(!page_fault);
 	    int64_t x = s->load64(pa);
-	    s->store64(pa, x);
+	    s->store64(pa, s->gpr[m.a.rs2]);
 	    if(m.a.rd != 0) {
 	      s->gpr[m.a.rd] = x;
 	    }
 	    break;
 	  }
 	  case 0x2: { /* lr.d */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8);
+	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8);	    
 	    assert(!page_fault);
 	    if(m.a.rd != 0) {
 	      s->gpr[m.a.rd] = s->load64(pa);
@@ -910,7 +912,6 @@ void execRiscv(state_t *s) {
 	std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
 	dump_calls();
 	//std::cout << "icnt = " << s->icnt << "\n";
-	abort();
 	goto handle_exception;
       }
       
@@ -1243,7 +1244,10 @@ void execRiscv(state_t *s) {
 	break;
       }
       else if(is_ebreak) {
-	/* used as monitor in RTL */
+	if(globals::fullsim) {
+	  except_cause = CAUSE_BREAKPOINT;
+	  goto handle_exception;
+	}
       }
       else {
 	int rd = (inst>>7) & 31;
@@ -1364,7 +1368,9 @@ void execRiscv(state_t *s) {
 	
       }
     }
-    
+    std::cout << "took fault at pc " << std::hex << s->pc << std::dec << ", cause " << except_cause
+	      << ", delegate " << delegate
+	      << ", priv " << s->priv << "\n";    
     if(delegate) {
       s->scause = except_cause & 0x7fffffff;
       s->sepc = s->pc;
@@ -1389,6 +1395,7 @@ void execRiscv(state_t *s) {
       set_priv(s, priv_machine);
       s->pc = s->mtvec;      
     }
+    //std::cout << "\tjump to exception handler at pc " << std::hex << s->pc << ", satp " << ((s->satp & ((1UL<<44)-1)) << 12) << std::dec << "\n";    
   }
   return;
   

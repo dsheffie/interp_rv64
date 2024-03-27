@@ -146,9 +146,11 @@ int main(int argc, char *argv[]) {
   initCapstone();
 
   double runtime = timestamp();
-  runRiscv(s,dumpIcnt);
+  if(dumpIcnt != 0) {
+    runRiscv(s,dumpIcnt);
+  }
   runtime = timestamp()-runtime;
-
+  
   if( s->icnt >= dumpIcnt ) {
     std::stringstream ss;
     ss << filename << s->icnt << ".bin";
