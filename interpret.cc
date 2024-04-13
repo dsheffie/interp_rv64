@@ -855,7 +855,10 @@ void execRiscv(state_t *s) {
 	  s->sext_xlen(c, m.r.rd);
 	}
 	else if((m.r.sel == 4) & (m.r.special == 1)) { /* divw */
-	  int32_t c = a/b;
+	  int32_t c = ~0;
+	  if(b != 0) {
+	    c = a/b;
+	  }
 	  s->sext_xlen(c, m.r.rd);
 	}
 	else if((m.r.sel == 5) & (m.r.special == 0)) { /* srlw */
@@ -866,7 +869,10 @@ void execRiscv(state_t *s) {
 	else if((m.r.sel == 5) & (m.r.special == 1)) { /* divuw */
 	  uint32_t aa = s->get_reg_u32(m.r.rs1);
 	  uint32_t bb = s->get_reg_u32(m.r.rs2);
-	  uint32_t c = aa/bb;
+	  uint32_t c = ~0U;
+	  if(bb != 0) {
+	    c = aa/bb;
+	  }
 	  int32_t rr =  *reinterpret_cast<int32_t*>(&c);
 	  s->sext_xlen(rr, m.r.rd);
 	}
@@ -875,13 +881,19 @@ void execRiscv(state_t *s) {
 	  s->sext_xlen(c, m.r.rd);	  
 	}
 	else if((m.r.sel == 6) & (m.r.special == 1)) { /* remw */
-	  int32_t c = a % b;
+	  int32_t c = ~0;
+	  if (b != 0) {
+	    c= a % b;
+	  }
 	  s->sext_xlen(c, m.r.rd);
 	}
 	else if((m.r.sel == 7) & (m.r.special == 1)) { /* remuw */
 	  uint32_t aa = s->get_reg_u32(m.r.rs1);
 	  uint32_t bb = s->get_reg_u32(m.r.rs2);
-	  uint32_t c = aa%bb;
+	  uint32_t c = ~0;
+	  if(bb != 0) {
+	    c = aa%bb;
+	  }
 	  int32_t rr =  *reinterpret_cast<int32_t*>(&c);
 	  s->sext_xlen(rr, m.r.rd);
 	}
@@ -1081,7 +1093,7 @@ void execRiscv(state_t *s) {
 		s->gpr[m.r.rd] = s->gpr[m.r.rs1] ^ s->gpr[m.r.rs2];
 		break;
 	      case 0x1:
-		s->gpr[m.r.rd] = s->gpr[m.r.rs1] / s->gpr[m.r.rs2];
+		s->gpr[m.r.rd] =s->gpr[m.r.rs2]==0 ? ~0L : s->gpr[m.r.rs1] / s->gpr[m.r.rs2];
 		break;
 	      default:
 		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
@@ -1095,7 +1107,7 @@ void execRiscv(state_t *s) {
 		s->gpr[rd] = (*reinterpret_cast<uint64_t*>(&s->gpr[m.r.rs1]) >> (s->gpr[m.r.rs2] & (s->xlen()-1)));
 		break;
 	      case 0x1: {
-		*reinterpret_cast<uint64_t*>(&s->gpr[m.r.rd]) = u_rs1 / u_rs2;
+		*reinterpret_cast<uint64_t*>(&s->gpr[m.r.rd]) = u_rs2==0 ? (~0UL) : (u_rs1 / u_rs2);
 		break;
 	      }
 	      case 0x20: /* sra */
@@ -1113,7 +1125,12 @@ void execRiscv(state_t *s) {
 		s->gpr[m.r.rd] = s->gpr[m.r.rs1] | s->gpr[m.r.rs2];
 		break;
 	      case 0x1:
-		s->gpr[m.r.rd] = s->gpr[m.r.rs1] % s->gpr[m.r.rs2];
+		if(s->gpr[m.r.rs2] == 0) {
+		  s->gpr[m.r.rd] = ~(0L);
+		}
+		else {
+		  s->gpr[m.r.rd] = s->gpr[m.r.rs1] % s->gpr[m.r.rs2];
+		}
 		break;		
 	      default:
 		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
