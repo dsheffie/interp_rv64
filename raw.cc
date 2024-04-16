@@ -31,6 +31,7 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
 
   //hack linux kernel
   fd = open("kernel.bin", O_RDONLY);
+  assert(fd != -1);
   rc = fstat(fd, &s);
   uint64_t kern_addr = 0x200000 + 0x80000000;
   uint64_t initrd_addr = 0;

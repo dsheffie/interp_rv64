@@ -129,6 +129,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   //if we are unaligned assert out (for now)
   if(!same_page) {
     fault = 1;
+    //std::cout << "mapping does not exist\n";
     return 2;
   }
 
@@ -147,6 +148,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   a = (c.satp.ppn * 4096) + (((ea >> 30) & 511)*8);
   u = *reinterpret_cast<uint64_t*>(mem + a);
   if((u&1) == 0) {
+    //std::cout << "mapping does not exist\n";    
     fault = 1;
     return 2;
   }  
@@ -173,6 +175,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   
   u = *reinterpret_cast<uint64_t*>(mem + a);  
   if((u&1) == 0) {
+    //std::cout << "mapping does not exist\n";
     fault = 1;
     return 0;
   }
@@ -190,10 +193,12 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
 
   //* permission checks */
   if(fetch && (r.sv39.x == 0)) {
+    //std::cout << "not executable fetch\n";
     fault = 1;
     return 0;
   }
   if(store && (r.sv39.w == 0)) {
+    //std::cout << "store to not writable page\n";
     fault = 1;
     return 0;
   }
@@ -202,6 +207,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     return 0;
   }
   if(not(store or fetch) && (r.sv39.r == 0)) {
+    //std::cout << "read to not readable page\n";
     fault = 1;
     return 0;
   }
@@ -331,6 +337,8 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
       return s->icnt;
     case 0xc01:
       return (s->icnt >> 20);
+    case 0xc03:
+      return 0;
     case 0xf14:
       return s->mhartid;      
     default:
@@ -1366,6 +1374,7 @@ void execRiscv(state_t *s) {
 		<< " , icnt " << s->icnt
 		<< "\n";
       std::cout << *s << "\n";
+      dump_calls();      
       exit(-1);
       break;
     }
