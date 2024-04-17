@@ -19,7 +19,7 @@
 #include "globals.hh"
 #include "fdt.hh"
 
-static const char cmdline[] = "console=hvc0 root=/dev/vda rw";
+static const char cmdline[] = "debug keep_bootcon bootmem_debug console=hvc0";
 
 
 
@@ -34,7 +34,7 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   assert(fd != -1);
   rc = fstat(fd, &s);
   uint64_t kern_addr = 0x200000 + 0x80000000;
-  uint64_t initrd_addr = 0;
+  uint64_t initrd_addr = 0x40000000;
   uint64_t kern_size = 0, initrd_size = 0;
 
 #if 1
@@ -46,6 +46,17 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   munmap(buf, s.st_size);
   close(fd);
 #endif
+
+  fd = open("initramfs.img", O_RDONLY);
+  assert(fd != -1);
+  rc = fstat(fd, &s);
+  initrd_size = s.st_size;
+  buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  for(size_t i = 0; i < s.st_size; i++) {
+    mem[initrd_addr+i] = buf[i];
+  }
+  munmap(buf, s.st_size);
+  close(fd);
 
   
   fd = open(fn, O_RDONLY);

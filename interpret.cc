@@ -42,7 +42,8 @@ bool state_t::memory_map_check(uint64_t pa, bool store) {
     return true;
   }
   if(pa >= PLIC_BASE_ADDR and (pa < (PLIC_BASE_ADDR + PLIC_SIZE))) {
-    //printf("%s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
+    //printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
+    //exit(-1);
     return true;
   }  
   return false;
@@ -1249,7 +1250,18 @@ void execRiscv(state_t *s) {
 	assert(false);
       }
       else if(bits19to7z and (csr_id == 0x102)) {  /* sret */
-	assert(false);
+	/* stolen from tinyemu */
+	int spp = (s->mstatus >> MSTATUS_SPP_SHIFT) & 1;
+	/* set the IE state to previous IE state */
+	int spie = (s->mstatus >> MSTATUS_SPIE_SHIFT) & 1;
+	s->mstatus = (s->mstatus & ~(1 << spp)) | (spie << spp);
+	/* set SPIE to 1 */
+	s->mstatus |= MSTATUS_SPIE;
+	/* set SPP to U */
+	s->mstatus &= ~MSTATUS_SPP;
+	set_priv(s, spp);
+	s->pc = s->sepc;
+	break;
       }
       else if(bits19to7z and (csr_id == 0x202)) {  /* hret */
 	assert(false);
