@@ -300,6 +300,69 @@ static inline std::ostream &operator<<(std::ostream &out, mstatus_t mstatus) {
   return out;
 }
 
+static inline void what_changed(std::ostream &out, mstatus_t a, mstatus_t b) {
+  if(a.sie != b.sie) {
+    out << "a.sie = " << a.sie << ", b.sie = " << b.sie << "\n";
+  }
+  if(a.mie != b.mie) {
+    out << "a.mie = " << a.mie << ", b.mie = " << b.mie << "\n";
+  }  
+  if(a.spie != b.spie) {
+    out << "a.spie = " << a.spie << ", b.spie = " << b.spie << "\n";
+  }
+  if(a.ube != b.ube) {
+    out << "a.ube = " << a.ube << ", b.ube = " << b.ube << "\n";
+  }    
+  if(a.mpie != b.mpie) {
+    out << "a.mpie = " << a.mpie << ", b.mpie = " << b.mpie << "\n";
+  }    
+  if(a.spp != b.spp) {
+    out << "a.spp = " << a.spp << ", b.spp = " << b.spp << "\n";
+  }    
+  if(a.mpp != b.mpp) {
+    out << "a.mpp = " << a.mpp << ", b.mpp = " << b.mpp << "\n";
+  }    
+  if(a.fs != b.fs) {
+    out << "a.fs = " << a.fs << ", b.fs = " << b.fs << "\n";
+  }
+  if(a.xs != b.xs) {
+    out << "a.xs = " << a.xs << ", b.xs = " << b.xs << "\n";
+  }
+  if(a.mprv != b.mprv) {
+    out << "a.mprv = " << a.mprv << ", b.mprv = " << b.mprv << "\n";
+  }
+  if(a.sum != b.sum) {
+    out << "a.sum = " << a.sum << ", b.sum = " << b.sum << "\n";
+  }
+  if(a.mxr != b.mxr) {
+    out << "a.mxr = " << a.mxr << ", b.mxr = " << b.mxr << "\n";
+  }            
+  if(a.tvm != b.tvm) {
+    out << "a.tvm = " << a.tvm << ", b.tvm = " << b.tvm << "\n";
+  }            
+  if(a.tw != b.tw) {
+    out << "a.tw = " << a.tw << ", b.tw = " << b.tw << "\n";
+  }            
+  if(a.tsr != b.tsr) {
+    out << "a.tsr = " << a.tsr << ", b.tsr = " << b.tsr << "\n";
+  }            
+  if(a.uxl != b.uxl) {
+    out << "a.uxl = " << a.uxl << ", b.uxl = " << b.uxl << "\n";
+  }
+  if(a.sxl != b.sxl) {
+    out << "a.sxl = " << a.sxl << ", b.sxl = " << b.sxl << "\n";
+  }
+  if(a.sbe != b.sbe) {
+    out << "a.sbe = " << a.sbe << ", b.sbe = " << b.sbe << "\n";
+  }
+  if(a.mbe != b.mbe) {
+    out << "a.mbe = " << a.mbe << ", b.mbe = " << b.mbe << "\n";
+  }
+  if(a.sd != b.sd) {
+    out << "a.sd = " << a.sd << ", b.sd = " << b.sd << "\n";
+  }                    
+}
+
 
 struct sv39_t {
   uint64_t v : 1;

@@ -24,6 +24,9 @@
 #ifndef __TEMUCODEHH__
 #define __TEMUCODEHH__
 
+#include <array>
+#include <string>
+
 #define CAUSE_MISALIGNED_FETCH    0x0
 #define CAUSE_FAULT_FETCH         0x1
 #define CAUSE_ILLEGAL_INSTRUCTION 0x2
@@ -39,8 +42,29 @@
 #define CAUSE_FETCH_PAGE_FAULT    0xc
 #define CAUSE_LOAD_PAGE_FAULT     0xd
 #define CAUSE_STORE_PAGE_FAULT    0xf
+
 /* Note: converted to correct bit position at runtime */
 #define CAUSE_INTERRUPT  ((uint32_t)1 << 31)
+
+static std::array<std::string, 16> cause_reasons =
+{
+  "CAUSE_MISALIGNED_FETCH", //0
+  "CAUSE_FAULT_FETCH", //1
+  "CAUSE_ILLEGAL_INSTRUCTION", //2
+  "CAUSE_BREAKPOINT", //3
+  "CAUSE_MISALIGNED_LOAD", //4
+  "CAUSE_FAULT_LOAD", //5
+  "CAUSE_MISALIGNED_STORE", //6
+  "CAUSE_FAULT_STORE", //7
+  "CAUSE_USER_ECALL", //8
+  "CAUSE_SUPERVISOR_ECALL", //9
+  "CAUSE_HYPERVISOR_ECALL", //10
+  "CAUSE_MACHINE_ECALL", //11
+  "CAUSE_FETCH_PAGE_FAULT", //12
+  "CAUSE_LOAD_PAGE_FAULT", //13
+  "CAUSE - HUH?", //14
+  "CAUSE_STORE_PAGE_FAULT" //15
+};
 
 
 #define MSTATUS_SPIE_SHIFT 5
