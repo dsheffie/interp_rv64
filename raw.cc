@@ -48,15 +48,16 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
 #endif
 
   fd = open("initramfs.img", O_RDONLY);
-  assert(fd != -1);
-  rc = fstat(fd, &s);
-  initrd_size = s.st_size;
-  buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  for(size_t i = 0; i < s.st_size; i++) {
-    mem[initrd_addr+i] = buf[i];
+  if(fd != -1) {
+    rc = fstat(fd, &s);
+    initrd_size = s.st_size;
+    buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    for(size_t i = 0; i < s.st_size; i++) {
+      mem[initrd_addr+i] = buf[i];
+    }
+    munmap(buf, s.st_size);
+    close(fd);
   }
-  munmap(buf, s.st_size);
-  close(fd);
 
   
   fd = open(fn, O_RDONLY);
