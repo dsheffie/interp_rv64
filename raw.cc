@@ -70,7 +70,8 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   munmap(buf, s.st_size);
 
   int64_t fdt_addr = 0x1000 + 8 * 8;
-  
+
+  printf("initrd_addr %lx, initrd_size %lx\n", initrd_addr, initrd_size);
   riscv_build_fdt(mem + fdt_addr,
 		  kern_addr,
 		  kern_size,
