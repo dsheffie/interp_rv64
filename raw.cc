@@ -22,6 +22,7 @@
 static const char cmdline[] = "debug keep_bootcon bootmem_debug console=hvc0";
 
 
+#define AMT (1<<24)
 
 void load_raw(const char* fn, state_t *ms, uint64_t where) {
   struct stat s;
@@ -34,7 +35,7 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   assert(fd != -1);
   rc = fstat(fd, &s);
   uint64_t kern_addr = 0x200000 + 0x80000000;
-  uint64_t initrd_addr = 0x40000000;
+  uint64_t initrd_addr = 0;
   uint64_t kern_size = 0, initrd_size = 0;
 
 #if 1
@@ -47,7 +48,8 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   close(fd);
 #endif
 
-  fd = open("initramfs.img", O_RDONLY);
+  fd = open("initramfs.img.gz", O_RDONLY);
+  initrd_addr = ((kern_addr + kern_size + AMT - 1) / AMT) * AMT;
   if(fd != -1) {
     rc = fstat(fd, &s);
     initrd_size = s.st_size;
@@ -72,6 +74,7 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   int64_t fdt_addr = 0x1000 + 8 * 8;
 
   printf("initrd_addr %lx, initrd_size %lx\n", initrd_addr, initrd_size);
+  
   riscv_build_fdt(mem + fdt_addr,
 		  kern_addr,
 		  kern_size,

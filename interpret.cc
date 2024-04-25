@@ -176,7 +176,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   
   u = *reinterpret_cast<uint64_t*>(mem + a);  
   if((u&1) == 0) {
-    //std::cout << "mapping does not exist\n";
+    //std::cout << "mapping does not exist for " << std::hex << ea << std::dec << " <<\n";
     fault = 1;
     return 0;
   }
@@ -199,7 +199,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     return 0;
   }
   if(store && (r.sv39.w == 0)) {
-    //std::cout << "store to not writable page\n";
+    printf("store to non-writeable page, pte addr %lx\n", a);
     fault = 1;
     return 0;
   }
@@ -290,8 +290,10 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
   undef = false;
   switch(csr_id)
     {
-    case 0x100:
+    case 0x100: {
+      //printf("read sstatus of %lx at pc %lx\n", s->sstatus, s->pc);
       return s->sstatus;
+    }
     case 0x104:
       return s->sie;
     case 0x105:
@@ -359,9 +361,11 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
   csr_t c(v);
   switch(csr_id)
     {
-    case 0x100:
+    case 0x100: {
+      //printf("write sstatus of %lx at pc %lx\n", v, s->pc);
       s->sstatus = v;
       break;
+    }
     case 0x104:
       s->sie = v;
       break;
@@ -461,7 +465,8 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
 
 void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
-  int fetch_fault = 0, except_cause = -1, tval = -1;
+  int fetch_fault = 0, except_cause = -1;
+  uint64_t tval = -1;
   uint64_t tohost = 0;
   uint64_t phys_pc = 0;
   uint32_t inst = 0, opcode = 0, rd = 0, lop = 0;
@@ -948,6 +953,7 @@ void execRiscv(state_t *s) {
 	std::cout << "ea = " << std::hex << ea << std::dec << " causes st pf\n";
 	std::cout << "pa = " << std::hex << pa << std::dec << "\n";
 	std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
+	///if(s->pc == 0xffffffff804ecedcUL) exit(-1);
 	goto handle_exception;
       }
       
@@ -1314,8 +1320,9 @@ void execRiscv(state_t *s) {
 	int rd = (inst>>7) & 31;
         int rs = (inst >> 15) & 31;
 	bool undef=false;
+	      
 	switch((inst>>12) & 7)
-	  {
+	  {	    
 	  case 1: { /* CSRRW */
 	    int64_t v = 0;
 	    if(rd != 0) {
@@ -1430,11 +1437,16 @@ void execRiscv(state_t *s) {
 	
       }
     }
-    std::cout << "took fault at pc " << std::hex << s->pc << std::dec
+    std::cout << "took fault at pc "
+	      << std::hex << s->pc
+	      << ", tval " << tval
+	      << std::dec
 	      << ", cause " << except_cause << " : "
 	      << cause_reasons.at(except_cause)
 	      << ", delegate " << delegate
-	      << ", priv " << s->priv << "\n";    
+	      << ", priv "
+	      << s->priv << "\n";
+    
     if(delegate) {
       s->scause = except_cause & 0x7fffffff;
       s->sepc = s->pc;

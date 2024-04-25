@@ -113,7 +113,7 @@ static std::array<std::string, 16> cause_reasons =
 #define MIP_HEIP (1 << 10)
 #define MIP_MEIP (1 << 11)
 
-#define RAM_BASE_ADDR  0x00000000
+#define RAM_BASE_ADDR  0x80000000
 #define CLINT_BASE_ADDR 0x02000000
 #define CLINT_SIZE      0x000c0000
 #define HTIF_BASE_ADDR 0x40008000
