@@ -149,7 +149,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   a = (c.satp.ppn * 4096) + (((ea >> 30) & 511)*8);
   u = *reinterpret_cast<uint64_t*>(mem + a);
   if((u&1) == 0) {
-    std::cout << "mapping does not exist\n";    
+    //std::cout << "mapping does not exist\n";    
     fault = 1;
     return 2;
   }  
@@ -199,7 +199,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     return 0;
   }
   if(store && (r.sv39.w == 0)) {
-    printf("store to non-writeable page, pte addr %lx\n", a);
+    //printf("store to non-writeable page, pte addr %lx\n", a);
     fault = 1;
     return 0;
   }
@@ -583,9 +583,9 @@ void execRiscv(state_t *s) {
 	if(page_fault) {
 	  except_cause = CAUSE_LOAD_PAGE_FAULT;
 	  tval = ea;
-	  std::cout << "ea = " << std::hex << ea << std::dec << " causes ld pf\n";
-	  std::cout << "pa = " << std::hex << pa << std::dec << "\n";
-	  std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
+	  //std::cout << "ea = " << std::hex << ea << std::dec << " causes ld pf\n";
+	  //std::cout << "pa = " << std::hex << pa << std::dec << "\n";
+	  //std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
 	  goto handle_exception;
 	}
 
@@ -950,9 +950,9 @@ void execRiscv(state_t *s) {
       if(fault) {
 	except_cause = CAUSE_STORE_PAGE_FAULT;
 	tval = ea;
-	std::cout << "ea = " << std::hex << ea << std::dec << " causes st pf\n";
-	std::cout << "pa = " << std::hex << pa << std::dec << "\n";
-	std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
+	//std::cout << "ea = " << std::hex << ea << std::dec << " causes st pf\n";
+	//std::cout << "pa = " << std::hex << pa << std::dec << "\n";
+	//std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
 	///if(s->pc == 0xffffffff804ecedcUL) exit(-1);
 	goto handle_exception;
       }
@@ -1272,7 +1272,7 @@ void execRiscv(state_t *s) {
       }
       else if(bits19to7z and (csr_id == 0x102)) {  /* sret */
 	/* stolen from tinyemu */
-	auto m0 =  csr_t(s->mstatus).mstatus;
+	//auto m0 =  csr_t(s->mstatus).mstatus;
 	int spp = (s->mstatus >> MSTATUS_SPP_SHIFT) & 1;
 	/* set the IE state to previous IE state */
 	int spie = (s->mstatus >> MSTATUS_SPIE_SHIFT) & 1;
@@ -1283,9 +1283,9 @@ void execRiscv(state_t *s) {
 	s->mstatus &= ~MSTATUS_SPP;
 	set_priv(s, spp);
 	s->pc = s->sepc;
-	auto m1 = csr_t(s->mstatus).mstatus;
-	std::cout << "sret : " << "\n";
-	what_changed(std::cout, m0, m1);
+	//auto m1 = csr_t(s->mstatus).mstatus;
+	//std::cout << "sret : " << "\n";
+	//what_changed(std::cout, m0, m1);
 	//globals::log = true;
 	break;
       }
@@ -1294,7 +1294,7 @@ void execRiscv(state_t *s) {
       }            
       else if(bits19to7z and (csr_id == 0x302)) {  /* mret */
 	/* stolen from tinyemu */
-	auto m0 =  csr_t(s->mstatus).mstatus;	
+	//auto m0 =  csr_t(s->mstatus).mstatus;	
 	int mpp = (s->mstatus >> MSTATUS_MPP_SHIFT) & 3;
 	/* set the IE state to previous IE state */
 	int mpie = (s->mstatus >> MSTATUS_MPIE_SHIFT) & 1;
@@ -1305,9 +1305,9 @@ void execRiscv(state_t *s) {
 	s->mstatus &= ~MSTATUS_MPP;
 	set_priv(s, mpp);
 	s->pc = s->mepc;
-	auto m1 = csr_t(s->mstatus).mstatus;
-	std::cout << "mret : " << "\n";
-	what_changed(std::cout, m0, m1);	
+	//auto m1 = csr_t(s->mstatus).mstatus;
+	//std::cout << "mret : " << "\n";
+	//what_changed(std::cout, m0, m1);	
 	break;
       }
       else if(is_ebreak) {
@@ -1437,15 +1437,15 @@ void execRiscv(state_t *s) {
 	
       }
     }
-    std::cout << "took fault at pc "
-	      << std::hex << s->pc
-	      << ", tval " << tval
-	      << std::dec
-	      << ", cause " << except_cause << " : "
-	      << cause_reasons.at(except_cause)
-	      << ", delegate " << delegate
-	      << ", priv "
-	      << s->priv << "\n";
+    //std::cout << "took fault at pc "
+    //	      << std::hex << s->pc
+    //<< ", tval " << tval
+    //<< std::dec
+    //<< ", cause " << except_cause << " : "
+    //<< cause_reasons.at(except_cause)
+    //<< ", delegate " << delegate
+    //<< ", priv "
+    //<< s->priv << "\n";
     
     if(delegate) {
       s->scause = except_cause & 0x7fffffff;
