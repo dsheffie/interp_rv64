@@ -48,7 +48,7 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   close(fd);
 #endif
 
-  fd = open("initramfs.img.gz", O_RDONLY);
+  fd = open("initramfs.img", O_RDONLY);
   initrd_addr = ((kern_addr + kern_size + AMT - 1) / AMT) * AMT;
   if(fd != -1) {
     rc = fstat(fd, &s);

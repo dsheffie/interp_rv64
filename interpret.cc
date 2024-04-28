@@ -307,7 +307,7 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
     case 0x143:
       return s->stval;
     case 0x144:
-      return s->sip;
+      return s->mip & s->mideleg;
     case 0x180:
       return s->satp;
     case 0x300:
@@ -344,6 +344,8 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
       return s->icnt;
     case 0xc01:
       return (s->icnt >> 20);
+    case 0xc02:
+      return s->icnt;
     case 0xc03:
       return 0;
     case 0xf14:
@@ -388,9 +390,10 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
     case 0x143:
       s->stvec = v;
       break;
-    case 0x144:
-      s->sip = v;
+    case 0x144: {
+      s->mip = (s->mip & ~(s->mideleg)) | (v & s->mideleg);
       break;
+    }
     case 0x180:
       if(c.satp.mode == 8 &&
 	 c.satp.asid == 0) {
@@ -473,12 +476,21 @@ void execRiscv(state_t *s) {
   int64_t irq = 0;
   riscv_t m(0);
   curr_pc = s->pc;
+
+#if 0
+  csr_t c(s->mie);
+  if(s->irqs_enabled() and c.mie.mtie) {
+    csr_t cc(0);
+    cc.mie.mtie = 1;
+    s->mip |= cc.raw;
+    globals::log = true;
+    printf("taking timer interrupt...\n");
+  }
+#endif
   
   irq = take_interrupt(s);
   if(irq) {
     except_cause = CAUSE_INTERRUPT | irq;
-    printf("took interrupt\n");
-    abort();
     goto handle_exception;
   }
 
@@ -580,6 +592,7 @@ void execRiscv(state_t *s) {
 	
 	int page_fault = 0;
 	int64_t pa = s->translate(ea, page_fault, sz);
+	  
 	if(page_fault) {
 	  except_cause = CAUSE_LOAD_PAGE_FAULT;
 	  tval = ea;
@@ -947,6 +960,7 @@ void execRiscv(state_t *s) {
 
       int sz = 1<<(m.s.sel);
       int64_t pa = s->translate(ea, fault, sz, true);
+      
       if(fault) {
 	except_cause = CAUSE_STORE_PAGE_FAULT;
 	tval = ea;
@@ -1430,15 +1444,15 @@ void execRiscv(state_t *s) {
     
     if(s->priv == priv_user || s->priv == priv_supervisor) {
       if(except_cause & CAUSE_INTERRUPT) {
-	assert(false);
+	delegate = ((s->mideleg) >> 63) & 1;
+	//printf("delegate irq = %d\n", delegate);
       }
       else {
 	delegate = (s->medeleg >> except_cause) & 1;
-	
       }
     }
     //std::cout << "took fault at pc "
-    //	      << std::hex << s->pc
+    //<< std::hex << s->pc
     //<< ", tval " << tval
     //<< std::dec
     //<< ", cause " << except_cause << " : "

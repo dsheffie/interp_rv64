@@ -7,6 +7,8 @@
 #include <ostream>
 #include <map>
 #include <string>
+#include <cassert>
+#include "temu_code.hh"
 
 #define MARGS 20
 
@@ -122,6 +124,23 @@ struct state_t{
     }
     return false;
   }
+  bool irqs_enabled() const {
+    switch(priv)
+      {
+      case priv_user:
+	return (mstatus & MSTATUS_UIE) |
+	  (mstatus & MSTATUS_SIE) |
+	  (mstatus & MSTATUS_MIE);
+      case priv_hypervisor:
+	assert(false);
+      case priv_supervisor:
+	return (mstatus & MSTATUS_SIE) | (mstatus & MSTATUS_MIE);		
+      case priv_machine:
+	return (mstatus & MSTATUS_MIE);		
+      }
+    return false;
+  }
+  
   bool memory_map_check(uint64_t pa, bool store = false);
   int8_t load8(uint64_t pa);
   int64_t load8u(uint64_t pa);  
@@ -275,6 +294,23 @@ union csr_t {
   uint64_t raw;
   csr_t(uint64_t x) : raw(x) {}
 };
+
+static inline std::ostream &operator<<(std::ostream &out, mie_t mie) {
+  if(mie.ssie)
+    out << "ssie = " << mie.ssie << " : supervisor-level sw interrupts\n";
+  if(mie.msie)
+    out << "msie = " << mie.msie << " : machine-level sw interrupts\n";
+  if(mie.stie)
+    out << "stie = " << mie.stie << " : supervisor-level timer interrupts\n";
+  if(mie.mtie)
+    out << "mtie = " << mie.mtie << " : machine-level timer interrupts\n";
+  if(mie.seie)
+    out << "seie = " << mie.seie << " : supervisor-level external interrupts\n";
+  if(mie.meie)
+    out << "meie = " << mie.meie << " : machine-level external interrupts\n";  
+  return out;
+}
+
 
 static inline std::ostream &operator<<(std::ostream &out, mstatus_t mstatus) {
   out << "sie  " << mstatus.sie << "\n";

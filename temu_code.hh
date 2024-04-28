@@ -127,6 +127,7 @@ static std::array<std::string, 16> cause_reasons =
 
 
 #ifndef TEMU_JUST_DEFINES
+struct state_t;
 int64_t take_interrupt(state_t *s);
 #endif
 

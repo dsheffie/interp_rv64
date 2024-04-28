@@ -26,7 +26,7 @@
 
 int64_t take_interrupt(state_t *s) {
   int64_t pending_irq_bitvec = s->mip & s->mie;
-  int64_t enabled_ints = -1L;  
+  int64_t enabled_ints = 0;  
   if(pending_irq_bitvec == 0) {
     return 0;
   }
