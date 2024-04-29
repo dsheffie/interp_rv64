@@ -42,7 +42,12 @@ bool state_t::memory_map_check(uint64_t pa, bool store) {
     return true;
   }
   if(pa >= PLIC_BASE_ADDR and (pa < (PLIC_BASE_ADDR + PLIC_SIZE))) {
-    //printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
+    printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
+    //exit(-1);
+    return true;
+  }
+  if(pa >= CLINT_BASE_ADDR and (pa < (CLINT_BASE_ADDR + CLINT_SIZE))) {
+    printf(">> %s clint range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-CLINT_BASE_ADDR);
     //exit(-1);
     return true;
   }  
@@ -465,6 +470,7 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
     }
 }
 
+uint64_t last_irq = 0;
 
 void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
@@ -477,14 +483,15 @@ void execRiscv(state_t *s) {
   riscv_t m(0);
   curr_pc = s->pc;
 
-#if 0
+#if 1
   csr_t c(s->mie);
-  if(s->irqs_enabled() and c.mie.mtie) {
+  if(s->irqs_enabled() and c.mie.mtie and (last_irq > 100000000)) {
     csr_t cc(0);
     cc.mie.mtie = 1;
     s->mip |= cc.raw;
-    globals::log = true;
+    //globals::log = true;
     printf("taking timer interrupt...\n");
+    last_irq = 0;
   }
 #endif
   
@@ -493,7 +500,8 @@ void execRiscv(state_t *s) {
     except_cause = CAUSE_INTERRUPT | irq;
     goto handle_exception;
   }
-
+  last_irq++;
+  
   phys_pc = s->translate(s->pc, fetch_fault, 4, false, true);
 
 
@@ -602,6 +610,10 @@ void execRiscv(state_t *s) {
 	  goto handle_exception;
 	}
 
+	if(s->pc == 0x80003270) {
+	  std::cout << "pa = " << std::hex << pa << std::dec << "\n";
+	  std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
+	}
 	
 	switch(m.s.sel)
 	  {
