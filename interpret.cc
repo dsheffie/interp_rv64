@@ -295,10 +295,8 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
   undef = false;
   switch(csr_id)
     {
-    case 0x100: {
-      //printf("read sstatus of %lx at pc %lx\n", s->sstatus, s->pc);
-      return s->sstatus;
-    }
+    case 0x100:
+      return s->mstatus & 0x3000de133UL;
     case 0x104:
       return s->sie;
     case 0x105:
@@ -368,11 +366,9 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
   csr_t c(v);
   switch(csr_id)
     {
-    case 0x100: {
-      //printf("write sstatus of %lx at pc %lx\n", v, s->pc);
-      s->sstatus = v;
+    case 0x100: 
+      s->mstatus = (v & 0x3000de133UL) | ((s->mstatus & (~0x3000de133UL)));
       break;
-    }
     case 0x104:
       s->sie = v;
       break;
@@ -420,6 +416,11 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       s->mideleg = v;
       break;
     case 0x304:
+      if(s->mie != v) {
+	printf("mie changes to %lx at %lx\n", v, s->pc);
+	csr_t c(v);
+	std::cout << c.mie << "\n";
+      }
       s->mie = v;
       break;
     case 0x305:
@@ -435,6 +436,11 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       s->mepc = v;
       break;
     case 0x344:
+      if(s->mip != v) {
+	printf("mie changes to %lx at %lx\n", v, s->pc);
+	csr_t c(v);
+	std::cout << c.mie << "\n";
+      }      
       s->mip = v;
       break;
     case 0x3a0:
@@ -485,18 +491,22 @@ void execRiscv(state_t *s) {
 
 #if 1
   csr_t c(s->mie);
-  if(s->irqs_enabled() and c.mie.mtie and (last_irq > 100000000)) {
+  //if(c.raw != 0) {
+  //std::cout << c.mie << "\n";
+  //}
+  if(c.mie.mtie and (s->priv == priv_user)) {
+    printf("Trying to take irq\n");
+    globals::log = 1;
     csr_t cc(0);
     cc.mie.mtie = 1;
     s->mip |= cc.raw;
-    //globals::log = true;
-    printf("taking timer interrupt...\n");
     last_irq = 0;
   }
 #endif
   
   irq = take_interrupt(s);
   if(irq) {
+    printf(">>taking timer interrupt...<<\n");
     except_cause = CAUSE_INTERRUPT | irq;
     goto handle_exception;
   }
@@ -1333,7 +1343,7 @@ void execRiscv(state_t *s) {
 	s->pc = s->mepc;
 	//auto m1 = csr_t(s->mstatus).mstatus;
 	//std::cout << "mret : " << "\n";
-	//what_changed(std::cout, m0, m1);	
+	//what_changed(std::cout, m0, m1);
 	break;
       }
       else if(is_ebreak) {
@@ -1463,6 +1473,12 @@ void execRiscv(state_t *s) {
 	delegate = (s->medeleg >> except_cause) & 1;
       }
     }
+
+    uint64_t cause = (except_cause & 0x7fffffffUL);
+    if(except_cause & CAUSE_INTERRUPT) {
+      cause |= 1UL<<63;
+    }
+    
     //std::cout << "took fault at pc "
     //<< std::hex << s->pc
     //<< ", tval " << tval
@@ -1474,7 +1490,7 @@ void execRiscv(state_t *s) {
     //<< s->priv << "\n";
     
     if(delegate) {
-      s->scause = except_cause & 0x7fffffff;
+      s->scause = cause;
       s->sepc = s->pc;
       s->stval = tval;
       s->mstatus = (s->mstatus & ~MSTATUS_SPIE) |
@@ -1486,7 +1502,7 @@ void execRiscv(state_t *s) {
       s->pc = s->stvec;
     }
     else {
-      s->mcause = except_cause & 0x7fffffff;
+      s->mcause = cause;
       s->mepc = s->pc;
       s->mtval = tval;
       s->mstatus = (s->mstatus & ~MSTATUS_MPIE) |
