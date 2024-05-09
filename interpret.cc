@@ -233,6 +233,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     store64(a, r.r);
   }
   if((r.sv39.d == 0) && store) {
+    //printf("marking dirty\n");
     r.sv39.d = 1;
     store64(a, r.r);    
   }
@@ -255,7 +256,7 @@ static void set_priv(state_t *s, int priv) {
   if (s->priv != priv) {
     //printf("tlb had %lu entries\n", tlb.size());
     tlb.clear();
-    int mxl;
+    int mxl = 2;
     if (priv == priv_supervisor) {
       mxl = (s->mstatus >> MSTATUS_SXL_SHIFT) & 3;
       assert(mxl == 2);
@@ -264,6 +265,11 @@ static void set_priv(state_t *s, int priv) {
       mxl = (s->mstatus >> MSTATUS_UXL_SHIFT) & 3;
       assert(mxl == 2);
     }
+    if(mxl != 2) {
+      printf("huh trying to change mxl to %d, curr priv = %d, next priv = %d\n",
+	     mxl, s->priv, priv);
+    }
+    //assert(mxl == 2);
   }
   s->priv = static_cast<riscv_priv>(priv);
 }
@@ -295,8 +301,9 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
   undef = false;
   switch(csr_id)
     {
-    case 0x100:
+    case 0x100: {
       return s->mstatus & 0x3000de133UL;
+    }
     case 0x104:
       return s->sie;
     case 0x105:
@@ -366,8 +373,10 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
   csr_t c(v);
   switch(csr_id)
     {
-    case 0x100: 
-      s->mstatus = (v & 0x3000de133UL) | ((s->mstatus & (~0x3000de133UL)));
+    case 0x100:
+      //printf("writing sstatus at pc %lx\n", s->pc);
+      s->mstatus = (v & 0x0000de133UL) | ((s->mstatus & (~0x000de133UL)));
+      assert( ((s->mstatus >> MSTATUS_UXL_SHIFT) & 3) == 2);
       break;
     case 0x104:
       s->sie = v;
@@ -489,7 +498,17 @@ void execRiscv(state_t *s) {
   riscv_t m(0);
   curr_pc = s->pc;
 
-#if 1
+
+  //assert( ((s->mstatus >> MSTATUS_UXL_SHIFT) & 3) == 2);
+  //assert( ((s->mstatus >> MSTATUS_SXL_SHIFT) & 3) == 2);  
+  int mxl = (s->mstatus >> MSTATUS_UXL_SHIFT) & 3;
+  if(mxl == 0) {
+    printf("mxl = 0 at pc %lx, icnt %ld,mstatus %lx\n",
+	   s->pc, s->icnt, s->mstatus);
+    exit(-1);
+  }
+  
+#if 0
   csr_t c(s->mie);
   //if(c.raw != 0) {
   //std::cout << c.mie << "\n";
@@ -822,9 +841,20 @@ void execRiscv(state_t *s) {
 	      s->sext_xlen(x, m.a.rd);
 	    }
 	    break;
-	  }	    	    
+	  }
+	  case 0x1c: {/* amomaxu.w */
+	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
+	    assert(!page_fault);
+	    uint32_t u0 = s->load32(pa);
+	    uint32_t u1 = *reinterpret_cast<uint32_t*>(&s->gpr[m.a.rs2]);
+	    s->store32(pa, std::max(u0,u1));
+	    if(m.a.rd != 0) {
+	      s->sext_xlen(u0, m.a.rd);
+	    }
+	    break;
+	  }
 	  default:
-	    std::cout << "m.a.hiop " << m.a.hiop << "\n";
+	    std::cout << "m.a.hiop " << std::hex << m.a.hiop << std::dec << "\n";
 	    assert(false);
 	  }
       }
@@ -889,6 +919,16 @@ void execRiscv(state_t *s) {
 	    }
 	    break;
 	  }
+	  case 0x1c: {/* amoand.d */
+	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
+	    assert(!page_fault);
+	    uint64_t x = s->load64(pa);
+	    s->store64(pa, std::max(*reinterpret_cast<uint64_t*>(&s->gpr[m.a.rs2]), x));
+	    if(m.a.rd != 0) {
+	      s->gpr[m.a.rd] = x;
+	    }
+	    break;
+	  }	    
 	  default:
 	    std::cout << "m.a.hiop " << std::hex << m.a.hiop << std::dec <<  "\n";
 	    goto report_unimplemented;
@@ -1308,7 +1348,9 @@ void execRiscv(state_t *s) {
       }
       else if(bits19to7z and (csr_id == 0x102)) {  /* sret */
 	/* stolen from tinyemu */
-	//auto m0 =  csr_t(s->mstatus).mstatus;
+	assert( ((s->mstatus >> MSTATUS_UXL_SHIFT) & 3) == 2);
+	assert( ((s->mstatus >> MSTATUS_SXL_SHIFT) & 3) == 2);
+	
 	int spp = (s->mstatus >> MSTATUS_SPP_SHIFT) & 1;
 	/* set the IE state to previous IE state */
 	int spie = (s->mstatus >> MSTATUS_SPIE_SHIFT) & 1;
@@ -1319,9 +1361,6 @@ void execRiscv(state_t *s) {
 	s->mstatus &= ~MSTATUS_SPP;
 	set_priv(s, spp);
 	s->pc = s->sepc;
-	//auto m1 = csr_t(s->mstatus).mstatus;
-	//std::cout << "sret : " << "\n";
-	//what_changed(std::cout, m0, m1);
 	//globals::log = true;
 	break;
       }
@@ -1341,8 +1380,12 @@ void execRiscv(state_t *s) {
 	s->mstatus &= ~MSTATUS_MPP;
 	set_priv(s, mpp);
 	s->pc = s->mepc;
+
+	assert( ((s->mstatus >> MSTATUS_UXL_SHIFT) & 3) == 2);
+	assert( ((s->mstatus >> MSTATUS_SXL_SHIFT) & 3) == 2);
+	
 	//auto m1 = csr_t(s->mstatus).mstatus;
-	//std::cout << "mret : " << "\n";
+	std::cout << "mret : " << "\n";
 	//what_changed(std::cout, m0, m1);
 	break;
       }
