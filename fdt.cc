@@ -318,7 +318,7 @@ int riscv_build_fdt(uint8_t *dst,
     char isa_string[128], *q;
     uint32_t misa;
     uint32_t tab[4];
-    uint64_t ram_size = (1UL<<28);
+    uint64_t ram_size = (1UL<<30);
 
     
     s = fdt_init();

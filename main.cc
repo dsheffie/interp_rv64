@@ -74,14 +74,15 @@ int main(int argc, char *argv[]) {
   size_t pgSize = getpagesize();
   std::string sysArgs, filename;
   uint64_t maxinsns = ~(0UL), dumpIcnt = ~(0UL);
-  bool hash = false, raw = false;
+  bool raw = false;
   std::string tohost, fromhost;
+  int lg2_icache_lines, lg2_dcache_lines;
+  int icache_ways, dcache_ways;
   try {
     po::options_description desc("Options");
     desc.add_options() 
       ("help,h", "Print help messages") 
       ("args,a", po::value<std::string>(&sysArgs), "arguments to riscv binary") 
-      ("hash", po::value<bool>(&hash)->default_value(false), "hash memory at end of execution")
       ("file,f", po::value<std::string>(&filename), "rv32 binary")
       ("max,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
       ("dump", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
@@ -90,6 +91,10 @@ int main(int argc, char *argv[]) {
       ("raw,r", po::value<bool>(&raw)->default_value(false), "load raw binary")
       ("tohost", po::value<std::string>(&tohost)->default_value("0"), "to host address")
       ("fromhost", po::value<std::string>(&fromhost)->default_value("0"), "from host address")
+      ("lg2_icache_lines", po::value<int>(&lg2_icache_lines)->default_value(0), "number of icache lines")
+      ("lg2_dcache_lines", po::value<int>(&lg2_dcache_lines)->default_value(0), "number of dcache lines")
+      ("icache_ways", po::value<int>(&icache_ways)->default_value(1), "number of icache ways")
+      ("dcache_ways", po::value<int>(&dcache_ways)->default_value(1), "number of dcache ways")            
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -121,6 +126,14 @@ int main(int argc, char *argv[]) {
   int rc = posix_memalign((void**)&s, pgSize, pgSize); 
   initState(s);
   s->maxicnt = maxinsns;
+
+  if(lg2_dcache_lines != 0) {
+    s->dcache = make_cache(dcache_ways, lg2_dcache_lines);
+  }
+  if(lg2_icache_lines != 0) {
+    s->icache = make_cache(icache_ways, lg2_icache_lines);
+  }
+  
 #ifdef __linux__
   void* mempt = mmap(nullptr, 1UL<<32, PROT_READ | PROT_WRITE,
 		     MAP_PRIVATE | MAP_ANONYMOUS | MAP_NORESERVE, -1, 0);
@@ -160,13 +173,6 @@ int main(int argc, char *argv[]) {
     dumpState(*s, ss.str());
   }
   
-  if(hash) {
-    std::fflush(nullptr);
-    /* std::cerr << *s << "\n"; */
-    std::cerr << "crc32=" << std::hex
-	      << crc32(s->mem, 1UL<<32)<<std::dec
-	      << "\n";
-  }  
 
 
   if(not(globals::silent)) {
@@ -176,6 +182,14 @@ int main(int argc, char *argv[]) {
 	      << std::round((s->icnt/runtime)*1e-6) << " megains / sec "
 	      << KNRM  << "\n";
     std::cerr << "final pc " << std::hex << s->pc << std::dec << "\n";
+    for(int i = 0; i < 3; i++) {
+      if((s->ipgszcnt[i] == 0) and (s->dpgszcnt[i]==0))
+	continue;
+      printf("%lu pg sizes : iside %lu accesses, dside %lu accesses\n",
+	     i==2 ? (1U<<12) : (i == 1) ? (1UL<<21) : (1UL<<30),
+	     s->ipgszcnt[i], s->dpgszcnt[i]
+	     );
+    }
   }
 
   
@@ -185,6 +199,29 @@ int main(int argc, char *argv[]) {
       delete [] globals::sysArgv[i];
     }
     delete [] globals::sysArgv;
+  }
+  if(s->dcache) {
+    double mpki = s->dcache->get_accesses() -
+      s->dcache->get_hits();
+    mpki *= (1000.0 / s->icnt);
+    printf("dcache: %lu bytes, %lu hits, %lu total, %g mpki\n",
+	   s->dcache->get_size(),
+	   s->dcache->get_hits(),
+	   s->dcache->get_accesses(),
+	   mpki);
+    delete s->dcache;
+  }
+  if(s->icache) {
+    double mpki = s->icache->get_accesses() -
+      s->icache->get_hits();
+    mpki *= (1000.0 / s->icnt);
+    printf("icache: %lu bytes, %lu hits, %lu total, %g mpki\n",
+	   s->icache->get_size(),
+	   s->icache->get_hits(),
+	   s->icache->get_accesses(),
+	   mpki);
+    
+    delete s->icache;
   }
   free(s);
   stopCapstone();

@@ -8,6 +8,7 @@
 #include <map>
 #include <string>
 #include <cassert>
+#include "nway_cache.hh"
 #include "temu_code.hh"
 
 #define MARGS 20
@@ -69,6 +70,10 @@ struct state_t{
   uint64_t epc;
   uint64_t maxicnt;
   uint64_t icnt;
+  uint64_t ipgszcnt[4];
+  uint64_t dpgszcnt[4];
+  cache *icache;
+  cache *dcache;
   riscv_priv priv;
   
   /* lots of CSRs */

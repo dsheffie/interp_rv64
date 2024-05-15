@@ -121,6 +121,12 @@ static std::unordered_map<uint64_t, std::pair<uint64_t, uint64_t>> tlb;
 uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fetch) {
   fault = false;
   if(unpaged_mode()) {
+    if(fetch and icache) {
+      icache->access(ea);
+    }
+    else if(dcache) {
+      dcache->access(ea);
+    }
     return ea;
   }  
   csr_t c(satp);
@@ -130,6 +136,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   bool same_page = (ea0 == ea1);
   uint64_t a = 0, u = 0;
   int mask_bits = -1;
+  int pgsz = 0;
   uint64_t tlb_pa = 0;
   
   //if we are unaligned assert out (for now)
@@ -161,6 +168,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   r.r = u;
   if(r.sv39.x || r.sv39.w || r.sv39.r) {
     mask_bits = 30;
+    pgsz = 0;
     goto translation_complete;
   }
   
@@ -175,6 +183,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   r.r = u;
   if(r.sv39.x || r.sv39.w || r.sv39.r) {
     mask_bits = 21;
+    pgsz = 1;
     goto translation_complete;
   }
   a = (r.sv39.ppn * 4096) + (((ea >> 12) & 511)*8);
@@ -194,7 +203,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
 
   assert(r.sv39.x || r.sv39.w || r.sv39.r);
   mask_bits = 12;
-  
+  pgsz = 2;
  translation_complete:
 
   //* permission checks */
@@ -229,16 +238,40 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
 
   
   if(r.sv39.a == 0) {
+    //abort();
     r.sv39.a = 1;
+    if(dcache) {
+      dcache->access(a);
+    }    
     store64(a, r.r);
   }
   if((r.sv39.d == 0) && store) {
     //printf("marking dirty\n");
+    abort();
     r.sv39.d = 1;
+    if(dcache) {
+      dcache->access(a);
+    }
     store64(a, r.r);    
+  }
+
+  
+  if(fetch) {
+    ++ipgszcnt[pgsz];
+  }
+  else {
+    ++dpgszcnt[pgsz];
   }
   int64_t m = ((1L << mask_bits) - 1);
   int64_t pa = ((r.sv39.ppn * 4096) & (~m)) | (ea & m);
+
+  if(fetch and icache) {
+    icache->access(pa);
+  }
+  else if(dcache) {
+    dcache->access(pa);
+  }
+
   
   //tlb[ea >>  12] = std::pair<uint64_t, uint64_t>(r.r, (r.sv39.ppn << 12) | mask_bits );
   // if(tlb_pa != 0 && (pa != tlb_pa)) {
@@ -1522,15 +1555,15 @@ void execRiscv(state_t *s) {
       cause |= 1UL<<63;
     }
     
-    //std::cout << "took fault at pc "
-    //<< std::hex << s->pc
-    //<< ", tval " << tval
-    //<< std::dec
-    //<< ", cause " << except_cause << " : "
-    //<< cause_reasons.at(except_cause)
-    //<< ", delegate " << delegate
-    //<< ", priv "
-    //<< s->priv << "\n";
+    // std::cout << "took fault at pc "
+    // << std::hex << s->pc
+    // << ", tval " << tval
+    // << std::dec
+    // << ", cause " << except_cause << " : "
+    // << cause_reasons.at(except_cause)
+    // << ", delegate " << delegate
+    // << ", priv "
+    // << s->priv << "\n";
     
     if(delegate) {
       s->scause = cause;
