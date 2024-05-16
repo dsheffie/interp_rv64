@@ -238,7 +238,6 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
 
   
   if(r.sv39.a == 0) {
-    //abort();
     r.sv39.a = 1;
     if(dcache) {
       dcache->access(a);
@@ -246,7 +245,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     store64(a, r.r);
   }
   if((r.sv39.d == 0) && store) {
-    //printf("marking dirty\n");
+    printf("marking dirty\n");
     abort();
     r.sv39.d = 1;
     if(dcache) {
@@ -338,7 +337,7 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
       return s->mstatus & 0x3000de133UL;
     }
     case 0x104:
-      return s->sie;
+      return s->mie & s->mideleg;
     case 0x105:
       return s->stvec;
     case 0x140:
@@ -412,7 +411,7 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       assert( ((s->mstatus >> MSTATUS_UXL_SHIFT) & 3) == 2);
       break;
     case 0x104:
-      s->sie = v;
+      s->mie = (s->mie & ~(s->mideleg)) | (v & s->mideleg);      
       break;
     case 0x105:
       assert((v&3)  == 0);
@@ -435,6 +434,11 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       break;
     case 0x144: {
       s->mip = (s->mip & ~(s->mideleg)) | (v & s->mideleg);
+      if(s->mip != v) {
+	printf("mip changes to %lx at %lx\n", v, s->pc);
+	csr_t c(v);
+	std::cout << c.mie << "\n";
+      }            
       break;
     }
     case 0x180:
@@ -479,7 +483,7 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       break;
     case 0x344:
       if(s->mip != v) {
-	printf("mie changes to %lx at %lx\n", v, s->pc);
+	printf("mip changes to %lx at %lx\n", v, s->pc);
 	csr_t c(v);
 	std::cout << c.mie << "\n";
       }      
@@ -540,15 +544,20 @@ void execRiscv(state_t *s) {
 	   s->pc, s->icnt, s->mstatus);
     exit(-1);
   }
+
   
 #if 0
   csr_t c(s->mie);
-  //if(c.raw != 0) {
-  //std::cout << c.mie << "\n";
-  //}
-  if(c.mie.mtie and (s->priv == priv_user)) {
-    printf("Trying to take irq\n");
-    globals::log = 1;
+  if((s->icnt & ((1<<20)-1)) == 0) {
+    std::cout << s->icnt
+	      << ", priv = "
+	      << s->priv
+	      << "\n";
+  }
+  
+  if(c.mie.mtie) {
+    //printf("Trying to take irq\n");
+    //globals::log = 1;
     csr_t cc(0);
     cc.mie.mtie = 1;
     s->mip |= cc.raw;
@@ -558,8 +567,9 @@ void execRiscv(state_t *s) {
   
   irq = take_interrupt(s);
   if(irq) {
-    printf(">>taking timer interrupt...<<\n");
+    printf(">> taking timer interrupt <<\n");
     except_cause = CAUSE_INTERRUPT | irq;
+    globals::log = 1;
     goto handle_exception;
   }
   last_irq++;
@@ -573,9 +583,8 @@ void execRiscv(state_t *s) {
     except_cause = CAUSE_FETCH_PAGE_FAULT;
     tval = s->pc;
 
-    if(tval == last_tval) {
-      abort();
-    }
+    assert(tval != last_tval);
+
     last_tval = tval;
     //std::cout << csr_t(s->mstatus).mstatus << "\n";
     goto handle_exception;
@@ -601,7 +610,7 @@ void execRiscv(state_t *s) {
 	}
 	if(dev != 1) {
 	  dump_calls();
-	  abort();
+	  assert(false);
 	}
 	
 	if(cmd == 1) {
@@ -610,7 +619,7 @@ void execRiscv(state_t *s) {
 	  *reinterpret_cast<uint64_t*>(mem + globals::fromhost_addr) = (dev << 56) | (cmd << 48);
 	}
 	else {
-	  abort();
+	  assert(false);
 	}
       }
       else {
@@ -623,12 +632,7 @@ void execRiscv(state_t *s) {
   lop = (opcode & 3);
   rd = (inst>>7) & 31;
 
-  if(s->gpr[0] != 0) {
-    std::cout << "you broke the zero reg : last_pc = "
-	      << std::hex << s->last_pc
-	      << std::dec << "\n";
-    abort();
-  }
+  assert(s->gpr[0] == 0);
   
   if(globals::log) {
     std::cout << std::hex << s->pc << std::dec
@@ -672,11 +676,6 @@ void execRiscv(state_t *s) {
 	  goto handle_exception;
 	}
 
-	if(s->pc == 0x80003270) {
-	  std::cout << "pa = " << std::hex << pa << std::dec << "\n";
-	  std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
-	}
-	
 	switch(m.s.sel)
 	  {
 	  case 0x0: /* lb */
@@ -1375,7 +1374,11 @@ void execRiscv(state_t *s) {
 	//std::cout << "warn : got sfence\n";
 	//printf("tlb had %lu entries\n", tlb.size());	
 	tlb.clear();
-      }      
+      }
+      else if(bits19to7z and (csr_id == 0x105)) {  /* wfi */
+	//globals::log = 1;
+	s->pc += 4;
+      }
       else if(bits19to7z and (csr_id == 0x002)) {  /* uret */
 	assert(false);
       }
@@ -1416,10 +1419,6 @@ void execRiscv(state_t *s) {
 
 	assert( ((s->mstatus >> MSTATUS_UXL_SHIFT) & 3) == 2);
 	assert( ((s->mstatus >> MSTATUS_SXL_SHIFT) & 3) == 2);
-	
-	//auto m1 = csr_t(s->mstatus).mstatus;
-	std::cout << "mret : " << "\n";
-	//what_changed(std::cout, m0, m1);
 	break;
       }
       else if(is_ebreak) {
@@ -1601,7 +1600,7 @@ void execRiscv(state_t *s) {
 	    << std::dec
 	    << " , icnt " << s->icnt
 	    << "\n";  
-  abort();
+  assert(false);
   
   
 }

@@ -94,7 +94,6 @@ struct state_t{
   int64_t scause;
   int64_t stvec;
   int64_t sepc;
-  int64_t sie;
   int64_t sip;
   int64_t stval;
   int64_t satp;
