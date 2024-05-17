@@ -548,12 +548,12 @@ void execRiscv(state_t *s) {
   
 #if 0
   csr_t c(s->mie);
-  if((s->icnt & ((1<<20)-1)) == 0) {
-    std::cout << s->icnt
-	      << ", priv = "
-	      << s->priv
-	      << "\n";
-  }
+  //if((s->icnt & ((1<<20)-1)) == 0) {
+  //std::cout << s->icnt
+  //<< ", priv = "
+  //<< s->priv
+  //<< "\n";
+  //}
   
   if(c.mie.mtie) {
     //printf("Trying to take irq\n");
@@ -567,9 +567,9 @@ void execRiscv(state_t *s) {
   
   irq = take_interrupt(s);
   if(irq) {
-    printf(">> taking timer interrupt <<\n");
+    printf(">> taking timer interrupt, irq %ld <<\n", irq);
     except_cause = CAUSE_INTERRUPT | irq;
-    globals::log = 1;
+    //if(irq == 5) globals::log = 1;
     goto handle_exception;
   }
   last_irq++;
@@ -874,6 +874,16 @@ void execRiscv(state_t *s) {
 	    }
 	    break;
 	  }
+	  case 0xc: {/* amoand.w */
+	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
+	    assert(!page_fault);
+	    int32_t x = s->load32(pa);
+	    s->store32(pa, s->gpr[m.a.rs2] & x);
+	    if(m.a.rd != 0) { 
+	      s->sext_xlen(x, m.a.rd);
+	    }
+	    break;
+	  }
 	  case 0x1c: {/* amomaxu.w */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
 	    assert(!page_fault);
@@ -887,7 +897,7 @@ void execRiscv(state_t *s) {
 	  }
 	  default:
 	    std::cout << "m.a.hiop " << std::hex << m.a.hiop << std::dec << "\n";
-	    assert(false);
+	    goto report_unimplemented;
 	  }
       }
       else if(m.a.sel == 3) {
@@ -1419,6 +1429,9 @@ void execRiscv(state_t *s) {
 
 	assert( ((s->mstatus >> MSTATUS_UXL_SHIFT) & 3) == 2);
 	assert( ((s->mstatus >> MSTATUS_SXL_SHIFT) & 3) == 2);
+
+	//printf("mret to %lx and priv %d\n",
+	//s->pc, s->priv);
 	break;
       }
       else if(is_ebreak) {
@@ -1538,11 +1551,12 @@ void execRiscv(state_t *s) {
   
  handle_exception: {
     bool delegate = false;
-    
+
     if(s->priv == priv_user || s->priv == priv_supervisor) {
       if(except_cause & CAUSE_INTERRUPT) {
-	delegate = ((s->mideleg) >> 63) & 1;
-	//printf("delegate irq = %d\n", delegate);
+	uint32_t cc = (except_cause & 0x7fffffffUL);
+	delegate = ((s->mideleg) >> cc) & 1;
+	printf("delegate irq = %d\n", delegate);
       }
       else {
 	delegate = (s->medeleg >> except_cause) & 1;
@@ -1554,15 +1568,20 @@ void execRiscv(state_t *s) {
       cause |= 1UL<<63;
     }
     
-    // std::cout << "took fault at pc "
-    // << std::hex << s->pc
-    // << ", tval " << tval
-    // << std::dec
-    // << ", cause " << except_cause << " : "
-    // << cause_reasons.at(except_cause)
-    // << ", delegate " << delegate
-    // << ", priv "
-    // << s->priv << "\n";
+    std::cout << "took fault at pc "
+	      << std::hex << s->pc
+	      << ", tval " << tval
+	      << std::dec
+	      << ", cause " << std::hex << cause << std::dec << " : ";
+    if(cause < 16) {
+      std::cout << cause_reasons.at(cause);
+    }
+    else {
+      std::cout << "irq " << (cause & 31);
+    }
+    std::cout << ", delegate " << delegate
+	      << ", priv "
+	      << s->priv << "\n";
     
     if(delegate) {
       s->scause = cause;
