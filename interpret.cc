@@ -36,18 +36,40 @@ void initState(state_t *s) {
 
 }
 
-bool state_t::memory_map_check(uint64_t pa, bool store) {
+bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
   if(pa >= VIRTIO_BASE_ADDR and (pa < (VIRTIO_BASE_ADDR + VIRTIO_SIZE))) {
     //printf("%s virtio range at pc %lx\n", store ? "write" : "read", pc);
     return true;
   }
   if(pa >= PLIC_BASE_ADDR and (pa < (PLIC_BASE_ADDR + PLIC_SIZE))) {
-    printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
+    //printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
     //exit(-1);
     return true;
   }
   if(pa >= CLINT_BASE_ADDR and (pa < (CLINT_BASE_ADDR + CLINT_SIZE))) {
-    printf(">> %s clint range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-CLINT_BASE_ADDR);
+    assert(store);
+    switch(pa-CLINT_BASE_ADDR)
+      {
+      case 0x0:
+	printf("msip access\n");
+	break;
+      case 0x4000:	
+	if(store) {
+	  mtimecmp = x;
+	  //printf(">> mtimecmp = %ld\n", mtimecmp);
+	  csr_t cc(mip);
+	  cc.mie.mtie = 0;
+	  mip = cc.raw;	  
+	}
+	break;
+      case 0xbff8:
+	assert(not(store));
+	break;
+      default:
+	break;
+      }
+    //printf(">> %s clint range at pc %lx, offset %ld bytes, st value %lx\n",
+    //store ? "write" : "read", pc, pa-CLINT_BASE_ADDR, x);
     //exit(-1);
     return true;
   }  
@@ -96,22 +118,22 @@ int64_t state_t::load64(uint64_t pa) {
 }
 
 void state_t::store8(uint64_t pa,  int8_t x) {
-  memory_map_check(pa,true);
+  memory_map_check(pa,true,x);
   *reinterpret_cast<int8_t*>(mem + pa) = x;
 }
 
 void state_t::store16(uint64_t pa, int16_t x) {
-  memory_map_check(pa,true);
+  memory_map_check(pa,true,x);
   *reinterpret_cast<int16_t*>(mem + pa) = x;
 }
 
 void state_t::store32(uint64_t pa, int32_t x) {
-  memory_map_check(pa,true);
+  memory_map_check(pa,true,x);
   *reinterpret_cast<int32_t*>(mem + pa) = x;
 }
 
 void state_t::store64(uint64_t pa, int64_t x) {
-  memory_map_check(pa,true);
+  memory_map_check(pa,true,x);
   *reinterpret_cast<int64_t*>(mem + pa) = x;
 }
 
@@ -385,7 +407,7 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
     case 0xc00:
       return s->icnt;
     case 0xc01:
-      return (s->icnt >> 20);
+      return s->get_time();
     case 0xc02:
       return s->icnt;
     case 0xc03:
@@ -462,11 +484,11 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       s->mideleg = v;
       break;
     case 0x304:
-      if(s->mie != v) {
-	printf("mie changes to %lx at %lx\n", v, s->pc);
-	csr_t c(v);
-	std::cout << c.mie << "\n";
-      }
+      //if(s->mie != v) {
+      //printf("mie changes to %lx at %lx\n", v, s->pc);
+      //csr_t c(v);
+      //std::cout << c.mie << "\n";
+      //}
       s->mie = v;
       break;
     case 0x305:
@@ -482,11 +504,11 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       s->mepc = v;
       break;
     case 0x344:
-      if(s->mip != v) {
-	printf("mip changes to %lx at %lx\n", v, s->pc);
-	csr_t c(v);
-	std::cout << c.mie << "\n";
-      }      
+      //if(s->mip != v) {
+      //printf("mip changes to %lx at %lx\n", v, s->pc);
+      //csr_t c(v);
+      //std::cout << c.mie << "\n";
+      //}      
       s->mip = v;
       break;
     case 0x3a0:
@@ -522,8 +544,6 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
     }
 }
 
-uint64_t last_irq = 0;
-
 void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
   int fetch_fault = 0, except_cause = -1;
@@ -535,7 +555,6 @@ void execRiscv(state_t *s) {
   riscv_t m(0);
   curr_pc = s->pc;
 
-
   //assert( ((s->mstatus >> MSTATUS_UXL_SHIFT) & 3) == 2);
   //assert( ((s->mstatus >> MSTATUS_SXL_SHIFT) & 3) == 2);  
   int mxl = (s->mstatus >> MSTATUS_UXL_SHIFT) & 3;
@@ -546,33 +565,22 @@ void execRiscv(state_t *s) {
   }
 
   
-#if 0
+
   csr_t c(s->mie);
-  //if((s->icnt & ((1<<20)-1)) == 0) {
-  //std::cout << s->icnt
-  //<< ", priv = "
-  //<< s->priv
-  //<< "\n";
-  //}
-  
-  if(c.mie.mtie) {
-    //printf("Trying to take irq\n");
-    //globals::log = 1;
+  if(s->get_time() >= s->mtimecmp) {
     csr_t cc(0);
     cc.mie.mtie = 1;
     s->mip |= cc.raw;
-    last_irq = 0;
   }
-#endif
   
   irq = take_interrupt(s);
   if(irq) {
-    printf(">> taking timer interrupt, irq %ld <<\n", irq);
+    //printf(">> taking timer interrupt, irq %ld, time %ld, mtimecmp %ld <<\n",
+    //irq, s->get_time(), s->mtimecmp);
     except_cause = CAUSE_INTERRUPT | irq;
     //if(irq == 5) globals::log = 1;
     goto handle_exception;
   }
-  last_irq++;
   
   phys_pc = s->translate(s->pc, fetch_fault, 4, false, true);
 
@@ -1556,7 +1564,6 @@ void execRiscv(state_t *s) {
       if(except_cause & CAUSE_INTERRUPT) {
 	uint32_t cc = (except_cause & 0x7fffffffUL);
 	delegate = ((s->mideleg) >> cc) & 1;
-	printf("delegate irq = %d\n", delegate);
       }
       else {
 	delegate = (s->medeleg >> except_cause) & 1;
@@ -1568,6 +1575,7 @@ void execRiscv(state_t *s) {
       cause |= 1UL<<63;
     }
     
+#if 0
     std::cout << "took fault at pc "
 	      << std::hex << s->pc
 	      << ", tval " << tval
@@ -1582,6 +1590,7 @@ void execRiscv(state_t *s) {
     std::cout << ", delegate " << delegate
 	      << ", priv "
 	      << s->priv << "\n";
+#endif 
     
     if(delegate) {
       s->scause = cause;
