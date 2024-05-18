@@ -35,10 +35,7 @@
 #define TEMU_JUST_DEFINES
 #include "temu_code.hh"
 
-#define RTC_FREQ 10000000
-
-/* arbitrary, relative to CPU freq to have a 10 MHz frequency */
-#define RTC_FREQ_DIV 16 
+#define RTC_FREQ 100000000
 
 /* fdt and general code stolen from tinyemu */
 /* FDT machine description */
