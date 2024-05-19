@@ -24,14 +24,17 @@ struct mip_t {
   uint64_t z0 : 1;
   uint64_t ssip : 1;
   uint64_t z2 : 1;
+  /* machine software interrupt pending */
   uint64_t msip : 1;
   uint64_t z4 : 1;
   uint64_t stip : 1;
   uint64_t z6 : 1;
+  /* machine time interrupt pending */
   uint64_t mtip : 1;
   uint64_t z8 : 1;
   uint64_t seip : 1;
   uint64_t z10 : 1;
+  /* machine external interrupt pending */
   uint64_t meip : 1;
   uint64_t z : 52;
 };
@@ -58,6 +61,7 @@ struct satp_t {
   uint64_t mode : 4;
 };
 
+struct virtio;
 
 struct state_t{
   uint64_t pc;
@@ -104,6 +108,7 @@ struct state_t{
   int64_t pmpaddr3;
   int64_t pmpcfg0;
   int64_t mtimecmp;
+  virtio *vio;
   int xlen() const {
     return 64;
   }

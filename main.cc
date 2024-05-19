@@ -23,7 +23,7 @@
 #include "interpret.hh"
 #include "saveState.hh"
 #include "globals.hh"
-
+#include "virtio.hh"
 extern const char* githash;
 
 void load_raw(const char* fn, state_t *ms, uint64_t where = 0x80000000);
@@ -222,6 +222,9 @@ int main(int argc, char *argv[]) {
 	   mpki);
     
     delete s->icache;
+  }
+  if(s->vio) {
+    delete s->vio;
   }
   free(s);
   stopCapstone();

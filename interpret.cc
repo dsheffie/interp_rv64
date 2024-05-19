@@ -12,6 +12,7 @@
 #include "disassemble.hh"
 #include "helper.hh"
 #include "globals.hh"
+#include "virtio.hh"
 
 #include <stack>
 static uint64_t curr_pc = 0;
@@ -33,13 +34,12 @@ void initState(state_t *s) {
   s->misa = 0x8000000000141101L;
   s->priv = priv_machine;
   s->mstatus = ((uint64_t)2 << MSTATUS_UXL_SHIFT) |((uint64_t)2 << MSTATUS_SXL_SHIFT);
-
+  s->vio = new virtio(s);
 }
 
 bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
   if(pa >= VIRTIO_BASE_ADDR and (pa < (VIRTIO_BASE_ADDR + VIRTIO_SIZE))) {
-    //printf("%s virtio range at pc %lx\n", store ? "write" : "read", pc);
-    return true;
+    return vio->handle(pa, store, x);
   }
   if(pa >= PLIC_BASE_ADDR and (pa < (PLIC_BASE_ADDR + PLIC_SIZE))) {
     //printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
@@ -56,7 +56,7 @@ bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
       case 0x4000:	
 	if(store) {
 	  mtimecmp = x;
-	  //printf(">> mtimecmp = %ld\n", mtimecmp);
+	  //printf(">> mtimecmp = %ld at icnt %ld\n", mtimecmp, icnt);
 	  csr_t cc(mip);
 	  cc.mie.mtie = 0;
 	  mip = cc.raw;	  
@@ -567,6 +567,10 @@ void execRiscv(state_t *s) {
   
 
   csr_t c(s->mie);
+  //if(c.mie.mtie) {
+  //printf("s->icnt = %lu\n", s->icnt);
+  //exit(-1);
+  //}
   if(s->get_time() >= s->mtimecmp) {
     csr_t cc(0);
     cc.mie.mtie = 1;
