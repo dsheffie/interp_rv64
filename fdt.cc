@@ -364,8 +364,8 @@ int riscv_build_fdt(uint8_t *dst,
     //std::cout << isa_string << "\n";
     fdt_prop_str(s, "riscv,isa", isa_string);
     
-    fdt_prop_str(s, "mmu-type", max_xlen <= 32 ? "riscv,sv32" : "riscv,sv39");
-    fdt_prop_u32(s, "clock-frequency", 2000000000);
+    fdt_prop_str(s, "mmu-type", "riscv,sv39");
+    fdt_prop_u32(s, "clock-frequency", 100000000);
 
     fdt_begin_node(s, "interrupt-controller");
     fdt_prop_u32(s, "#interrupt-cells", 1);
@@ -431,6 +431,19 @@ int riscv_build_fdt(uint8_t *dst,
 
     fdt_end_node(s); /* plic */
 
+    fdt_begin_node_num(s, "serial", UART_BASE_ADDR);
+    fdt_prop_str(s, "compatible", "ns16550");
+    fdt_prop_u32(s, "clock-frequency", 5000000);
+    fdt_prop_tab_u64_2(s, "reg", UART_BASE_ADDR, UART_SIZE);
+    fdt_prop_u32(s, "interruptsv", 1);
+    fdt_end_node(s); /* serial */    
+    //serial@4000000 {
+    //interrupts = <1>;
+    //no-loopback-test;
+    //clock-frequency = <5000000>; /* the baudrate divisor is ignored */
+    //};
+    
+#if 0
     for(i = 0; i < 1; i++) {
         fdt_begin_node_num(s, "virtio", VIRTIO_BASE_ADDR + i * VIRTIO_SIZE);
         fdt_prop_str(s, "compatible", "virtio,mmio");
@@ -441,6 +454,7 @@ int riscv_build_fdt(uint8_t *dst,
         fdt_prop_tab_u32(s, "interrupts-extended", tab, 2);
         fdt_end_node(s); /* virtio */
     }
+#endif
     
 #if 0
     FBDevice *fb_dev = m->common.fb_dev;

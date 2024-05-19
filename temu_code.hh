@@ -125,6 +125,8 @@ static std::array<std::string, 16> cause_reasons =
 #define PLIC_SIZE      0x00400000
 #define FRAMEBUFFER_BASE_ADDR 0x41000000
 
+#define UART_BASE_ADDR 0x40020000
+#define UART_SIZE 0x1000
 
 #ifndef TEMU_JUST_DEFINES
 struct state_t;

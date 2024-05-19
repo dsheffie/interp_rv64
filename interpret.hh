@@ -62,6 +62,7 @@ struct satp_t {
 };
 
 struct virtio;
+struct uart;
 
 struct state_t{
   uint64_t pc;
@@ -109,6 +110,7 @@ struct state_t{
   int64_t pmpcfg0;
   int64_t mtimecmp;
   virtio *vio;
+  uart *u8250;
   int xlen() const {
     return 64;
   }

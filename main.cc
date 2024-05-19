@@ -24,6 +24,8 @@
 #include "saveState.hh"
 #include "globals.hh"
 #include "virtio.hh"
+#include "uart.hh"
+
 extern const char* githash;
 
 void load_raw(const char* fn, state_t *ms, uint64_t where = 0x80000000);
@@ -225,6 +227,9 @@ int main(int argc, char *argv[]) {
   }
   if(s->vio) {
     delete s->vio;
+  }
+  if(s->u8250) {
+    delete s->u8250;
   }
   free(s);
   stopCapstone();
