@@ -44,7 +44,7 @@ bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
     return vio->handle(pa, store, x);
   }
   if(pa >= UART_BASE_ADDR and (pa < (UART_BASE_ADDR + UART_SIZE))) {
-    printf(">> %s uart range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-UART_BASE_ADDR);
+    //printf(">> %s uart range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-UART_BASE_ADDR);
     return u8250->handle(pa, store, x);
   }
   if(pa >= PLIC_BASE_ADDR and (pa < (PLIC_BASE_ADDR + PLIC_SIZE))) {
@@ -582,6 +582,8 @@ void execRiscv(state_t *s) {
     cc.mie.mtie = 1;
     s->mip |= cc.raw;
   }
+
+  s->u8250->update_irq();
   
   irq = take_interrupt(s);
   if(irq) {
