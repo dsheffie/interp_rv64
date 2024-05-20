@@ -4,45 +4,43 @@
 
 #define U8250_INT_THRE 1
 
+/* definitions stolen from qemu */
+#define UART_LCR_DLAB 0x80
+#define UART_MCR_OUT2 0x08
 
-uart::uart(state_t *s) : s(s), dll(0), dlh(0), lcr(0), ier(0), current_int(0), pending_ints(0), mcr(0), in_ready(0) {}
+uart::uart(state_t *s) : s(s), dll(0), dlh(0), lcr(0), ier(0), current_int(0), pending_ints(0), mcr(UART_MCR_OUT2),
+			 in_ready(0) {}
 
 
 bool uart::handle(uint64_t addr, bool store, int64_t st_data) {
   uint64_t offs = addr - UART_BASE_ADDR;
-  //printf("accessing offset %lx into uart space, store %d, pc %lx\n",
-  //offs, store, s->pc);
-
-  
+  //printf("accessing offset %lx into uart space, store %d, pc %lx, %x\n",
+  //offs, store, s->pc, st_data);
   if(store) {
-    int8_t value = *reinterpret_cast<int8_t*>(s->mem + addr);
     switch (offs)
       {
       case 0:
 	//printf("write to reg 0, %c\n", value);
-	 
-	if (lcr & (1 << 7)) { /* DLAB */
-	  dll = value;
+	if (lcr & UART_LCR_DLAB) { /* DLAB */
+	  dll = st_data;
 	  break;
 	}
 	//u8250_handle_out(uart, value);
-	//printf(">>> %c", value);
+	printf("%c", st_data);
 	pending_ints |= 1 << U8250_INT_THRE;
 	break;
       case 1:
-	if (lcr & (1 << 7)) { /* DLAB */
-	  dlh = value;
+	if (lcr & UART_LCR_DLAB) { /* DLAB */
+	  dlh = st_data;
 	  break;
 	}
-	ier = value;
+	ier = st_data;
 	break;
       case 3:
-	lcr = value;
-	printf(">> lcr set to %x at pc %lx\n", lcr, s->pc);
-	
-        break;
+	lcr = st_data;
+	break;
       case 4:
-	mcr = value;
+	mcr = st_data;
 	break;
       default:
 	break;
@@ -54,14 +52,14 @@ bool uart::handle(uint64_t addr, bool store, int64_t st_data) {
     switch (offs)
       {
       case 0:
-	if (lcr & (1 << 7)) { /* DLAB */
+	if (lcr & UART_LCR_DLAB) {
 	  *value = dll;
 	  break;
         }
         //*value = u8250_handle_in(uart);
         break;
       case 1:
-	if (lcr & (1 << 7)) { /* DLAB */
+	if (lcr & UART_LCR_DLAB) {
 	  *value = dlh;
 	  break;
 	}
@@ -110,8 +108,12 @@ void uart::update_irq() {
   
   /* Update current interrupt (higher bits -> more priority) */
   if (pending_ints) {
-    assert(pending_ints == 1);
-    current_int = 0;//ilog2(uart->pending_ints);
     //printf("uart irq pending ..\n");
+    //assert(pending_ints == 1);
+    current_int = 0;//ilog2(uart->pending_ints);
+
+    //csr_t cc(0);
+    //cc.mip.seip = 1;
+    //s->mip |= cc.raw;
   }
 }

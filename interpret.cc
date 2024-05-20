@@ -20,7 +20,7 @@ static uint64_t curr_pc = 0;
 static uint64_t last_tval = 0;
 static std::stack<int64_t> calls;
 
-static void dump_calls() {
+void dump_calls() {
   int cnt = 0;
   while(!calls.empty() && (cnt < 5)) {
     int64_t ip = calls.top();
@@ -579,7 +579,7 @@ void execRiscv(state_t *s) {
   //}
   if(s->get_time() >= s->mtimecmp) {
     csr_t cc(0);
-    cc.mie.mtie = 1;
+    cc.mip.mtip = 1;
     s->mip |= cc.raw;
   }
 
@@ -587,10 +587,9 @@ void execRiscv(state_t *s) {
   
   irq = take_interrupt(s);
   if(irq) {
-    //printf(">> taking timer interrupt, irq %ld, time %ld, mtimecmp %ld <<\n",
+    //printf(">> taking nterrupt, irq %ld, time %ld, mtimecmp %ld <<\n",
     //irq, s->get_time(), s->mtimecmp);
     except_cause = CAUSE_INTERRUPT | irq;
-    //if(irq == 5) globals::log = 1;
     goto handle_exception;
   }
   

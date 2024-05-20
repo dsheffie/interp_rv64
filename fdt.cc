@@ -435,13 +435,10 @@ int riscv_build_fdt(uint8_t *dst,
     fdt_prop_str(s, "compatible", "ns16550");
     fdt_prop_u32(s, "clock-frequency", 5000000);
     fdt_prop_tab_u64_2(s, "reg", UART_BASE_ADDR, UART_SIZE);
-    fdt_prop_u32(s, "interruptsv", 1);
+    fdt_prop_u32(s, "interrupts", 1);
+    fdt_prop_u32(s, "no-loopback-test", 1);
     fdt_end_node(s); /* serial */    
-    //serial@4000000 {
-    //interrupts = <1>;
-    //no-loopback-test;
-    //clock-frequency = <5000000>; /* the baudrate divisor is ignored */
-    //};
+
     
 #if 0
     for(i = 0; i < 1; i++) {

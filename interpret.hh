@@ -488,5 +488,6 @@ struct stat32_t {
   uint32_t st_spare4[2];
 };
 
+void dump_calls();
 
 #endif
