@@ -7,6 +7,7 @@
 /* definitions stolen from qemu */
 #define UART_LCR_DLAB 0x80
 #define UART_MCR_OUT2 0x08
+#define UART_LSR_TX_EMPTY (1<<5)
 
 uart::uart(state_t *s) : s(s), dll(0), dlh(0), lcr(0), ier(0), current_int(0), pending_ints(0), mcr(UART_MCR_OUT2),
 			 in_ready(0) {}
@@ -14,8 +15,10 @@ uart::uart(state_t *s) : s(s), dll(0), dlh(0), lcr(0), ier(0), current_int(0), p
 
 bool uart::handle(uint64_t addr, bool store, int64_t st_data) {
   uint64_t offs = addr - UART_BASE_ADDR;
-  //printf("accessing offset %lx into uart space, store %d, pc %lx, %x\n",
-  //offs, store, s->pc, st_data);
+  if(not(store))
+    //printf("accessing offset %lx into uart space, store %d, pc %lx, %x\n",
+    //offs, store, s->pc, st_data);
+  
   if(store) {
     switch (offs)
       {
@@ -25,8 +28,11 @@ bool uart::handle(uint64_t addr, bool store, int64_t st_data) {
 	  dll = st_data;
 	  break;
 	}
+	//printf("accessing offset %lx into uart space, store %d, pc %lx, %x\n",
+	//offs, store, s->pc, st_data);
+	
 	//u8250_handle_out(uart, value);
-	printf("%c", st_data);
+	//printf("%c", st_data);
 	pending_ints |= 1 << U8250_INT_THRE;
 	break;
       case 1:
@@ -84,6 +90,7 @@ bool uart::handle(uint64_t addr, bool store, int64_t st_data) {
     case 6:
         /* MSR = carrier detect, no ring, data ready, clear to send. */
         *value = 0xb0;
+	//dump_calls();
         break;
         /* no scratch register, so we should be detected as a plain 8250. */
       default:

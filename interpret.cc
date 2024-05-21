@@ -403,7 +403,7 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
     case 0x344:
       return s->mip;
     case 0x3b0:
-      return s->pmpaddr0;
+      return s->pmpaddr0;      
     case 0x3b1:
       return s->pmpaddr1;      
     case 0x3b2:
@@ -510,26 +510,25 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       s->mepc = v;
       break;
     case 0x344:
-      //if(s->mip != v) {
-      //printf("mip changes to %lx at %lx\n", v, s->pc);
-      //csr_t c(v);
-      //std::cout << c.mie << "\n";
-      //}      
       s->mip = v;
       break;
     case 0x3a0:
       s->pmpcfg0 = v;
       break;
     case 0x3b0:
+      //printf("pmpaddr0 set to %lx\n", v);
       s->pmpaddr0 = v;
       break;
     case 0x3b1:
+      //printf("pmpaddr1 set to %lx\n", v);
       s->pmpaddr1 = v;
       break;
     case 0x3b2:
+      //printf("pmpaddr2 set to %lx\n", v);
       s->pmpaddr2 = v;
       break;
     case 0x3b3:
+      //printf("pmpaddr3 set to %lx\n", v);
       s->pmpaddr3 = v;
       break;
 

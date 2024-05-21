@@ -38,6 +38,7 @@ char **globals::sysArgv = nullptr;
 int globals::sysArgc = 0;
 bool globals::silent = true;
 bool globals::fullsim = true;
+bool globals::uart = false;
 
 static state_t *s = nullptr;
 
@@ -92,7 +93,8 @@ int main(int argc, char *argv[]) {
       ("log,l", po::value<bool>(&globals::log)->default_value(false), "log instructions")
       ("raw,r", po::value<bool>(&raw)->default_value(false), "load raw binary")
       ("tohost", po::value<std::string>(&tohost)->default_value("0"), "to host address")
-      ("fromhost", po::value<std::string>(&fromhost)->default_value("0"), "from host address")
+      ("romhost", po::value<std::string>(&fromhost)->default_value("0"), "from host address")
+      ("uart", po::value<bool>(&globals::uart)->default_value(false), "enable uart")
       ("lg2_icache_lines", po::value<int>(&lg2_icache_lines)->default_value(0), "number of icache lines")
       ("lg2_dcache_lines", po::value<int>(&lg2_dcache_lines)->default_value(0), "number of dcache lines")
       ("icache_ways", po::value<int>(&icache_ways)->default_value(1), "number of icache ways")

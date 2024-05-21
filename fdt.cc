@@ -29,7 +29,9 @@
 #include <cassert>
 #include <cstdint>
 #include <cstdarg>
-
+#include <map>
+#include <string>
+#include "globals.hh"
 #include "helper.hh"
 
 #define TEMU_JUST_DEFINES
@@ -431,13 +433,15 @@ int riscv_build_fdt(uint8_t *dst,
 
     fdt_end_node(s); /* plic */
 
-    fdt_begin_node_num(s, "serial", UART_BASE_ADDR);
-    fdt_prop_str(s, "compatible", "ns16550");
-    fdt_prop_u32(s, "clock-frequency", 5000000);
-    fdt_prop_tab_u64_2(s, "reg", UART_BASE_ADDR, UART_SIZE);
-    fdt_prop_u32(s, "interrupts", 1);
-    fdt_prop_u32(s, "no-loopback-test", 1);
-    fdt_end_node(s); /* serial */    
+    if(globals::uart) {
+      fdt_begin_node_num(s, "serial", UART_BASE_ADDR);
+      fdt_prop_str(s, "compatible", "ns16550");
+      fdt_prop_u32(s, "clock-frequency", 5000000);
+      fdt_prop_tab_u64_2(s, "reg", UART_BASE_ADDR, UART_SIZE);
+      fdt_prop_u32(s, "interrupts", 1);
+      fdt_prop_u32(s, "no-loopback-test", 1);
+      fdt_end_node(s); /* serial */
+    }
 
     
 #if 0
