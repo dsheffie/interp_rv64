@@ -72,6 +72,8 @@ static int buildArgcArgv(const char *filename, const std::string &sysArgs, char 
   return (int)args.size();
 }
 
+extern std::map<uint64_t, uint64_t> supervisor_histo;
+
 int main(int argc, char *argv[]) {
   namespace po = boost::program_options; 
   size_t pgSize = getpagesize();
@@ -236,6 +238,18 @@ int main(int argc, char *argv[]) {
   free(s);
   stopCapstone();
 
+  std::vector<std::pair<uint64_t, uint64_t>> histo;
+  for(auto p : supervisor_histo) {
+    histo.emplace_back(p.second, p.first);
+  }
+  std::sort(histo.begin(), histo.end());
+  std::reverse(histo.begin(), histo.end());
+
+  std::ofstream out("superhisto.txt");
+  for(auto p : histo) {
+    out << std::hex << p.second << std::dec << "," << p.first << "\n";
+  }
+  
   return 0;
 }
 

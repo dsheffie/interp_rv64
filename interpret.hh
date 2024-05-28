@@ -114,9 +114,8 @@ struct state_t{
   int xlen() const {
     return 64;
   }
-  int64_t get_time() const {
-    return icnt;
-  }
+  int64_t get_time() const;
+  
   void sext_xlen(int64_t x, int i) {
     gpr[i] = (x << (64-xlen())) >> (64-xlen());
   }

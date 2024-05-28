@@ -38,6 +38,12 @@ void initState(state_t *s) {
   s->u8250 = new uart(s);
 }
 
+uint64_t mtimecmp_cnt = 0;
+
+int64_t state_t::get_time() const {
+  return icnt >> 30;
+}
+
 bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
   if(pa >= VIRTIO_BASE_ADDR and (pa < (VIRTIO_BASE_ADDR + VIRTIO_SIZE))) {
     assert(vio);
@@ -62,7 +68,10 @@ bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
       case 0x4000:	
 	if(store) {
 	  mtimecmp = x;
-	  //printf(">> mtimecmp = %ld at icnt %ld\n", mtimecmp, icnt);
+	  //std::cout << mtimecmp_cnt << "\n";
+	  ++mtimecmp_cnt;
+	  //dump_calls();
+	  printf(">> mtimecmp = %ld at icnt %ld\n", mtimecmp, icnt);
 	  csr_t cc(mip);
 	  cc.mie.mtie = 0;
 	  mip = cc.raw;	  
@@ -428,6 +437,7 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
   return 0;
 }
 
+
 static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
   undef = false;
   csr_t c(v);
@@ -549,6 +559,8 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
     }
 }
 
+std::map<uint64_t, uint64_t> supervisor_histo;
+
 void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
   int fetch_fault = 0, except_cause = -1;
@@ -601,7 +613,7 @@ void execRiscv(state_t *s) {
     except_cause = CAUSE_FETCH_PAGE_FAULT;
     tval = s->pc;
 
-    assert(tval != last_tval);
+    //assert(tval != last_tval);
 
     last_tval = tval;
     //std::cout << csr_t(s->mstatus).mstatus << "\n";
@@ -847,7 +859,11 @@ void execRiscv(state_t *s) {
 	  {
 	  case 0x0: {/* amoadd.w */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
-	    assert(!page_fault);
+	    if(page_fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      goto handle_exception;
+	    }
 	    int32_t x = s->load32(pa);
 	    s->store32(pa, s->gpr[m.a.rs2] + x);
 	    if(m.a.rd != 0) { 
@@ -857,7 +873,11 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0x1: {/* amoswap.w */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4,  true);
-	    assert(!page_fault);
+	    if(page_fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      goto handle_exception;
+	    }	    
 	    int32_t x = s->load32(pa);
 	    s->store32(pa, s->gpr[m.a.rs2]);
 	    if(m.a.rd != 0) {
@@ -867,7 +887,7 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0x2: { /* lr.w */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4);
-	    assert(!page_fault);
+	    assert(!page_fault);	    
 	    if(m.a.rd != 0) {
 	      s->sext_xlen(s->load32(pa), m.a.rd);
 	    }
@@ -884,7 +904,12 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0x8: {/* amoor.w */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
-	    assert(!page_fault);
+	    if(page_fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      goto handle_exception;
+	    }	    
+	    
 	    int64_t x = s->load32(pa);
 	    s->store32(pa, s->gpr[m.a.rs2] | x);
 	    if(m.a.rd != 0) {
@@ -1564,12 +1589,16 @@ void execRiscv(state_t *s) {
       break;
     }
 
+  if(s->priv == priv_supervisor) {
+    supervisor_histo[curr_pc]++;
+  }
+  
   s->icnt++;
   return;
   
  handle_exception: {
     bool delegate = false;
-
+    
     if(s->priv == priv_user || s->priv == priv_supervisor) {
       if(except_cause & CAUSE_INTERRUPT) {
 	uint32_t cc = (except_cause & 0x7fffffffUL);

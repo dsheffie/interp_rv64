@@ -15,9 +15,8 @@ uart::uart(state_t *s) : s(s), dll(0), dlh(0), lcr(0), ier(0), current_int(0), p
 
 bool uart::handle(uint64_t addr, bool store, int64_t st_data) {
   uint64_t offs = addr - UART_BASE_ADDR;
-  if(not(store))
-    //printf("accessing offset %lx into uart space, store %d, pc %lx, %x\n",
-    //offs, store, s->pc, st_data);
+  //printf("accessing offset %lx into uart space, store %d, pc %lx, %x\n",
+  //offs, store, s->pc, st_data);
   
   if(store) {
     switch (offs)
@@ -32,7 +31,7 @@ bool uart::handle(uint64_t addr, bool store, int64_t st_data) {
 	//offs, store, s->pc, st_data);
 	
 	//u8250_handle_out(uart, value);
-	//printf("%c", st_data);
+	printf("%c", st_data);
 	pending_ints |= 1 << U8250_INT_THRE;
 	break;
       case 1:

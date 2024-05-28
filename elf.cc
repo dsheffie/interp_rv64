@@ -188,8 +188,12 @@ void load_elf(const char* fn, state_t *ms) {
   }
   munmap(buf, s.st_size);
 
-  globals::tohost_addr = globals::symtab.at("tohost");
-  globals::fromhost_addr = globals::symtab.at("fromhost");
+  if(globals::symtab.find("tohost") != globals::symtab.end()) {
+    globals::tohost_addr = globals::symtab.at("tohost");
+  }
+  if(globals::symtab.find("fromhost") != globals::symtab.end()) {
+    globals::fromhost_addr = globals::symtab.at("fromhost");
+  }
 
   //std::cout << std::hex << globals::tohost_addr << "\n"
   //<< std::hex << globals::fromhost_addr << "\n";

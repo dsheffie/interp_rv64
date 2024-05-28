@@ -114,19 +114,20 @@ static std::array<std::string, 16> cause_reasons =
 #define MIP_MEIP (1 << 11)
 
 #define RAM_BASE_ADDR  0x80000000
-#define CLINT_BASE_ADDR 0x02000000
-#define CLINT_SIZE      0x000c0000
-#define HTIF_BASE_ADDR 0x40008000
-#define IDE_BASE_ADDR  0x40009000
+
+
 #define VIRTIO_BASE_ADDR 0x40010000
 #define VIRTIO_SIZE      0x1000
 #define VIRTIO_IRQ       1
-#define PLIC_BASE_ADDR 0x40100000
-#define PLIC_SIZE      0x00400000
 #define FRAMEBUFFER_BASE_ADDR 0x41000000
 
-#define UART_BASE_ADDR 0x40020000
-#define UART_SIZE 0x1000
+#define CLINT_BASE_ADDR 0x40000000
+#define PLIC_BASE_ADDR  0x40100000
+#define UART_BASE_ADDR  0x40500000
+
+#define PLIC_SIZE       0x00400000
+#define UART_SIZE       0x1000
+#define CLINT_SIZE      0x000c0000
 
 #ifndef TEMU_JUST_DEFINES
 struct state_t;
