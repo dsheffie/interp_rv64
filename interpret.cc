@@ -282,8 +282,8 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     store64(a, r.r);
   }
   if((r.sv39.d == 0) && store) {
-    printf("marking dirty\n");
-    abort();
+    printf("marking %lx dirty\n", ea & (~4095UL));
+    //abort();
     r.sv39.d = 1;
     if(dcache) {
       dcache->access(a);

@@ -317,7 +317,7 @@ int riscv_build_fdt(uint8_t *dst,
     char isa_string[128], *q;
     uint32_t misa;
     uint32_t tab[4];
-    uint64_t ram_size = (1UL<<30);
+    uint64_t ram_size = globals::fdt_ram_size;
 
     
     s = fdt_init();
@@ -433,7 +433,7 @@ int riscv_build_fdt(uint8_t *dst,
 
     fdt_end_node(s); /* plic */
 
-    if(globals::uart) {
+    if(globals::fdt_uart) {
       fdt_begin_node_num(s, "serial", UART_BASE_ADDR);
       fdt_prop_str(s, "compatible", "ns16550");
       fdt_prop_u32(s, "clock-frequency", 5000000);

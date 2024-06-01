@@ -38,7 +38,8 @@ char **globals::sysArgv = nullptr;
 int globals::sysArgc = 0;
 bool globals::silent = true;
 bool globals::fullsim = true;
-bool globals::uart = false;
+bool globals::fdt_uart = false;
+uint64_t globals::fdt_ram_size = 1UL<<24;
 
 static state_t *s = nullptr;
 
@@ -96,7 +97,8 @@ int main(int argc, char *argv[]) {
       ("raw,r", po::value<bool>(&raw)->default_value(false), "load raw binary")
       ("tohost", po::value<std::string>(&tohost)->default_value("0"), "to host address")
       ("romhost", po::value<std::string>(&fromhost)->default_value("0"), "from host address")
-      ("uart", po::value<bool>(&globals::uart)->default_value(false), "enable uart")
+      ("uart", po::value<bool>(&globals::fdt_uart)->default_value(false), "enable uart in fdt")
+      ("ram_size", po::value<uint64_t>(&globals::fdt_ram_size)->default_value(1UL<<28), "fdt ram size")
       ("lg2_icache_lines", po::value<int>(&lg2_icache_lines)->default_value(0), "number of icache lines")
       ("lg2_dcache_lines", po::value<int>(&lg2_dcache_lines)->default_value(0), "number of dcache lines")
       ("icache_ways", po::value<int>(&icache_ways)->default_value(1), "number of icache ways")

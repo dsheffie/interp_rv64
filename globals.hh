@@ -9,7 +9,8 @@ namespace globals {
   extern bool silent;
   extern bool log;
   extern bool fullsim;
-  extern bool uart;
+  extern bool fdt_uart;
+  extern uint64_t fdt_ram_size;
   extern std::map<std::string, uint64_t> symtab;
 };
 
