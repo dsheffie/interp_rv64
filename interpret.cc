@@ -50,11 +50,11 @@ bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
     return vio->handle(pa, store, x);
   }
   if(pa >= UART_BASE_ADDR and (pa < (UART_BASE_ADDR + UART_SIZE))) {
-    //printf(">> %s uart range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-UART_BASE_ADDR);
+    printf(">> %s uart range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-UART_BASE_ADDR);
     return u8250->handle(pa, store, x);
   }
   if(pa >= PLIC_BASE_ADDR and (pa < (PLIC_BASE_ADDR + PLIC_SIZE))) {
-    //printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
+    printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
     //exit(-1);
     return true;
   }
@@ -1731,6 +1731,34 @@ void runRiscv(state_t *s, uint64_t dumpIcnt) {
   while(s->brk==0 and (s->icnt < s->maxicnt) and (s->icnt < dumpIcnt)) {
     //if(((s->icnt & ((1UL<<20)-1)) == 0)) printf("%lx at %ld\n", s->pc, s->icnt);
     execRiscv(s);
+  }
+}
+
+void runInteractiveRiscv(state_t *s) {
+  bool run = true;
+  int fault = 0;
+  while(run) {
+    int64_t steps = 0;
+    printf("enter steps\n");
+    scanf("%lu", &steps);
+    
+    if(steps == 0)
+      continue;
+    printf("running for %lu steps\n", steps);
+    while(steps) {
+      execRiscv(s);
+      run = s->brk==0 and (s->icnt < s->maxicnt);
+      if(not(run))
+	break;
+      --steps;
+    }
+    uint64_t phys_pc = s->translate(s->pc, fault, 8, false, false);
+    uint32_t insn = s->load32(phys_pc);
+    
+    printf("priv %d vpc %lx, ppc %lx : %s\n",
+	   s->priv, s->pc, phys_pc, getAsmString(insn,s->pc).c_str());
+
+    //dump_calls();
   }
 }
 

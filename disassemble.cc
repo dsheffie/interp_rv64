@@ -72,9 +72,7 @@ void stopCapstone() {
 
 std::string getAsmString(uint32_t inst, uint32_t addr) {
   std::stringstream ss;
-
   cs_insn *insn = nullptr;
-
   size_t count = cs_disasm(handle,reinterpret_cast<const uint8_t *>(&inst),
 			   sizeof(inst), addr, 0, &insn);
   if(count != 1) {
