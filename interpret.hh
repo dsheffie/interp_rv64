@@ -71,8 +71,8 @@ struct state_t{
   int64_t gpr[32];
   uint8_t *mem;
   uint8_t brk;
-  uint8_t bad_addr;
   uint64_t epc;
+  uint64_t llsc_addr;
   uint64_t maxicnt;
   uint64_t icnt;
   uint64_t ipgszcnt[4];

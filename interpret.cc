@@ -887,7 +887,13 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0x2: { /* lr.w */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4);
-	    assert(!page_fault);	    
+	    if(page_fault) {
+	      except_cause = CAUSE_LOAD_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      s->llsc_addr = 0;
+	      goto handle_exception;
+	    }
+	    s->llsc_addr  = pa & (~63UL);	    
 	    if(m.a.rd != 0) {
 	      s->sext_xlen(s->load32(pa), m.a.rd);
 	    }
@@ -895,10 +901,17 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0x3 : { /* sc.w */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
-	    assert(!page_fault);
-	    s->store32(pa, s->gpr[m.a.rs2]);
+	    if(page_fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      goto handle_exception;
+	    }
+	    bool succ = s->llsc_addr == (pa & (~63UL));
+	    if(succ) {
+	      s->store32(pa, s->gpr[m.a.rs2]);	      
+	    }
 	    if(m.a.rd != 0) {
-	      s->gpr[m.a.rd] = 0;
+	      s->gpr[m.a.rd] = succ ? 0 : 1;
 	    }
 	    break;
 	  }
@@ -919,7 +932,11 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0xc: {/* amoand.w */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
-	    assert(!page_fault);
+	    if(page_fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      goto handle_exception;
+	    }	    
 	    int32_t x = s->load32(pa);
 	    s->store32(pa, s->gpr[m.a.rs2] & x);
 	    if(m.a.rd != 0) { 
@@ -929,7 +946,11 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0x1c: {/* amomaxu.w */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
-	    assert(!page_fault);
+	    if(page_fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      goto handle_exception;
+	    }	    
 	    uint32_t u0 = s->load32(pa);
 	    uint32_t u1 = *reinterpret_cast<uint32_t*>(&s->gpr[m.a.rs2]);
 	    s->store32(pa, std::max(u0,u1));
@@ -949,7 +970,11 @@ void execRiscv(state_t *s) {
 	  {
 	  case 0x0: {/* amoadd.d */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
-	    assert(!page_fault);
+	    if(page_fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      goto handle_exception;
+	    }	    	    	    
 	    int64_t x = s->load64(pa);
 	    s->store64(pa, s->gpr[m.a.rs2] +x);
 	    if(m.a.rd != 0) {
@@ -959,7 +984,11 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0x1: {/* amoswap.d */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
-	    assert(!page_fault);
+	    if(page_fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      goto handle_exception;
+	    }	    	    	    
 	    int64_t x = s->load64(pa);
 	    s->store64(pa, s->gpr[m.a.rs2]);
 	    if(m.a.rd != 0) {
@@ -968,8 +997,14 @@ void execRiscv(state_t *s) {
 	    break;
 	  }
 	  case 0x2: { /* lr.d */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8);	    
-	    assert(!page_fault);
+	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8);
+	    if(page_fault) {
+	      except_cause = CAUSE_LOAD_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      s->llsc_addr = 0;
+	      goto handle_exception;
+	    }
+	    s->llsc_addr  = pa & (~63UL);	    
 	    if(m.a.rd != 0) {
 	      s->gpr[m.a.rd] = s->load64(pa);
 	    }
@@ -977,16 +1012,27 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0x3 : { /* sc.d */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8,  true);
-	    assert(!page_fault);
-	    s->store64( pa, s->gpr[m.a.rs2]);
+	    if(page_fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      goto handle_exception;
+	    }
+	    bool succ = s->llsc_addr == (pa & (~63UL));
+	    if(succ) {
+	      s->store64( pa, s->gpr[m.a.rs2]);
+	    }
 	    if(m.a.rd != 0) {
-	      s->gpr[m.a.rd] = 0;
+	      s->gpr[m.a.rd] = succ ? 0 : 1;
 	    }
 	    break;
 	  }
 	  case 0x8: {/* amoor.d */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
-	    assert(!page_fault);
+	    if(page_fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      goto handle_exception;
+	    }	    	    	    
 	    int64_t x = s->load64(pa);
 	    s->store64(pa, s->gpr[m.a.rs2] | x);	    
 	    if(m.a.rd != 0) {
@@ -996,7 +1042,12 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0xc: {/* amoand.d */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
-	    assert(!page_fault);
+	    if(page_fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      goto handle_exception;
+	    }	    	    	    
+	    
 	    int64_t x = s->load64(pa);
 	    s->store64(pa, s->gpr[m.a.rs2] & x);
 	    if(m.a.rd != 0) {
@@ -1006,7 +1057,11 @@ void execRiscv(state_t *s) {
 	  }
 	  case 0x1c: {/* amoand.d */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
-	    assert(!page_fault);
+	    if(page_fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      goto handle_exception;
+	    }	    	    	    
 	    uint64_t x = s->load64(pa);
 	    s->store64(pa, std::max(*reinterpret_cast<uint64_t*>(&s->gpr[m.a.rs2]), x));
 	    if(m.a.rd != 0) {
@@ -1674,6 +1729,7 @@ void execRiscv(state_t *s) {
 
 void runRiscv(state_t *s, uint64_t dumpIcnt) {
   while(s->brk==0 and (s->icnt < s->maxicnt) and (s->icnt < dumpIcnt)) {
+    //if(((s->icnt & ((1UL<<20)-1)) == 0)) printf("%lx at %ld\n", s->pc, s->icnt);
     execRiscv(s);
   }
 }
