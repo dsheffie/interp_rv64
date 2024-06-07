@@ -25,6 +25,7 @@
 #include "globals.hh"
 #include "virtio.hh"
 #include "uart.hh"
+#include "trace.hh"
 
 extern const char* githash;
 
@@ -41,6 +42,7 @@ bool globals::fullsim = true;
 bool globals::fdt_uart = false;
 bool globals::interactive = false;
 uint64_t globals::fdt_ram_size = 1UL<<24;
+trace* globals::tracer = nullptr;
 
 static state_t *s = nullptr;
 
@@ -79,7 +81,7 @@ extern std::map<uint64_t, uint64_t> supervisor_histo;
 int main(int argc, char *argv[]) {
   namespace po = boost::program_options; 
   size_t pgSize = getpagesize();
-  std::string sysArgs, filename;
+  std::string sysArgs, filename, tracename;
   uint64_t maxinsns = ~(0UL), dumpIcnt = ~(0UL);
   bool raw = false;
   std::string tohost, fromhost;
@@ -104,7 +106,8 @@ int main(int argc, char *argv[]) {
       ("lg2_icache_lines", po::value<int>(&lg2_icache_lines)->default_value(0), "number of icache lines")
       ("lg2_dcache_lines", po::value<int>(&lg2_dcache_lines)->default_value(0), "number of dcache lines")
       ("icache_ways", po::value<int>(&icache_ways)->default_value(1), "number of icache ways")
-      ("dcache_ways", po::value<int>(&dcache_ways)->default_value(1), "number of dcache ways")            
+      ("dcache_ways", po::value<int>(&dcache_ways)->default_value(1), "number of dcache ways")
+      ("tracename", po::value<std::string>(&tracename), "tracename")
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -115,7 +118,6 @@ int main(int argc, char *argv[]) {
     return -1;
   }
 
-  
   if(not(globals::silent)) {
     std::cerr << KGRN
 	      << "RISCV64 ISS : built "
@@ -168,6 +170,10 @@ int main(int argc, char *argv[]) {
   }
   initCapstone();
 
+  if(not(tracename.empty())) {
+    globals::tracer = new trace(tracename);
+  }
+  
   double runtime = timestamp();
   if(not(globals::interactive)) {
     if(dumpIcnt != 0) {
@@ -244,6 +250,10 @@ int main(int argc, char *argv[]) {
   free(s);
   stopCapstone();
 
+  if(globals::tracer) {
+    delete globals::tracer;
+  }
+  
   std::vector<std::pair<uint64_t, uint64_t>> histo;
   for(auto p : supervisor_histo) {
     histo.emplace_back(p.second, p.first);

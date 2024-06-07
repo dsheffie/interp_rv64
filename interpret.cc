@@ -14,6 +14,7 @@
 #include "globals.hh"
 #include "virtio.hh"
 #include "uart.hh"
+#include "trace.hh"
 
 #include <stack>
 static uint64_t curr_pc = 0;
@@ -164,6 +165,9 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     else if(dcache) {
       dcache->access(ea);
     }
+    if(globals::tracer) {
+      globals::tracer->add(ea, fetch);
+    }
     return ea;
   }  
   csr_t c(satp);
@@ -300,7 +304,9 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   }
   int64_t m = ((1L << mask_bits) - 1);
   int64_t pa = ((r.sv39.ppn * 4096) & (~m)) | (ea & m);
-
+  if(globals::tracer) {
+    globals::tracer->add(pa, fetch);
+  }
   if(fetch and icache) {
     icache->access(pa);
   }
