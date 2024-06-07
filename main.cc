@@ -227,6 +227,10 @@ int main(int argc, char *argv[]) {
 	   s->dcache->get_hits(),
 	   s->dcache->get_accesses(),
 	   mpki);
+    printf("total %lu, dead %lu, live %lu\n",
+	   s->dcache->get_total_time(),
+	   s->dcache->get_dead_time(),
+	   s->dcache->get_live_time());
     delete s->dcache;
   }
   if(s->icache) {

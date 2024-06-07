@@ -14,9 +14,13 @@ protected:
   typedef uint64_t addr_t;
   size_t nways,lg2_lines;
   uint64_t hits, accesses;
+  uint64_t dead_time,total_time;
 public:
   cache(size_t nways, size_t lg2_lines) :
-    nways(nways), lg2_lines(lg2_lines), hits(0), accesses(0) {}
+    nways(nways), lg2_lines(lg2_lines),
+    hits(0), accesses(0),
+    dead_time(0), total_time(0) {}
+  
   uint64_t get_hits() const {
     return hits;
   }
@@ -26,30 +30,52 @@ public:
   uint64_t get_size() const {
     return (1UL<<lg2_lines) * nways * ((~MASK)+1);
   }
+  uint64_t get_total_time() const {
+    return total_time;
+  }
+  uint64_t get_dead_time() const {
+    return dead_time;
+  }
+  uint64_t get_live_time() const {
+    return total_time-dead_time;
+  }  
   virtual ~cache() {}
-  virtual void access(addr_t ea) = 0;
+  virtual void access(addr_t ea,  uint64_t icnt) = 0;
 };
 
 class direct_mapped_cache : public cache {
 private:
   addr_t *tags;
+  uint64_t *first_accessed;
+  uint64_t *last_accessed;
 public:
   direct_mapped_cache(size_t lg2_lines) : cache(1, lg2_lines)  {
     tags = new addr_t[(1UL<<lg2_lines)];
+    first_accessed = new uint64_t[(1UL<<lg2_lines)];
+    last_accessed = new uint64_t[(1UL<<lg2_lines)];
     memset(tags, 0, sizeof(addr_t)*(1UL<<lg2_lines));
+    memset(first_accessed, 0, sizeof(uint64_t)*(1UL<<lg2_lines));
+    memset(last_accessed, 0, sizeof(uint64_t)*(1UL<<lg2_lines));
+    
   }
   ~direct_mapped_cache() {
     delete [] tags;
+    delete [] first_accessed;
+    delete [] last_accessed;
   }
-  void access(addr_t ea) override {
+  void access(addr_t ea, uint64_t icnt) override {
     ea &= MASK;
     size_t idx = (ea >> CL_LEN) & ((1U<<lg2_lines)-1);
     accesses++;
     if(tags[idx] == ea) {
       hits++;
+      last_accessed[idx] = icnt;
     }
     else {
       tags[idx] = ea;
+      dead_time += (icnt-last_accessed[idx]);
+      total_time += (icnt-first_accessed[idx]);
+      first_accessed[idx] = last_accessed[idx] = icnt;
     }
   }
 };
@@ -82,7 +108,7 @@ private:
     ~way() {
       delete [] entries;
     }
-    bool access(addr_t ea) {    
+    bool access(addr_t ea,  uint64_t icnt) {    
       bool found = false;
       entry *p = lrulist, *l = nullptr;
       while(p) {
@@ -156,12 +182,12 @@ public:
   ~nway_cache() {
     delete [] ways;
   }
-  void access(addr_t ea) override {
+  void access(addr_t ea,  uint64_t icnt) override {
     ea &= MASK;
     size_t idx = (ea >> CL_LEN) & ((1U<<lg2_lines)-1);
     accesses++;
     assert(idx < ( (1UL<<lg2_lines) ));
-    bool h = ways[idx]->access(ea);
+    bool h = ways[idx]->access(ea, icnt);
     if(h) {
       hits++;
     }

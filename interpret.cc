@@ -160,10 +160,10 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   fault = false;
   if(unpaged_mode()) {
     if(fetch and icache) {
-      icache->access(ea);
+      icache->access(ea, icnt);
     }
     else if(dcache) {
-      dcache->access(ea);
+      dcache->access(ea, icnt);
     }
     if(globals::tracer) {
       globals::tracer->add(ea, fetch);
@@ -281,7 +281,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   if(r.sv39.a == 0) {
     r.sv39.a = 1;
     if(dcache) {
-      dcache->access(a);
+      dcache->access(a, icnt);
     }    
     store64(a, r.r);
   }
@@ -290,7 +290,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     //abort();
     r.sv39.d = 1;
     if(dcache) {
-      dcache->access(a);
+      dcache->access(a, icnt);
     }
     store64(a, r.r);    
   }
@@ -308,10 +308,10 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     globals::tracer->add(pa, fetch);
   }
   if(fetch and icache) {
-    icache->access(pa);
+    icache->access(pa, icnt);
   }
   else if(dcache) {
-    dcache->access(pa);
+    dcache->access(pa, icnt);
   }
 
   
