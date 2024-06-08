@@ -20,7 +20,13 @@ public:
     nways(nways), lg2_lines(lg2_lines),
     hits(0), accesses(0),
     dead_time(0), total_time(0) {}
-  
+
+  size_t get_assoc() const {
+    return nways;
+  }
+  uint64_t get_line_size() const {
+    return 1UL<<CL_LEN;
+  }
   uint64_t get_hits() const {
     return hits;
   }
@@ -38,7 +44,8 @@ public:
   }
   uint64_t get_live_time() const {
     return total_time-dead_time;
-  }  
+  }
+  
   virtual ~cache() {}
   virtual void access(addr_t ea,  uint64_t icnt) = 0;
 };

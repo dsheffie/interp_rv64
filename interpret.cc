@@ -165,8 +165,9 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     else if(dcache) {
       dcache->access(ea, icnt);
     }
+
     if(globals::tracer) {
-      globals::tracer->add(ea, fetch);
+      globals::tracer->add(ea, ea, fetch ? 1 : 2);      
     }
     return ea;
   }  
@@ -304,8 +305,9 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   }
   int64_t m = ((1L << mask_bits) - 1);
   int64_t pa = ((r.sv39.ppn * 4096) & (~m)) | (ea & m);
+  
   if(globals::tracer) {
-    globals::tracer->add(pa, fetch);
+    globals::tracer->add(ea, pa, fetch ? 1 : 2);
   }
   if(fetch and icache) {
     icache->access(pa, icnt);
@@ -587,6 +589,9 @@ void execRiscv(state_t *s) {
     exit(-1);
   }
 
+  if(globals::tracer and s->priv == priv_user) {
+    s->brk = 1;
+  }
   
 
   csr_t c(s->mie);
