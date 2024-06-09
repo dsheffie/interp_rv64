@@ -153,15 +153,17 @@ void state_t::store64(uint64_t pa, int64_t x) {
   *reinterpret_cast<int64_t*>(mem + pa) = x;
 }
 
-static const size_t TLB_SZ = 4096;
 
 struct tlb_entry {
   uint64_t pfn;
   uint64_t paddr;
+  bool dirty;
   bool valid;
 };
 
-uint64_t tlb_accesses = 0, tlb_hits = 0, tlb_no_insert = 0;
+uint64_t tlb_accesses = 0, tlb_hits = 0;
+
+static const uint64_t TLB_SZ = 1UL<<5;
 
 static std::array< tlb_entry, TLB_SZ> tlb;
 
@@ -171,7 +173,6 @@ static void clear_tlb() {
   }
 }
 
-
 static uint64_t hash_tlb(uint64_t pfn) {
   pfn ^= pfn << 13;
   pfn ^= pfn >> 7;
@@ -179,28 +180,34 @@ static uint64_t hash_tlb(uint64_t pfn) {
   return pfn & (TLB_SZ-1);
 }
 
-static void insert_tlb(uint64_t va, uint64_t paddr, int mask_bits) {
+static void insert_tlb(uint64_t va, uint64_t paddr, int mask_bits, bool dirty) {
   uint64_t pfn = va >> 12;
   uint64_t h = hash_tlb(pfn);
   tlb[h].valid = true;
   tlb[h].pfn = pfn;
+  tlb[h].dirty = dirty;
   tlb[h].paddr = paddr | mask_bits;
 }
 
-static uint64_t lookup_tlb(uint64_t va) {
+static uint64_t lookup_tlb(uint64_t va, bool &hit, bool &dirty) {
   ++tlb_accesses;
   
   uint64_t pfn = va >> 12;
   uint64_t h = hash_tlb(pfn);  
-  if(not(tlb[h].valid))
+  if(not(tlb[h].valid)) {
+    hit = false;
     return 0;
-  if(tlb[h].pfn != pfn)
+  }
+  if(tlb[h].pfn != pfn) {
+    hit = false;
     return 0;
+  }
   int mask_bits = tlb[h].paddr & 4095;
   uint64_t ppn = tlb[h].paddr & (~4095UL);
   uint64_t m = ((1UL << mask_bits) - 1);
   uint64_t pa = (ppn & (~m)) | (va & m);
-
+  dirty = tlb[h].dirty;
+  hit = true;
   ++tlb_hits;
   return pa;
 }
@@ -232,7 +239,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   int mask_bits = -1;
   int pgsz = 0;
   uint64_t tlb_pa = 0;
-  
+  bool tlb_hit = false, tlb_dirty = false;
   //if we are unaligned assert out (for now)
   if(!same_page) {
     fault = 1;
@@ -240,8 +247,10 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     return 4;
   }
 
-  uint64_t t_pa = lookup_tlb(ea);
-  if(t_pa) {
+  uint64_t t_pa = lookup_tlb(ea, tlb_hit, tlb_dirty);
+  
+  if(tlb_hit and (tlb_dirty or not(store))) {
+    if(store) assert(tlb_dirty);
     return t_pa;
   }
 
@@ -387,11 +396,8 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
 
   
   
-  if(r.sv39.d) {
-    insert_tlb(ea, r.sv39.ppn * 4096, mask_bits);
-  } else {
-    ++tlb_no_insert;
-  }
+  insert_tlb(ea, r.sv39.ppn * 4096, mask_bits, r.sv39.d);
+
   
   //tlb[ea >>  12] = std::pair<uint64_t, uint64_t>(r.r, (r.sv39.ppn << 12) | mask_bits );
   // if(tlb_pa != 0 && (pa != tlb_pa)) {
@@ -669,13 +675,11 @@ void execRiscv(state_t *s) {
     entered_user = true;
   }
 
-  if( (s->icnt % (1UL<<24)) == 0) {
-    
-    printf("%lu hits, %lu accesses, %lu couldnt insert,  hit ratio %g\n",
-	   tlb_hits, tlb_accesses, tlb_no_insert,
-	   static_cast<double>(tlb_hits) /  tlb_accesses);
-    
-  }
+  //if( (s->icnt % (1UL<<24)) == 0) {
+  //printf("%lu hits, %lu accesses, hit ratio %g\n",
+  //tlb_hits, tlb_accesses,
+  //static_cast<double>(tlb_hits) /  tlb_accesses);
+  //}
   //if(globals::tracer and s->priv == priv_user) {
   //s->brk = 1;
   //}
