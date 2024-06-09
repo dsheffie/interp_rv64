@@ -5,7 +5,7 @@
 #include <cstring>
 #include <limits>
 #include <set>
-#include <unordered_map>
+#include <bitset>
 
 #include "interpret.hh"
 #include "temu_code.hh"
@@ -153,8 +153,60 @@ void state_t::store64(uint64_t pa, int64_t x) {
   *reinterpret_cast<int64_t*>(mem + pa) = x;
 }
 
+static const size_t TLB_SZ = 4096;
 
-static std::unordered_map<uint64_t, std::pair<uint64_t, uint64_t>> tlb;
+struct tlb_entry {
+  uint64_t pfn;
+  uint64_t paddr;
+  bool valid;
+};
+
+uint64_t tlb_accesses = 0, tlb_hits = 0, tlb_no_insert = 0;
+
+static std::array< tlb_entry, TLB_SZ> tlb;
+
+static void clear_tlb() {
+  for(size_t i = 0; i < TLB_SZ; i++) {
+    tlb[i].valid = false;
+  }
+}
+
+
+static uint64_t hash_tlb(uint64_t pfn) {
+  pfn ^= pfn << 13;
+  pfn ^= pfn >> 7;
+  pfn ^= pfn << 17;
+  return pfn & (TLB_SZ-1);
+}
+
+static void insert_tlb(uint64_t va, uint64_t paddr, int mask_bits) {
+  uint64_t pfn = va >> 12;
+  uint64_t h = hash_tlb(pfn);
+  tlb[h].valid = true;
+  tlb[h].pfn = pfn;
+  tlb[h].paddr = paddr | mask_bits;
+}
+
+static uint64_t lookup_tlb(uint64_t va) {
+  ++tlb_accesses;
+  
+  uint64_t pfn = va >> 12;
+  uint64_t h = hash_tlb(pfn);  
+  if(not(tlb[h].valid))
+    return 0;
+  if(tlb[h].pfn != pfn)
+    return 0;
+  int mask_bits = tlb[h].paddr & 4095;
+  uint64_t ppn = tlb[h].paddr & (~4095UL);
+  uint64_t m = ((1UL << mask_bits) - 1);
+  uint64_t pa = (ppn & (~m)) | (va & m);
+
+  ++tlb_hits;
+  return pa;
+}
+
+static bool entered_user = false;
+
 
 uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fetch) {
   fault = false;
@@ -166,7 +218,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
       dcache->access(ea, icnt);
     }
 
-    if(globals::tracer) {
+    if(globals::tracer and entered_user) {
       globals::tracer->add(ea, ea, fetch ? 1 : 2);      
     }
     return ea;
@@ -188,7 +240,26 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     return 4;
   }
 
-  // auto &t = tlb[ea >> 12];
+  uint64_t t_pa = lookup_tlb(ea);
+  if(t_pa) {
+    return t_pa;
+  }
+
+  
+  // tlb_entry &te = tlb[(ea >>  12) & (TLB_SZ-1)];
+  // r.r = te.rr;
+  // if(tlb_valid[(ea >>  12) & (TLB_SZ-1)] and te.vaddr == (ea>>12) and
+  //    r.sv39.v and not((r.sv39.d == 0) && store)) {
+  //   mask_bits = te.pte & 4095;
+  //   int64_t m = ((1L << mask_bits) - 1);
+  //   tlb_pa = (te.pte & (~m)) | (ea & m);
+  //   //printf("ea %lx -> pa %lx\n", ea, tlb_pa);
+  //   return tlb_pa;
+  // }
+  // r.r = 0;
+  // mask_bits = -1;
+  
+  //auto &t = tlb[ea >> 12];
   // r.r = t.first;
   // if(r.sv39.v and not((r.sv39.d == 0) && store)) {
   //   mask_bits = t.second & 4095;
@@ -196,8 +267,6 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   //   tlb_pa = (t.second & (~m)) | (ea & m);
   //   return tlb_pa;
   // }
-  // r.r = 0;
-  // mask_bits = -1;
 
   assert(c.satp.mode == 8);
   a = (c.satp.ppn * 4096) + (((ea >> 30) & 511)*8);
@@ -306,7 +375,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   int64_t m = ((1L << mask_bits) - 1);
   int64_t pa = ((r.sv39.ppn * 4096) & (~m)) | (ea & m);
   
-  if(globals::tracer) {
+  if(globals::tracer and entered_user) {
     globals::tracer->add(ea, pa, fetch ? 1 : 2);
   }
   if(fetch and icache) {
@@ -316,6 +385,13 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     dcache->access(pa, icnt);
   }
 
+  
+  
+  if(r.sv39.d) {
+    insert_tlb(ea, r.sv39.ppn * 4096, mask_bits);
+  } else {
+    ++tlb_no_insert;
+  }
   
   //tlb[ea >>  12] = std::pair<uint64_t, uint64_t>(r.r, (r.sv39.ppn << 12) | mask_bits );
   // if(tlb_pa != 0 && (pa != tlb_pa)) {
@@ -331,8 +407,8 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
 
 static void set_priv(state_t *s, int priv) {
   if (s->priv != priv) {
-    //printf("tlb had %lu entries\n", tlb.size());
-    tlb.clear();
+    clear_tlb();
+    
     int mxl = 2;
     if (priv == priv_supervisor) {
       mxl = (s->mstatus >> MSTATUS_SXL_SHIFT) & 3;
@@ -492,7 +568,7 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
 	 c.satp.asid == 0) {
 	s->satp = v;
 	//printf("tlb had %lu entries\n", tlb.size());
-	tlb.clear();	
+	clear_tlb();	
       }
       break;
     case 0x300:
@@ -589,9 +665,20 @@ void execRiscv(state_t *s) {
     exit(-1);
   }
 
-  if(globals::tracer and s->priv == priv_user) {
-    s->brk = 1;
+  if(s->priv == priv_user) {
+    entered_user = true;
   }
+
+  if( (s->icnt % (1UL<<24)) == 0) {
+    
+    printf("%lu hits, %lu accesses, %lu couldnt insert,  hit ratio %g\n",
+	   tlb_hits, tlb_accesses, tlb_no_insert,
+	   static_cast<double>(tlb_hits) /  tlb_accesses);
+    
+  }
+  //if(globals::tracer and s->priv == priv_user) {
+  //s->brk = 1;
+  //}
   
 
   csr_t c(s->mie);
@@ -1492,7 +1579,7 @@ void execRiscv(state_t *s) {
       else if(upper7 == 9 && ((inst & (16384-1)) == 0x73 )) {
 	//std::cout << "warn : got sfence\n";
 	//printf("tlb had %lu entries\n", tlb.size());	
-	tlb.clear();
+	clear_tlb();
       }
       else if(bits19to7z and (csr_id == 0x105)) {  /* wfi */
 	//globals::log = 1;

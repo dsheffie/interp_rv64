@@ -91,8 +91,14 @@ int main(int argc, char *argv[]) {
   }
   
   trace *t = new trace(tracename.c_str(), true);
-  printf("ways %d, lines %lu\n", cache_ways, 1UL<<lg2_cache_lines);
-  nway_cache *c = new nway_cache(cache_ways, lg2_cache_lines);
+  cache *c = nullptr;
+  if(cache_ways != 1) {
+    c = new nway_cache(cache_ways, lg2_cache_lines);
+  }
+  else {
+    c = new direct_mapped_cache(lg2_cache_lines);
+  }
+  printf("ways %d, lines %lu -> %lu bytes\n", cache_ways, 1UL<<lg2_cache_lines, c->get_size());
   t->simulate(c);
   
   delete t;
