@@ -83,7 +83,7 @@ int main(int argc, char *argv[]) {
   size_t pgSize = getpagesize();
   std::string sysArgs, filename, tracename;
   uint64_t maxinsns = ~(0UL), dumpIcnt = ~(0UL);
-  bool raw = false;
+  bool raw = false, load_dump = false;
   std::string tohost, fromhost;
   int lg2_icache_lines, lg2_dcache_lines;
   int icache_ways, dcache_ways;
@@ -96,6 +96,7 @@ int main(int argc, char *argv[]) {
       ("max,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
       ("dump", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
+      ("load_dump", po::value<bool>(&load_dump)->default_value(false), "load a dump")
       ("log,l", po::value<bool>(&globals::log)->default_value(false), "log instructions")
       ("raw,r", po::value<bool>(&raw)->default_value(false), "load raw binary")
       ("tohost", po::value<std::string>(&tohost)->default_value("0"), "to host address")
@@ -162,6 +163,11 @@ int main(int argc, char *argv[]) {
   }
   if(raw) {
     load_raw(filename.c_str(), s);
+    globals::tohost_addr = strtol(tohost.c_str(), nullptr, 16);
+    globals::fromhost_addr = strtol(fromhost.c_str(), nullptr, 16);
+  }
+  else if(load_dump) {
+    loadState(*s, filename.c_str());
     globals::tohost_addr = strtol(tohost.c_str(), nullptr, 16);
     globals::fromhost_addr = strtol(fromhost.c_str(), nullptr, 16);
   }
