@@ -521,7 +521,7 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
       return s->mhartid;      
     default:
       printf("rd csr id 0x%x unimplemented, pc %lx\n", csr_id, s->pc);
-      undef = true;
+      //undef = true;
       break;
     }
   return 0;
