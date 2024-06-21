@@ -43,6 +43,7 @@ bool globals::fdt_uart = false;
 bool globals::interactive = false;
 uint64_t globals::fdt_ram_size = 1UL<<24;
 trace* globals::tracer = nullptr;
+branch_trace* globals::branch_tracer = nullptr;
 
 static state_t *s = nullptr;
 

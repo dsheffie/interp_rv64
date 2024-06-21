@@ -2,6 +2,7 @@
 #define __GLOBALSH__
 
 struct trace;
+struct branch_trace;
 
 namespace globals {
   extern uint64_t tohost_addr;
@@ -15,6 +16,7 @@ namespace globals {
   extern bool fdt_uart;
   extern uint64_t fdt_ram_size;
   extern trace *tracer;
+  extern branch_trace *branch_tracer;
   extern std::map<std::string, uint64_t> symtab;
 };
 

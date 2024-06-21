@@ -11,6 +11,32 @@ static const uint64_t DSIDE = 0x2;
 static const uint64_t PGWALK = 0x4;
 static const uint64_t BOGUS = 0x4;
 
+void branch_trace::add(uint64_t pc,
+		       uint64_t target,
+		       bool taken,
+		       bool is_call,
+		       bool is_indirect_call,
+		       bool is_ret) {
+  buf[pos].pc = pc;
+  buf[pos].target = target;
+  buf[pos].metadata = 0;
+  buf[pos].metadata |= static_cast<uint64_t>(taken);
+  buf[pos].metadata |= static_cast<uint64_t>(is_call) << 1;
+  buf[pos].metadata |= static_cast<uint64_t>(is_indirect_call) << 2;
+  buf[pos].metadata |= static_cast<uint64_t>(is_ret) << 3;  
+  pos++;
+  if(pos == BUFLEN) {
+    write_to_disk();
+  }
+}
+
+void branch_trace::write_to_disk() {
+  fwrite(buf, sizeof(entry), pos, fp);
+  pos = 0;  
+}
+
+
+
 constexpr static const std::array<uint64_t,4> TXN_TYPES =
   {ISIDE, DSIDE, PGWALK, BOGUS};
 
@@ -23,7 +49,7 @@ void trace::add(uint64_t vaddr,
 		uint64_t paddr,
 		int type) {
 
-  if(type != DSIDE) {
+  if(type != ISIDE) {
     return;
   }
   
@@ -56,11 +82,14 @@ void trace::simulate(cache *c) {
   }
   double hitrate = static_cast<double>(c->get_hits()) /
     c->get_accesses();
-  printf("%lu byte cache, %zu way assoc, %lu byte lines, %g hit rate\n",
+  double mrurate = static_cast<double>(c->get_mru_hits()) /
+    c->get_accesses();  
+  printf("%lu byte cache, %zu way assoc, %lu byte lines, %g hit rate, %g mru hit rate\n",
 	 c->get_size(),
 	 c->get_assoc(),
 	 c->get_line_size(),
-	 hitrate);
+	 hitrate,
+	 mrurate);
   printf("%zu unique cachelines\n", unique_paddrs.size());
   printf("%g roofline hitrate\n", static_cast<double>(n_entries-unique_paddrs.size()) / n_entries);
 }

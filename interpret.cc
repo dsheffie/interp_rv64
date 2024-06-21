@@ -1333,12 +1333,21 @@ void execRiscv(state_t *s) {
       bool rd_is_link = m.jj.rd==1 or m.jj.rd==5;
       
       if((m.jj.rd == 0) and rs1_is_link) {
+	if(globals::branch_tracer) {
+	  globals::branch_tracer->add(s->pc, tgt64, true, false, false, true);
+	}	
+	
 	if(!calls.empty())
 	  calls.pop();
       }
+      
       if(rd_is_link) {
 	calls.push(s->pc);
-      }
+	if(globals::branch_tracer) {
+	  globals::branch_tracer->add(s->pc, tgt64, true, false, true, false);
+	}	
+
+     }
       
       s->pc = tgt64;
       break;
@@ -1362,6 +1371,9 @@ void execRiscv(state_t *s) {
       bool rd_is_link = rd==1 or rd==5;      
       if(rd_is_link) {
 	calls.push(s->pc);
+	if(globals::branch_tracer) {
+	  globals::branch_tracer->add(s->pc, s->pc + jaddr, true, true, false, false);
+	}		
       }
       s->pc += jaddr;
       break;
@@ -1561,6 +1573,9 @@ void execRiscv(state_t *s) {
 	  assert(0);
 	}
       //assert(not(takeBranch));
+      if(globals::branch_tracer) {
+	globals::branch_tracer->add(s->pc, (disp+s->pc), takeBranch);
+      }
       s->pc = takeBranch ? disp + s->pc : s->pc + 4;
       break;
     }
