@@ -558,7 +558,7 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       s->scause = v;
       break;
     case 0x143:
-      s->stvec = v;
+      s->stval = v;
       break;
     case 0x144: {
       s->mip = (s->mip & ~(s->mideleg)) | (v & s->mideleg);
@@ -773,6 +773,7 @@ void execRiscv(state_t *s) {
 	      << inst
 	      << std::dec
 	      << " , icnt " << s->icnt
+	      << " ,  priv " << s->priv
 	      << "\n";
   }
   s->last_pc = s->pc;  
@@ -1609,6 +1610,12 @@ void execRiscv(state_t *s) {
       }
       else if(bits19to7z and (csr_id == 0x102)) {  /* sret */
 	/* stolen from tinyemu */
+	//printf("executing sret at priv %d for pc %lx, icnt %lu\n", s->priv, s->pc, s->icnt);
+	if(s->priv == 0) {
+	  except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+	  tval = s->pc;
+	  goto handle_exception;	  
+	}
 	assert( ((s->mstatus >> MSTATUS_UXL_SHIFT) & 3) == 2);
 	assert( ((s->mstatus >> MSTATUS_SXL_SHIFT) & 3) == 2);
 	
@@ -1630,7 +1637,12 @@ void execRiscv(state_t *s) {
       }            
       else if(bits19to7z and (csr_id == 0x302)) {  /* mret */
 	/* stolen from tinyemu */
-	//auto m0 =  csr_t(s->mstatus).mstatus;	
+	//auto m0 =  csr_t(s->mstatus).mstatus;
+	if(s->priv < 3) {
+	  except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+	  tval = s->pc;
+	  goto handle_exception;	  
+	}
 	int mpp = (s->mstatus >> MSTATUS_MPP_SHIFT) & 3;
 	/* set the IE state to previous IE state */
 	int mpie = (s->mstatus >> MSTATUS_MPIE_SHIFT) & 1;
@@ -1644,9 +1656,6 @@ void execRiscv(state_t *s) {
 
 	assert( ((s->mstatus >> MSTATUS_UXL_SHIFT) & 3) == 2);
 	assert( ((s->mstatus >> MSTATUS_SXL_SHIFT) & 3) == 2);
-
-	//printf("mret to %lx and priv %d\n",
-	//s->pc, s->priv);
 	break;
       }
       else if(is_ebreak) {
@@ -1786,22 +1795,24 @@ void execRiscv(state_t *s) {
       cause |= 1UL<<63;
     }
     
-#if 0
-    std::cout << "took fault at pc "
-	      << std::hex << s->pc
-	      << ", tval " << tval
-	      << std::dec
-	      << ", cause " << std::hex << cause << std::dec << " : ";
-    if(cause < 16) {
-      std::cout << cause_reasons.at(cause);
+    if(globals::log) {
+      std::cout << "took fault at pc "
+		<< std::hex << s->pc
+		<< ", tval " << tval
+		<< std::dec
+		<< ", icnt " << s->icnt
+		<< ", cause " << std::hex
+		<< cause << std::dec << " : ";
+      if(cause < 16) {
+	std::cout << cause_reasons.at(cause);
+      }
+      else {
+	std::cout << "irq " << (cause & 31);
+      }
+      std::cout << ", delegate " << delegate
+		<< ", priv "
+		<< s->priv << "\n";
     }
-    else {
-      std::cout << "irq " << (cause & 31);
-    }
-    std::cout << ", delegate " << delegate
-	      << ", priv "
-	      << s->priv << "\n";
-#endif 
     
     if(delegate) {
       s->scause = cause;
@@ -1816,6 +1827,7 @@ void execRiscv(state_t *s) {
       s->pc = s->stvec;
     }
     else {
+
       s->mcause = cause;
       s->mepc = s->pc;
       s->mtval = tval;
@@ -1825,7 +1837,7 @@ void execRiscv(state_t *s) {
 	(s->priv << MSTATUS_MPP_SHIFT);
       s->mstatus &= ~MSTATUS_MIE;
       set_priv(s, priv_machine);
-      s->pc = s->mtvec;      
+      s->pc = s->mtvec;
     }
     //std::cout << "\tjump to exception handler at pc " << std::hex << s->pc << ", satp " << ((s->satp & ((1UL<<44)-1)) << 12) << std::dec << "\n";    
   }

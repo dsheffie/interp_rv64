@@ -180,6 +180,8 @@ int main(int argc, char *argv[]) {
   if(not(tracename.empty())) {
     globals::tracer = new trace(tracename);
   }
+
+  //globals::branch_tracer = new branch_trace("branches.trc");
   
   double runtime = timestamp();
   if(not(globals::interactive)) {
@@ -263,6 +265,9 @@ int main(int argc, char *argv[]) {
 
   if(globals::tracer) {
     delete globals::tracer;
+  }
+  if(globals::branch_tracer) {
+    delete globals::branch_tracer;
   }
   
   std::vector<std::pair<uint64_t, uint64_t>> histo;
