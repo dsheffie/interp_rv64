@@ -65,7 +65,8 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   fd = open(fn, O_RDONLY);
   rc = fstat(fd,&s);
   buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-
+  assert(buf != reinterpret_cast<void*>(-1L));
+  
   for(size_t i = 0; i < s.st_size; i++) {
     mem[where+i] = buf[i];
   }

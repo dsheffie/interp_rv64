@@ -77,7 +77,6 @@ static int buildArgcArgv(const char *filename, const std::string &sysArgs, char 
   return (int)args.size();
 }
 
-extern std::map<uint64_t, uint64_t> supervisor_histo;
 
 int main(int argc, char *argv[]) {
   namespace po = boost::program_options; 
@@ -194,6 +193,7 @@ int main(int argc, char *argv[]) {
       if(not(globals::silent)) {
 	std::cout << "dumping at icnt " << s->icnt << "\n";
       }
+      std::cout << "creating dump at priv " << s->priv << "\n";
       dumpState(*s, ss.str());
     }
   }
@@ -270,17 +270,6 @@ int main(int argc, char *argv[]) {
     delete globals::branch_tracer;
   }
   
-  std::vector<std::pair<uint64_t, uint64_t>> histo;
-  for(auto p : supervisor_histo) {
-    histo.emplace_back(p.second, p.first);
-  }
-  std::sort(histo.begin(), histo.end());
-  std::reverse(histo.begin(), histo.end());
-
-  std::ofstream out("superhisto.txt");
-  for(auto p : histo) {
-    out << std::hex << p.second << std::dec << "," << p.first << "\n";
-  }
   
   return 0;
 }

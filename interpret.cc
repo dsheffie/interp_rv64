@@ -174,9 +174,9 @@ static void clear_tlb() {
 }
 
 static uint64_t hash_tlb(uint64_t pfn) {
-  pfn ^= pfn << 13;
-  pfn ^= pfn >> 7;
-  pfn ^= pfn << 17;
+  //pfn ^= pfn << 13;
+  //pfn ^= pfn >> 7;
+  //pfn ^= pfn << 17;
   return pfn & (TLB_SZ-1);
 }
 
@@ -648,8 +648,6 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       break;
     }
 }
-
-std::map<uint64_t, uint64_t> supervisor_histo;
 
 void execRiscv(state_t *s) {
   uint8_t *mem = s->mem;
@@ -1770,9 +1768,6 @@ void execRiscv(state_t *s) {
       break;
     }
 
-  if(s->priv == priv_supervisor) {
-    supervisor_histo[curr_pc]++;
-  }
   
   s->icnt++;
   return;
@@ -1857,10 +1852,27 @@ void execRiscv(state_t *s) {
 }
 
 void runRiscv(state_t *s, uint64_t dumpIcnt) {
-  while(s->brk==0 and (s->icnt < s->maxicnt) and (s->icnt < dumpIcnt)) {
-    //if(((s->icnt & ((1UL<<20)-1)) == 0)) printf("%lx at %ld\n", s->pc, s->icnt);
+  bool keep_going = (s->brk==0) and
+    (s->icnt < s->maxicnt) and
+    (s->icnt < dumpIcnt);
+  if(not(keep_going))
+    return;
+  
+  do {
     execRiscv(s);
-  }
+    bool dump = (s->icnt >= dumpIcnt) and (s->priv == 0);
+
+    //if(not(dump) and (s->icnt >= dumpIcnt)) {
+    //printf("should dump but priv is %d at pc %lx\n",
+    //s->priv, s->pc);
+    //}
+    
+    keep_going = (s->brk==0) and
+      (s->icnt < s->maxicnt) and
+      not(dump);
+    
+  } while(keep_going);
+
 }
 
 void runInteractiveRiscv(state_t *s) {
