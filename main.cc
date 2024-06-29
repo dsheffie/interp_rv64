@@ -118,15 +118,6 @@ int main(int argc, char *argv[]) {
     std::cerr << KRED << "command-line error : " << e.what() << KNRM << "\n";
     return -1;
   }
-
-  if(not(globals::silent)) {
-    std::cerr << KGRN
-	      << "RISCV64 ISS : built "
-	      << __DATE__ << " " << __TIME__
-	      << ",pid="<< getpid() << "\n"
-	      << "git hash=" << githash
-	      << KNRM << "\n";
-  }
   
   if(filename.size()==0) {
     std::cerr << argv[0] << ": no file\n";
@@ -206,7 +197,7 @@ int main(int argc, char *argv[]) {
     std::cerr << KGRN << "INTERP: "
 	      << runtime << " sec, "
 	      << s->icnt << " ins executed, "
-	      << std::round((s->icnt/runtime)*1e-6) << " megains / sec "
+	      << std::round((s->icnt/runtime)*1e-6) << " mips "
 	      << KNRM  << "\n";
     std::cerr << "final pc " << std::hex << s->pc << std::dec << "\n";
     for(int i = 0; i < 3; i++) {
