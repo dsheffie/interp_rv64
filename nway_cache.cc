@@ -73,6 +73,8 @@ void nway_cache::access(addr_t ea,  uint64_t icnt, uint64_t pc) {
   assert(idx < ( (1UL<<lg2_lines) ));
   bool mru = false;
   bool h = ways[idx]->access(ea, icnt, mru);
+  //printf("search for addr %lx, pc %lx was hit %d\n", ea, pc, h);
+	   
   if(h) {
     hits++;
     if(mru) hit_mru++;

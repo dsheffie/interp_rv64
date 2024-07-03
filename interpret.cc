@@ -221,7 +221,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     if(fetch and icache) {
       icache->access(ea, icnt, pc);
     }
-    else if(dcache) {
+    else if(dcache and not(fetch)) {
       dcache->access(ea, icnt, pc);
     }
 
@@ -254,7 +254,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     if(fetch and icache) {
       icache->access(t_pa, icnt, pc);
     }
-    else if(dcache) {
+    else if(dcache and not(fetch)) {
       dcache->access(t_pa, icnt, pc);
     }
     return t_pa;
@@ -371,10 +371,10 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     globals::tracer->add(ea, pa, fetch ? 1 : 2);
   }
   if(fetch and icache) {
-    icache->access(pa, icnt, ~0UL);
+    icache->access(pa, icnt, pc);
   }
-  else if(dcache) {
-    dcache->access(pa, icnt, ~0UL);
+  else if(dcache and not(fetch)) {
+    dcache->access(pa, icnt, pc);
   }
 
   
