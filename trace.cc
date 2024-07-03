@@ -78,7 +78,7 @@ void trace::simulate(cache *c) {
     size_t sz = fread(&e, sizeof(entry), 1, fp);
     assert(sz == 1);
     unique_paddrs.insert(e.paddr & (~15UL));
-    c->access(e.paddr, i);
+    c->access(e.paddr, i, ~0UL);
   }
   double hitrate = static_cast<double>(c->get_hits()) /
     c->get_accesses();

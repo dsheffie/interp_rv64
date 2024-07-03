@@ -219,10 +219,10 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   fault = false;
   if(unpaged_mode()) {
     if(fetch and icache) {
-      icache->access(ea, icnt);
+      icache->access(ea, icnt, pc);
     }
     else if(dcache) {
-      dcache->access(ea, icnt);
+      dcache->access(ea, icnt, pc);
     }
 
     if(globals::tracer and entered_user) {
@@ -251,31 +251,14 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   
   if(tlb_hit and (tlb_dirty or not(store))) {
     if(store) assert(tlb_dirty);
+    if(fetch and icache) {
+      icache->access(t_pa, icnt, pc);
+    }
+    else if(dcache) {
+      dcache->access(t_pa, icnt, pc);
+    }
     return t_pa;
   }
-
-  
-  // tlb_entry &te = tlb[(ea >>  12) & (TLB_SZ-1)];
-  // r.r = te.rr;
-  // if(tlb_valid[(ea >>  12) & (TLB_SZ-1)] and te.vaddr == (ea>>12) and
-  //    r.sv39.v and not((r.sv39.d == 0) && store)) {
-  //   mask_bits = te.pte & 4095;
-  //   int64_t m = ((1L << mask_bits) - 1);
-  //   tlb_pa = (te.pte & (~m)) | (ea & m);
-  //   //printf("ea %lx -> pa %lx\n", ea, tlb_pa);
-  //   return tlb_pa;
-  // }
-  // r.r = 0;
-  // mask_bits = -1;
-  
-  //auto &t = tlb[ea >> 12];
-  // r.r = t.first;
-  // if(r.sv39.v and not((r.sv39.d == 0) && store)) {
-  //   mask_bits = t.second & 4095;
-  //   int64_t m = ((1L << mask_bits) - 1);
-  //   tlb_pa = (t.second & (~m)) | (ea & m);
-  //   return tlb_pa;
-  // }
 
   assert(c.satp.mode == 8);
   a = (c.satp.ppn * 4096) + (((ea >> 30) & 511)*8);
@@ -360,7 +343,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   if(r.sv39.a == 0) {
     r.sv39.a = 1;
     if(dcache) {
-      dcache->access(a, icnt);
+      dcache->access(a, icnt, ~0UL);
     }    
     store64(a, r.r);
   }
@@ -369,7 +352,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     //abort();
     r.sv39.d = 1;
     if(dcache) {
-      dcache->access(a, icnt);
+      dcache->access(a, icnt, ~0UL);
     }
     store64(a, r.r);    
   }
@@ -388,10 +371,10 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     globals::tracer->add(ea, pa, fetch ? 1 : 2);
   }
   if(fetch and icache) {
-    icache->access(pa, icnt);
+    icache->access(pa, icnt, ~0UL);
   }
   else if(dcache) {
-    dcache->access(pa, icnt);
+    dcache->access(pa, icnt, ~0UL);
   }
 
   
@@ -660,6 +643,9 @@ void execRiscv(state_t *s) {
   riscv_t m(0);
   curr_pc = s->pc;
 
+  //if(not(s->icnt % (1UL<<24))) {
+  //printf("icnt %lu, pc %lx\n", s->icnt, s->pc);
+  //}
   //assert( ((s->mstatus >> MSTATUS_UXL_SHIFT) & 3) == 2);
   //assert( ((s->mstatus >> MSTATUS_SXL_SHIFT) & 3) == 2);  
   int mxl = (s->mstatus >> MSTATUS_UXL_SHIFT) & 3;

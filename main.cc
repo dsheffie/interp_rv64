@@ -161,6 +161,9 @@ int main(int argc, char *argv[]) {
     loadState(*s, filename.c_str());
     globals::tohost_addr = strtol(tohost.c_str(), nullptr, 16);
     globals::fromhost_addr = strtol(fromhost.c_str(), nullptr, 16);
+    if(s->maxicnt != (~(0UL))) {
+      s->maxicnt += s->icnt;
+    }
   }
   else {
     load_elf(filename.c_str(), s);
