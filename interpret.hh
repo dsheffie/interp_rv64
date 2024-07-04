@@ -437,6 +437,7 @@ union pte_t {
 
 void initState(state_t *s);
 void runRiscv(state_t *s, uint64_t dumpIcnt);
+void execRiscv(state_t *s);
 void runInteractiveRiscv(state_t *s);
 
 /* stolen from libgloss-htif : syscall.h */

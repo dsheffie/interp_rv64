@@ -1468,6 +1468,11 @@ void execRiscv(state_t *s) {
 	      {
 	      case 0x0:
 		s->gpr[m.r.rd] = s->gpr[m.r.rs1] | s->gpr[m.r.rs2];
+		if((m.r.rd == m.r.rs1) and (m.r.rs1 == m.r.rs2)) {
+		  std::cout << ">>>> or with all regs equal\n";
+		  s->brk = 1;
+		  //exit(-1);
+		}
 		break;
 	      case 0x1:
 		if(s->gpr[m.r.rs2] == 0) {

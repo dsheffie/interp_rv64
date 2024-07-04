@@ -182,12 +182,14 @@ int main(int argc, char *argv[]) {
   double runtime = timestamp();
   if(take_checkpoints) {
     while((s->icnt < s->maxicnt) and not(s->brk)) {
-      if(not(s->icnt % dumpIcnt)) {
+      bool take_cp = ((s->icnt % dumpIcnt) == 0);
+      if((s->icnt % dumpIcnt) == 0) {
 	std::stringstream ss;
-	ss << filename << s->icnt << ".rv64.chpt";	
+	ss << filename << s->icnt << ".rv64.chpt";
+	//std::cout << "dumping at icnt " << s->icnt << "\n";
 	dumpState(*s, ss.str());
       }
-      runRiscv(s,(~0UL));
+      execRiscv(s);
     }
   }
   else if(not(globals::interactive)) {
