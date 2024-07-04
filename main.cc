@@ -83,10 +83,11 @@ int main(int argc, char *argv[]) {
   size_t pgSize = getpagesize();
   std::string sysArgs, filename, tracename;
   uint64_t maxinsns = ~(0UL), dumpIcnt = ~(0UL);
-  bool raw = false, load_dump = false;
+  bool raw = false, load_dump = false, take_checkpoints = false;
   std::string tohost, fromhost;
   int lg2_icache_lines, lg2_dcache_lines;
   int icache_ways, dcache_ways;
+  uint64_t init_icnt = 0;
   try {
     po::options_description desc("Options");
     desc.add_options() 
@@ -95,6 +96,7 @@ int main(int argc, char *argv[]) {
       ("file,f", po::value<std::string>(&filename), "rv32 binary")
       ("max,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
       ("dump", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
+      ("checkpoints", po::value<bool>(&take_checkpoints)->default_value(false), "take checkpoints at dump icnt internal")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
       ("load_dump", po::value<bool>(&load_dump)->default_value(false), "load a dump")
       ("log,l", po::value<bool>(&globals::log)->default_value(false), "log instructions")
@@ -162,8 +164,9 @@ int main(int argc, char *argv[]) {
     globals::tohost_addr = strtol(tohost.c_str(), nullptr, 16);
     globals::fromhost_addr = strtol(fromhost.c_str(), nullptr, 16);
     if(s->maxicnt != (~(0UL))) {
-      s->maxicnt += s->icnt;
+      s->maxicnt += s->icnt;      
     }
+    init_icnt = s->icnt;
   }
   else {
     load_elf(filename.c_str(), s);
@@ -177,13 +180,23 @@ int main(int argc, char *argv[]) {
   //globals::branch_tracer = new branch_trace("branches.trc");
   
   double runtime = timestamp();
-  if(not(globals::interactive)) {
+  if(take_checkpoints) {
+    while((s->icnt < s->maxicnt) and not(s->brk)) {
+      if(not(s->icnt % dumpIcnt)) {
+	std::stringstream ss;
+	ss << filename << s->icnt << ".rv64.chpt";	
+	dumpState(*s, ss.str());
+      }
+      runRiscv(s,(~0UL));
+    }
+  }
+  else if(not(globals::interactive)) {
     if(dumpIcnt != 0) {
       runRiscv(s,dumpIcnt);
     }
     if( s->icnt >= dumpIcnt ) {
       std::stringstream ss;
-      ss << filename << s->icnt << ".bin";
+      ss << filename << s->icnt << ".rv64.chpt";
       if(not(globals::silent)) {
 	std::cout << "dumping at icnt " << s->icnt << "\n";
       }
@@ -224,7 +237,7 @@ int main(int argc, char *argv[]) {
   if(s->dcache) {
     double mpki = s->dcache->get_accesses() -
       s->dcache->get_hits();
-    mpki *= (1000.0 / s->icnt);
+    mpki *= (1000.0 / (s->icnt - init_icnt));
     printf("dcache: %lu bytes, %lu hits, %lu total, %g mpki\n",
 	   s->dcache->get_size(),
 	   s->dcache->get_hits(),
@@ -239,7 +252,7 @@ int main(int argc, char *argv[]) {
   if(s->icache) {
     double mpki = s->icache->get_accesses() -
       s->icache->get_hits();
-    mpki *= (1000.0 / s->icnt);
+    mpki *= (1000.0 / (s->icnt - init_icnt));
     printf("icache: %lu bytes, %lu hits, %lu total, %g mpki\n",
 	   s->icache->get_size(),
 	   s->icache->get_hits(),
