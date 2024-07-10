@@ -21,6 +21,9 @@ static uint64_t curr_pc = 0;
 static uint64_t last_tval = 0;
 static std::stack<int64_t> calls;
 
+static bool tracing_armed = false;
+static uint64_t tracing_start_icnt = 0;
+
 void dump_calls() {
   int cnt = 0;
   while(!calls.empty() && (cnt < 5)) {
@@ -1469,8 +1472,13 @@ void execRiscv(state_t *s) {
 	      case 0x0:
 		s->gpr[m.r.rd] = s->gpr[m.r.rs1] | s->gpr[m.r.rs2];
 		if((m.r.rd == m.r.rs1) and (m.r.rs1 == m.r.rs2)) {
+		  if(tracing_armed) {
+		    s->brk = 1;
+		    std::cout << "ran for " << (s->icnt - tracing_start_icnt) << " insns\n";
+		  }
+		  tracing_armed = true;
+		  tracing_start_icnt = s->icnt;
 		  std::cout << ">>>> or with all regs equal\n";
-		  s->brk = 1;
 		  //exit(-1);
 		}
 		break;
