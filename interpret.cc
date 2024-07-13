@@ -44,8 +44,10 @@ void initState(state_t *s) {
 
 uint64_t mtimecmp_cnt = 0;
 
+//100 mhz and 1 IPC
+//inst = (cycles/time) * (inst/cycle)
 int64_t state_t::get_time() const {
-  return icnt >> 30;
+  return icnt;
 }
 
 bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
@@ -75,7 +77,7 @@ bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
 	  //std::cout << mtimecmp_cnt << "\n";
 	  ++mtimecmp_cnt;
 	  //dump_calls();
-	  printf(">> mtimecmp = %ld at icnt %ld\n", mtimecmp, icnt);
+	  //printf(">> mtimecmp = %ld at icnt %ld\n", mtimecmp, icnt);
 	  csr_t cc(mip);
 	  cc.mie.mtie = 0;
 	  mip = cc.raw;	  
@@ -674,9 +676,10 @@ void execRiscv(state_t *s) {
 
   csr_t c(s->mie);
   //if(c.mie.mtie) {
-  //printf("s->icnt = %lu\n", s->icnt);
-  //exit(-1);
+  //std::cout << "(s->get_time() = " << s->get_time() << "\n";
+  //std::cout << "s->mtimecmp = "<< s->mtimecmp << "\n";
   //}
+  
   if(s->get_time() >= s->mtimecmp) {
     csr_t cc(0);
     cc.mip.mtip = 1;
@@ -687,7 +690,7 @@ void execRiscv(state_t *s) {
   
   irq = take_interrupt(s);
   if(irq) {
-    //printf(">> taking nterrupt, irq %ld, time %ld, mtimecmp %ld <<\n",
+    //printf(">> taking interrupt, irq %ld, time %ld, mtimecmp %ld <<\n",
     //irq, s->get_time(), s->mtimecmp);
     except_cause = CAUSE_INTERRUPT | irq;
     goto handle_exception;
