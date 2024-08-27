@@ -19,7 +19,7 @@
 #include "globals.hh"
 #include "fdt.hh"
 
-static const char cmdline[] = "debug keep_bootcon bootmem_debug console=ttyS0";
+static const char cmdline[] = "debug keep_bootcon bootmem_debug console=csr_console";
 
 
 #define AMT (1<<24)
