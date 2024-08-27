@@ -1461,6 +1461,10 @@ void execRiscv(state_t *s) {
 		*reinterpret_cast<uint64_t*>(&s->gpr[m.r.rd]) = u_rs2==0 ? (~0UL) : (u_rs1 / u_rs2);
 		break;
 	      }
+	      case 0x7: {
+		s->gpr[m.r.rd] = s->gpr[m.r.rs2]==0 ? 0 : s->gpr[m.r.rs1];
+		break;
+	      }		
 	      case 0x20: /* sra */
 		s->gpr[rd] = s->gpr[m.r.rs1] >> (s->gpr[m.r.rs2] & (s->xlen()-1));
 		break;
@@ -1509,6 +1513,10 @@ void execRiscv(state_t *s) {
 		//std::cout << std::hex << u_rs1 << std::dec << "\n";
 		//std::cout << std::hex << u_rs2 << std::dec << "\n";
 		//std::cout << std::hex << (u_rs1 % u_rs2) << std::dec << "\n";
+		break;
+	      }
+	      case 0x7: {
+		s->gpr[m.r.rd] = s->gpr[m.r.rs2]!=0 ? 0 : s->gpr[m.r.rs1];
 		break;
 	      }
 	      default:
