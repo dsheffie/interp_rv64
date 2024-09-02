@@ -625,7 +625,7 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       std::cout << (char)(v&0xff);
       break;
     case 0xc04:
-      //s->brk = v&1;
+      s->brk = v&1;
       //if(s->brk) {
       //std::cout << "you have panicd linux, game over\n";
       //}
