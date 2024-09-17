@@ -270,6 +270,27 @@ union riscv_t {
   riscv_t(uint32_t x) : raw(x) {}
 };
 
+struct rvcj_t {
+  uint16_t lop : 2;
+  uint16_t imm5 : 1;
+  uint16_t imm31 : 3;
+  uint16_t imm7 : 1;
+  uint16_t imm6 : 1;
+  uint16_t imm10 : 1;
+  uint16_t imm98 : 2;
+  uint16_t imm4 : 1;
+  uint16_t imm11 : 1;
+  uint16_t hop : 3;
+};
+
+union rvc_t {
+  rvcj_t j;
+  uint16_t raw;  
+  rvc_t(uint16_t x) : raw(x) {}
+};
+
+
+
 struct mstatus_t {
   uint64_t j0 : 1;
   uint64_t sie : 1;

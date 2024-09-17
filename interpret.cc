@@ -779,6 +779,32 @@ void execRiscv(state_t *s) {
       case 0:
 	switch(sel)
 	  {
+	  case 2: { /* c.lw */
+	    int rd = ((inst>>2) & 7) + 8;
+	    int rs1 = ((inst>>7) & 7) + 8;
+	    /* data in rs2, rs1 used for addr */
+	    //printf("rs1 = %d, rs2 = %d\n", rs1, rs2);
+	    uint32_t uimm26 = (inst>>5)&3;
+	    uint32_t uimm53 = (inst>>10)&7;
+	    uint32_t disp = (uimm26>>1) | (uimm53 << 1) | ((uimm26&1) << 4);
+	    //printf("disp = %u\n", disp);	    
+	    disp <<= 2;
+	    //printf("disp = %u\n", disp);
+	    assert(disp == 0);
+	    int64_t ea = disp + s->gpr[rs1];
+	    int fault;
+	    int64_t pa = s->translate(ea, fault, 4, false);	    
+	    if(fault) {
+	      except_cause = CAUSE_LOAD_PAGE_FAULT;
+	      tval = ea;
+	      goto handle_exception;
+	    }
+	    s->sext_xlen( s->load32(pa), rd);	    
+	    ok = true;
+	    s->pc += 2;
+	    break;
+	  }
+	
 	  case 6: { /* c.sw */
 	    int rs2 = ((inst>>2) & 7) + 8;
 	    int rs1 = ((inst>>7) & 7) + 8;
@@ -793,13 +819,13 @@ void execRiscv(state_t *s) {
 	    assert(disp == 0);
 	    int64_t ea = disp + s->gpr[rs1];
 	    int fault;
-	    int64_t pa = s->translate(ea, fault, 8, true);	    
+	    int64_t pa = s->translate(ea, fault, 4, true);	    
 	    if(fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = ea;
 	      goto handle_exception;
 	    }
-	    s->store64(pa, s->gpr[rs2]);
+	    s->store32(pa, s->gpr[rs2]);
 	    ok = true;
 	    s->pc += 2;
 	    break;
@@ -825,7 +851,7 @@ void execRiscv(state_t *s) {
 	  case 1: { /* c.jal or c.addiw */
 	    int rd = (inst>>7)&31;
 	    if(rd==0) { /* c.jal */
-
+	      
 	    }
 	    else { /* c.addiw */
 	      int simm32 = (((inst >> 12)&1)<<5) | ((inst >> 2) & 31);
@@ -850,7 +876,19 @@ void execRiscv(state_t *s) {
 	  }
 	  case 5: { /* c.j */
 	    /* offset[11|4|9:8|10|6|7|3:1|5 */
-	    uint32_t offs = (inst>>2) & 2047;
+	    rvc_t c(inst);
+	    int32_t imm = 0;
+	    imm = c.j.imm31 << 1;
+	    imm |= c.j.imm4 << 4;
+	    imm |= c.j.imm5 << 5;
+	    imm |= c.j.imm6 << 6;
+	    imm |= c.j.imm7 << 7;
+	    imm |= c.j.imm98 << 8;
+	    imm |= c.j.imm10 << 10;
+	    imm |= c.j.imm11 << 11;
+	    imm = (imm << 20) >> 20;
+	    s->pc += imm;
+	    ok = true;
 	    break;
 	  }
 	  default:
