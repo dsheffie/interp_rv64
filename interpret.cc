@@ -770,8 +770,157 @@ void execRiscv(state_t *s) {
 
 
   if(lop != 3) { /* compressed instructions generate exceptions */
+    int sel = ((inst>>13)&7);
+    std::cout << "lop " << lop <<  ", sel " << sel << "\n";
+    bool ok = false;
+    inst &= 65535;
+    switch(lop)
+      {
+      case 0:
+	switch(sel)
+	  {
+	  case 6: { /* c.sw */
+	    int rs2 = ((inst>>2) & 7) + 8;
+	    int rs1 = ((inst>>7) & 7) + 8;
+	    /* data in rs2, rs1 used for addr */
+	    //printf("rs1 = %d, rs2 = %d\n", rs1, rs2);
+	    uint32_t uimm26 = (inst>>5)&3;
+	    uint32_t uimm53 = (inst>>10)&7;
+	    uint32_t disp = (uimm26>>1) | (uimm53 << 1) | ((uimm26&1) << 4);
+	    //printf("disp = %u\n", disp);	    
+	    disp <<= 2;
+	    //printf("disp = %u\n", disp);
+	    assert(disp == 0);
+	    int64_t ea = disp + s->gpr[rs1];
+	    int fault;
+	    int64_t pa = s->translate(ea, fault, 8, true);	    
+	    if(fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = ea;
+	      goto handle_exception;
+	    }
+	    s->store64(pa, s->gpr[rs2]);
+	    ok = true;
+	    s->pc += 2;
+	    break;
+	  }
+	  default:
+	    break;
+	  }
+	break;
+      case 1:
+	switch(sel)
+	  {
+	  case 0: { /* c.addi */
+	    int rd = (inst>>7)&31;
+	    int simm32 = (((inst >> 12)&1)<<5) | ((inst >> 2) & 31);
+	    simm32 = (simm32<<26) >> 26;
+	    if(rd) {
+	      s->sext_xlen(s->gpr[rd] + static_cast<int64_t>(simm32), rd);
+	    }
+	    ok = true;
+	    s->pc += 2;
+	    break;
+	  }
+	  case 1: { /* c.jal or c.addiw */
+	    int rd = (inst>>7)&31;
+	    if(rd==0) { /* c.jal */
+
+	    }
+	    else { /* c.addiw */
+	      int simm32 = (((inst >> 12)&1)<<5) | ((inst >> 2) & 31);
+	      simm32 = (simm32<<26) >> 26;
+	      int32_t r = simm32 + *reinterpret_cast<int32_t*>(&s->gpr[rd]);
+	      s->sext_xlen(r, rd);
+	      s->pc += 2;
+	      ok = true;
+	    }
+	    break;
+	  }
+	  case 2: { /* c.li */
+	    int rd = (inst>>7)&31;
+	    int simm32 = (((inst >> 12)&1)<<5) | ((inst >> 2) & 31);
+	    simm32 = (simm32<<26) >> 26;
+	    if(rd) {
+	      s->sext_xlen(static_cast<int64_t>(simm32), rd);
+	    }
+	    s->pc += 2;
+	    ok = true;
+	    break;
+	  }
+	  case 5: { /* c.j */
+	    /* offset[11|4|9:8|10|6|7|3:1|5 */
+	    uint32_t offs = (inst>>2) & 2047;
+	    break;
+	  }
+	  default:
+	    break;
+	  }
+	break;
+      case 2:
+	switch(sel)
+	  {
+	  case 4: /* c.jr, c.mv, c.ebreak, c.jalr, c.add */{
+	    int rs2 = (inst>>2) & 31;
+	    int rd = (inst>>7) & 31;
+	    if((inst>>12) & 1) {
+	      if(rd!=0 && rs2!=0) { /* c.add */
+		ok = true;
+		s->sext_xlen(s->gpr[rd] + s->gpr[rs2], rd);		
+		s->pc += 2;
+	      }
+	    }
+	    else {
+	      if(rd!=0 && rs2!=0) { /* reg-reg mv */
+		ok = true;
+		s->gpr[rd] = s->gpr[rs2];
+		s->pc += 2;
+	      }
+	    }
+	    break;
+	  }
+	  case 7: { /* SDSP */
+	    int rs2 = (inst >> 2) & 31;
+	    uint32_t ds = (inst >> 7) & 63;
+	    uint32_t hi = ds & 7;
+	    uint32_t lo = (ds>>3) & 7;
+	    uint32_t d = ((hi<<3) | lo)<<3;
+	    int64_t ea = d + s->gpr[2];
+	    int fault;
+	    int64_t pa = s->translate(ea, fault, 8, true);	    
+	    if(fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = ea;
+	      goto handle_exception;
+	    }
+	    s->store64(pa, s->gpr[rs2]);
+	    s->pc += 2;
+	    ok = true;
+	    break;
+	  }
+	  default:
+	    break;
+	  }
+	break;
+      default:
+	break;
+      }
+
+    if(ok) {
+      goto instruction_complete;
+    }
+    
     except_cause = CAUSE_ILLEGAL_INSTRUCTION;
     tval = s->pc;
+    std::cout << std::hex << s->pc << std::dec
+	      << " : " << getAsmString(inst, s->pc)
+	      << " , raw " << std::hex
+	      << inst
+	      << std::dec
+	      << " , icnt " << s->icnt
+	      << " ,  priv " << s->priv
+	      << "\n";
+    
     goto handle_exception;
   }
 
@@ -830,6 +979,32 @@ void execRiscv(state_t *s) {
 	s->pc += 4;
 	break;
       }
+    }
+    case 0xb: {
+      /* davids hacks */
+      if(m.r.rd) {
+	switch(m.r.special) {
+	case 0x2: {/* lwx */
+	  int64_t ea = s->gpr[m.r.rs1] + s->gpr[m.r.rs2];
+	  int page_fault = 0;
+	  int64_t pa = s->translate(ea, page_fault, 4);
+	  if(page_fault) {
+	    except_cause = CAUSE_LOAD_PAGE_FAULT;
+	    tval = ea;
+	    //std::cout << "ea = " << std::hex << ea << std::dec << " causes ld pf\n";
+	    //std::cout << "pa = " << std::hex << pa << std::dec << "\n";
+	    //std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
+	    goto handle_exception;
+	  }
+	  s->sext_xlen( s->load32(pa), m.r.rd);	  
+	  break;
+	}
+	default:
+	  assert(false);
+	}
+      }
+      s->pc += 4;      
+      break;
     }
     case 0xf:/* fence - there's a bunch of 'em */
       s->pc += 4;
@@ -1778,7 +1953,7 @@ void execRiscv(state_t *s) {
       break;
     }
 
-  
+ instruction_complete:
   s->icnt++;
   return;
   
