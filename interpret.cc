@@ -623,6 +623,7 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       /* linux hacking */
     case 0xc03:
       std::cout << (char)(v&0xff);
+      std::fflush(nullptr);
       break;
     case 0xc04:
       s->brk = v&1;
@@ -647,7 +648,9 @@ void execRiscv(state_t *s) {
   int64_t irq = 0;
   riscv_t m(0);
   curr_pc = s->pc;
-
+  //if(curr_pc == 0x1ea88L){
+  //  printf("icnt %lu, pc %lx, ra %lx\n", s->icnt, s->pc, s->gpr[1]);
+  //}
   //if(not(s->icnt % (1UL<<24))) {
   //printf("icnt %lu, pc %lx\n", s->icnt, s->pc);
   //}
@@ -718,6 +721,18 @@ void execRiscv(state_t *s) {
   m.raw = inst;
   opcode = inst & 127;
 
+#if 0
+  if( (s->icnt % (1UL<<28)) == 0 ) {
+    std::cout << std::hex << s->pc << std::dec
+	      << " : " << getAsmString(inst, s->pc)
+	      << " , raw " << std::hex
+	      << inst
+	      << std::dec
+	      << " , icnt " << s->icnt
+	      << " ,  priv " << s->priv
+	      << "\n";
+  }
+#endif  
   
   if(s->priv == priv_machine) {
     tohost = *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr);
@@ -999,6 +1014,10 @@ void execRiscv(state_t *s) {
 	    break;
 	  case 0x3: /* ld */
 	    s->gpr[m.l.rd] = s->load64(pa);
+	    //if(s->pc == 0x1ea70UL) {
+	    //printf("loaded %lx from pa %lx, ea %lx\n", s->gpr[m.l.rd], pa, ea);
+	    //}
+	    
 	    break;
 	  case 0x4:/* lbu */
 	    s->gpr[m.l.rd] = s->load8u(pa);
@@ -1597,6 +1616,8 @@ void execRiscv(state_t *s) {
 	      case 0x1: /* mul */
 		s->gpr[m.r.rd] = s->gpr[m.r.rs1] * s->gpr[m.r.rs2];
 		break;
+	      case 0x4:
+		assert(false);
 	      case 0x20: /* sub */
 		s->sext_xlen(s->gpr[m.r.rs1] - s->gpr[m.r.rs2], m.r.rd);		
 		break;
@@ -1709,9 +1730,14 @@ void execRiscv(state_t *s) {
 		else {
 		  s->gpr[m.r.rd] = s->gpr[m.r.rs1] % s->gpr[m.r.rs2];
 		}
-		break;		
+		break;
+	      case 0x10: {
+		s->gpr[m.r.rd] = s->gpr[m.r.rs2] + (s->gpr[m.r.rs1] << 3);
+		break;
+	      }
 	      default:
 		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
+		printf("pc = %lx\n", s->pc);
 		assert(0);
 	      }
 	    break;
@@ -2089,6 +2115,7 @@ void runRiscv(state_t *s, uint64_t dumpIcnt) {
     //printf("should dump but priv is %d at pc %lx\n",
     //s->priv, s->pc);
     //}
+
     
     keep_going = (s->brk==0) and
       (s->icnt < s->maxicnt) and
