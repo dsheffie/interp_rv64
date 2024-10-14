@@ -27,35 +27,11 @@ void direct_mapped_cache::access(addr_t ea, uint64_t icnt, uint64_t pc) {
     size_t idx = (ea >> CL_LEN) & ((1U<<lg2_lines)-1);
     accesses++;
     cnts[idx]++;
-
-    conflicts[idx][ea & (~(get_line_size()-1))]++;
     
     if(tags[idx] == ea) {
       hits++;
-      last_accessed[idx] = icnt;
     }
-    else {
-      /* save addr in victim buffer */
-      vb_tags[vb_x & ((1U<<lg_vb_sz)-1)] = tags[idx];
 
-      bool found_in_vb = false;
-      for(uint32_t i = 0; i < (1U<<lg_vb_sz); i++) {
-	if(vb_tags[i] == ea) {
-	  found_in_vb = true;
-	  break;
-	}
-      }
-      if(found_in_vb) hits++;
-      tags[idx] = ea;
-	
-      vb_x ^= vb_x << 13;
-      vb_x ^= vb_x >> 17;
-      vb_x ^= vb_x << 5;
-      
-      dead_time += (icnt-last_accessed[idx]);
-      total_time += (icnt-first_accessed[idx]);
-      first_accessed[idx] = last_accessed[idx] = icnt;
-    }
 }
 
 nway_cache::nway_cache(size_t nways, size_t lg2_lines) :

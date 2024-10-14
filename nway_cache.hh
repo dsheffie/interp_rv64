@@ -61,7 +61,6 @@ private:
   addr_t *tags;
   addr_t *vb_tags;
   uint64_t *cnts;
-  std::map<uint64_t, std::map<uint64_t, uint64_t>> conflicts;
   uint64_t *first_accessed;
   uint64_t *last_accessed;
 public:
