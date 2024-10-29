@@ -353,7 +353,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     store64(a, r.r);
   }
   if((r.sv39.d == 0) && store) {
-    printf("marking %lx dirty\n", ea & (~4095UL));
+    //printf("marking %lx dirty\n", ea & (~4095UL));
     //abort();
     r.sv39.d = 1;
     if(dcache) {
@@ -1850,7 +1850,7 @@ void execRiscv(state_t *s) {
       }
       else if(bits19to7z and (csr_id == 0x105)) {  /* wfi */
 	//globals::log = 1;
-	s->pc += 4;
+	break;
       }
       else if(bits19to7z and (csr_id == 0x002)) {  /* uret */
 	assert(false);
