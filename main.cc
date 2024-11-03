@@ -47,6 +47,13 @@ branch_trace* globals::branch_tracer = nullptr;
 
 static state_t *s = nullptr;
 
+void catchUnixSignal(int n) {
+  if(s) {
+    std::cout << "caught SIGINT at icnt "
+	      << s->icnt << "\n";
+  }
+  exit(-1);
+}
 
 static int buildArgcArgv(const char *filename, const std::string &sysArgs, char **&argv){
   int cnt = 0;
@@ -184,7 +191,7 @@ int main(int argc, char *argv[]) {
   }
 
   //globals::branch_tracer = new branch_trace("branches.trc");
-  
+  signal(SIGINT, catchUnixSignal);
   double runtime = timestamp();
   if(take_checkpoints) {
     while((s->icnt < s->maxicnt) and not(s->brk)) {
