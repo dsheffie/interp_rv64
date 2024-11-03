@@ -150,6 +150,12 @@ int main(int argc, char *argv[]) {
   assert(mempt != reinterpret_cast<void*>(-1));
   assert(madvise(mempt, 1UL<<32, MADV_DONTNEED)==0);
   s->mem = reinterpret_cast<uint8_t*>(mempt);
+
+  bool fileIsDump = false;
+  if(not(filename.empty())) {
+    fileIsDump = isDump(filename);
+  }
+  
   if(s->mem == nullptr) {
     std::cerr << "INTERP : couldn't allocate backing memory!\n";
     exit(-1);
@@ -159,7 +165,7 @@ int main(int argc, char *argv[]) {
     globals::tohost_addr = strtol(tohost.c_str(), nullptr, 16);
     globals::fromhost_addr = strtol(fromhost.c_str(), nullptr, 16);
   }
-  else if(load_dump) {
+  else if(load_dump or fileIsDump) {
     loadState(*s, filename.c_str());
     globals::tohost_addr = strtol(tohost.c_str(), nullptr, 16);
     globals::fromhost_addr = strtol(fromhost.c_str(), nullptr, 16);

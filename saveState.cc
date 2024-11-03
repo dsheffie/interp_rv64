@@ -132,6 +132,23 @@ void dumpState(const state_t &s, const std::string &filename) {
   close(fd);
 }
 
+bool isDump(const std::string &filename) {
+  bool rc = false;
+  int fd = ::open(filename.c_str(), O_RDONLY, 0600);
+  if(fd == -1) {
+    return false;
+  }
+  header h;
+  size_t sz = read(fd, &h, sizeof(h));
+  if(sz != sizeof(h)) {
+    goto done;
+  }
+  rc = (h.magic == MAGIC_NUM);
+ done:
+  close(fd);
+  return rc;
+}
+
 void loadState(state_t &s, const std::string &filename) {
   int fd = ::open(filename.c_str(), O_RDONLY, 0600);
   assert(fd != -1);

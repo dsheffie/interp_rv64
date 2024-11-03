@@ -8,5 +8,6 @@
 
 void dumpState(const state_t &s, const std::string &filename);
 void loadState(state_t &s, const std::string &filename);
+bool isDump(const std::string &filename);
 
 #endif
