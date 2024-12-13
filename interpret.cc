@@ -56,11 +56,11 @@ bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
     return vio->handle(pa, store, x);
   }
   if(pa >= UART_BASE_ADDR and (pa < (UART_BASE_ADDR + UART_SIZE))) {
-    printf(">> %s uart range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-UART_BASE_ADDR);
+    //printf(">> %s uart range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-UART_BASE_ADDR);
     return u8250->handle(pa, store, x);
   }
   if(pa >= PLIC_BASE_ADDR and (pa < (PLIC_BASE_ADDR + PLIC_SIZE))) {
-    printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
+    // printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
     //exit(-1);
     return true;
   }
@@ -448,9 +448,8 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
   undef = false;
   switch(csr_id)
     {
-    case 0x100: {
+    case 0x100:
       return s->mstatus & 0x3000de133UL;
-    }
     case 0x104:
       return s->mie & s->mideleg;
     case 0x105:
@@ -479,6 +478,8 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
       return s->mie;
     case 0x305:
       return s->mtvec;
+    case 0x306:
+      return s->mcounteren;
     case 0x340:
       return s->mscratch;
     case 0x341:
@@ -489,8 +490,10 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
       return s->mtvec;
     case 0x344:
       return s->mip;
+    case 0x3a0:
+      return s->pmpcfg0;
     case 0x3b0:
-      return s->pmpaddr0;      
+      return s->pmpaddr0;
     case 0x3b1:
       return s->pmpaddr1;      
     case 0x3b2:
@@ -500,21 +503,23 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
     case 0xc00:
       return s->icnt;
     case 0xc01:
-      return s->get_time();
-    case 0xc02:
-      return s->icnt;
+      //return csr_time;
+      return 0;
     case 0xc03:
+      return 0;
+    case 0xf11:
+    case 0xf12:
+    case 0xf13:
       return 0;
     case 0xf14:
       return s->mhartid;      
     default:
       printf("rd csr id 0x%x unimplemented, pc %lx\n", csr_id, s->pc);
-      //undef = true;
+      undef = true;
       break;
     }
   return 0;
 }
-
 
 static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
   undef = false;
@@ -522,15 +527,13 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
   switch(csr_id)
     {
     case 0x100:
-      //printf("writing sstatus at pc %lx\n", s->pc);
-      s->mstatus = (v & 0x0000de133UL) | ((s->mstatus & (~0x000de133UL)));
-      assert( ((s->mstatus >> MSTATUS_UXL_SHIFT) & 3) == 2);
+      //printf("%lx writes %lx, old %lx\n", s->pc, v, s->mstatus);
+      s->mstatus = (v & 0x000de133UL) | ((s->mstatus & (~0x000de133UL)));
       break;
     case 0x104:
-      s->mie = (s->mie & ~(s->mideleg)) | (v & s->mideleg);      
+      s->mie = (s->mie & ~(s->mideleg)) | (v & s->mideleg);
       break;
     case 0x105:
-      assert((v&3)  == 0);
       s->stvec = v;
       break;
     case 0x106:
@@ -546,23 +549,17 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       s->scause = v;
       break;
     case 0x143:
-      s->stval = v;
+      s->stvec = v;
       break;
-    case 0x144: {
-      s->mip = (s->mip & ~(s->mideleg)) | (v & s->mideleg);
-      if(s->mip != v) {
-	printf("mip changes to %lx at %lx\n", v, s->pc);
-	csr_t c(v);
-	std::cout << c.mie << "\n";
-      }            
+    case 0x144:
+      s->mip = (s->mip & ~(s->mideleg)) | (v & s->mideleg);      
       break;
-    }
     case 0x180:
       if(c.satp.mode == 8 &&
 	 c.satp.asid == 0) {
 	s->satp = v;
-	//printf("tlb had %lu entries\n", tlb.size());
-	clear_tlb();	
+	////printf("tlb had %lu entries\n", tlb.size());
+	//tlb.clear();	
       }
       break;
     case 0x300:
@@ -578,11 +575,6 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       s->mideleg = v;
       break;
     case 0x304:
-      //if(s->mie != v) {
-      //printf("mie changes to %lx at %lx\n", v, s->pc);
-      //csr_t c(v);
-      //std::cout << c.mie << "\n";
-      //}
       s->mie = v;
       break;
     case 0x305:
@@ -604,29 +596,24 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       s->pmpcfg0 = v;
       break;
     case 0x3b0:
-      //printf("pmpaddr0 set to %lx\n", v);
       s->pmpaddr0 = v;
       break;
     case 0x3b1:
-      //printf("pmpaddr1 set to %lx\n", v);
       s->pmpaddr1 = v;
       break;
     case 0x3b2:
-      //printf("pmpaddr2 set to %lx\n", v);
       s->pmpaddr2 = v;
       break;
     case 0x3b3:
-      //printf("pmpaddr3 set to %lx\n", v);
       s->pmpaddr3 = v;
       break;
 
       /* linux hacking */
     case 0xc03:
       std::cout << (char)(v&0xff);
-      std::fflush(nullptr);
       break;
     case 0xc04:
-      s->brk = v&1;
+      //s->brk = v&1;
       //if(s->brk) {
       //std::cout << "you have panicd linux, game over\n";
       //}
@@ -988,8 +975,17 @@ void execRiscv(state_t *s) {
 	int64_t disp64 = disp;
 	int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.l.rs1];
 	int sz = 1<<(m.s.sel & 3);
-	
 	int page_fault = 0;
+	bool unaligned = (ea & (sz-1)) != 0;
+	if(unaligned) {
+	  printf("WARN : unaligned load fault (pc %lx) for ea %lx, sz = %d\n",
+		 s->pc, ea, sz);
+	  //except_cause = CAUSE_MISALIGNED_LOAD;
+	  //tval = ea;
+	  //goto handle_exception;
+	}
+	
+
 	int64_t pa = s->translate(ea, page_fault, sz);
 	  
 	if(page_fault) {
@@ -2020,6 +2016,18 @@ void execRiscv(state_t *s) {
  instruction_complete:
   s->icnt++;
   return;
+
+ report_unimplemented:  
+  except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+  tval = s->pc;
+  std::cout << std::hex << s->pc << std::dec                                                                                                                    
+	    << " : " << getAsmString(inst, s->pc)    
+	    << " "
+	    << inst 
+	    << std::dec
+	    << " , icnt " << s->icnt                                                                                                                              
+	    << "\n";
+
   
  handle_exception: {
     bool delegate = false;
@@ -2087,15 +2095,15 @@ void execRiscv(state_t *s) {
   }
   return;
   
- report_unimplemented:
-  std::cout << std::hex << s->pc << std::dec
-	    << " : " << getAsmString(inst, s->pc)
-	    << " , raw " << std::hex
-	    << inst
-	    << std::dec
-	    << " , icnt " << s->icnt
-	    << "\n";  
-  assert(false);
+ // report_unimplemented:
+ //  std::cout << std::hex << s->pc << std::dec
+ // 	    << " : " << getAsmString(inst, s->pc)
+ // 	    << " , raw " << std::hex
+ // 	    << inst
+ // 	    << std::dec
+ // 	    << " , icnt " << s->icnt
+ // 	    << "\n";  
+ //  assert(false);
   
   
 }

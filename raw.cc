@@ -29,24 +29,25 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   int fd,rc;
   char *buf = nullptr;
   uint8_t *mem = ms->mem;
-
-  //hack linux kernel
-  fd = open("kernel.bin", O_RDONLY);
-  assert(fd != -1);
-  rc = fstat(fd, &s);
   uint64_t kern_addr = 0x200000 + 0x80000000;
   uint64_t initrd_addr = 0;
   uint64_t kern_size = 0, initrd_size = 0;
 
-#if 1
-  kern_size = s.st_size;
-  buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  for(size_t i = 0; i < s.st_size; i++) {
-    mem[kern_addr+i] = buf[i];
+  //hack linux kernel
+  fd = open("kernel.bin", O_RDONLY);
+  if(fd != -1) {
+    rc = fstat(fd, &s);
+    
+    
+    kern_size = s.st_size;
+    buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+    for(size_t i = 0; i < s.st_size; i++) {
+      mem[kern_addr+i] = buf[i];
+    }
+    munmap(buf, s.st_size);
+    close(fd);
   }
-  munmap(buf, s.st_size);
-  close(fd);
-#endif
+
 
   fd = open("initramfs.img", O_RDONLY);
   initrd_addr = ((kern_addr + kern_size + AMT - 1) / AMT) * AMT;
