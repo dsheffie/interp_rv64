@@ -503,8 +503,9 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
     case 0xc00:
       return s->icnt;
     case 0xc01:
-      //return csr_time;
-      return 0;
+       return s->get_time();
+    case 0xc02:
+      return s->icnt;
     case 0xc03:
       return 0;
     case 0xf11:
