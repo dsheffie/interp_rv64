@@ -1010,6 +1010,9 @@ void execRiscv(state_t *s) {
 	    break;
 	  case 0x3: /* ld */
 	    s->gpr[m.l.rd] = s->load64(pa);
+	    if(unaligned) {
+	      printf("unaligned data = %lx\n", s->gpr[m.l.rd]);
+	    }
 	    //if(s->pc == 0x1ea70UL) {
 	    //printf("loaded %lx from pa %lx, ea %lx\n", s->gpr[m.l.rd], pa, ea);
 	    //}

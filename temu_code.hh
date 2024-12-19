@@ -113,8 +113,6 @@ static std::array<std::string, 16> cause_reasons =
 #define MIP_HEIP (1 << 10)
 #define MIP_MEIP (1 << 11)
 
-#define RAM_BASE_ADDR  0x80000000
-
 
 #define VIRTIO_BASE_ADDR 0x40010000
 #define VIRTIO_SIZE      0x1000

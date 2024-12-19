@@ -15,6 +15,7 @@ namespace globals {
   extern bool interactive;
   extern bool fdt_uart;
   extern uint64_t fdt_ram_size;
+  extern uint64_t ram_phys_start;
   extern trace *tracer;
   extern branch_trace *branch_tracer;
   extern std::map<std::string, uint64_t> symtab;

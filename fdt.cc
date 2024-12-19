@@ -381,10 +381,10 @@ int riscv_build_fdt(uint8_t *dst,
     
     fdt_end_node(s); /* cpus */
 
-    fdt_begin_node_num(s, "memory", RAM_BASE_ADDR);
+    fdt_begin_node_num(s, "memory", globals::ram_phys_start);
     fdt_prop_str(s, "device_type", "memory");
-    tab[0] = (uint64_t)RAM_BASE_ADDR >> 32;
-    tab[1] = RAM_BASE_ADDR;
+    tab[0] = (globals::ram_phys_start >> 32);
+    tab[1] = (globals::ram_phys_start) & ((1UL<<32) - 1);
     tab[2] = ram_size >> 32;
     tab[3] = ram_size;
     fdt_prop_tab_u32(s, "reg", tab, 4);

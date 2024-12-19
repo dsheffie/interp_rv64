@@ -24,12 +24,12 @@ static const char cmdline[] = "debug keep_bootcon bootmem_debug console=csr_cons
 
 #define AMT (1<<24)
 
-void load_raw(const char* fn, state_t *ms, uint64_t where) {
+void load_raw(const char* fn, state_t *ms) {
   struct stat s;
   int fd,rc;
   char *buf = nullptr;
   uint8_t *mem = ms->mem;
-  uint64_t kern_addr = 0x200000 + 0x80000000;
+  uint64_t kern_addr = 0x200000UL + globals::ram_phys_start;
   uint64_t initrd_addr = 0;
   uint64_t kern_size = 0, initrd_size = 0;
 
@@ -69,7 +69,7 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   assert(buf != reinterpret_cast<void*>(-1L));
   
   for(size_t i = 0; i < s.st_size; i++) {
-    mem[where+i] = buf[i];
+    mem[globals::ram_phys_start+i] = buf[i];
   }
   munmap(buf, s.st_size);
 
@@ -87,7 +87,7 @@ void load_raw(const char* fn, state_t *ms, uint64_t where) {
   
 #define WRITE_WORD(EA,WORD) { *reinterpret_cast<uint32_t*>(mem + EA) = WORD; }
 
-  WRITE_WORD(0x1000, 0x297 + 0x80000000 - 0x1000); //0
+  WRITE_WORD(0x1000, 0x297 + globals::ram_phys_start - 0x1000); //0
   WRITE_WORD(0x1004, 0x597); //1
   WRITE_WORD(0x1008, 0x58593 + ((fdt_addr - 4) << 20)); //2
   WRITE_WORD(0x100c, 0xf1402573); //3
