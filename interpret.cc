@@ -56,11 +56,11 @@ bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
     return vio->handle(pa, store, x);
   }
   if(pa >= UART_BASE_ADDR and (pa < (UART_BASE_ADDR + UART_SIZE))) {
-    //printf(">> %s uart range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-UART_BASE_ADDR);
+    printf(">> %s uart range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-UART_BASE_ADDR);
     return u8250->handle(pa, store, x);
   }
   if(pa >= PLIC_BASE_ADDR and (pa < (PLIC_BASE_ADDR + PLIC_SIZE))) {
-    // printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
+    printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
     //exit(-1);
     return true;
   }
@@ -69,7 +69,7 @@ bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
     switch(pa-CLINT_BASE_ADDR)
       {
       case 0x0:
-	//printf("msip access\n");
+	printf("msip access\n");
 	break;
       case 0x4000:	
 	if(store) {
@@ -233,20 +233,6 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     if(globals::tracer and entered_user) {
       globals::tracer->add(ea, ea, fetch ? 1 : 2);      
     }
-
-    // bool ok = (ea >= globals::ram_phys_start) and
-    //   (ea < (globals::ram_phys_start + globals::fdt_ram_size));
-
-    // ok |= (ea < (1UL<<16));
-    
-    // if(not(ok))  {
-    //   std::cout << "bad untranslated address " << std::hex << ea
-    // 		<< std::dec
-    // 		<< " store " 
-    // 		<< store
-    // 		<< "\n";
-    // }
-    
     return ea;
   }  
   csr_t c(satp);
@@ -276,7 +262,6 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     else if(dcache and not(fetch)) {
       dcache->access(t_pa, icnt, pc);
     }
-    
     return t_pa;
   }
 
@@ -410,17 +395,6 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   //   printf("tlb pa = %lx\n", tlb_pa);
   //   assert(pa == tlb_pa);
   // }
-  bool ok = (pa >= globals::ram_phys_start) and
-      (pa < (globals::ram_phys_start + globals::fdt_ram_size));
-
-    if(not(ok)) {
-      std::cout << "bad translated address, va " << std::hex
-		<< ea
-		<< " , va "
-		<< pa
-		<< std::dec
-		<< "\n";
-    }
 
   return pa;
 }
@@ -474,8 +448,9 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
   undef = false;
   switch(csr_id)
     {
-    case 0x100:
+    case 0x100: {
       return s->mstatus & 0x3000de133UL;
+    }
     case 0x104:
       return s->mie & s->mideleg;
     case 0x105:
@@ -504,8 +479,6 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
       return s->mie;
     case 0x305:
       return s->mtvec;
-    case 0x306:
-      return s->mcounteren;
     case 0x340:
       return s->mscratch;
     case 0x341:
@@ -516,10 +489,8 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
       return s->mtvec;
     case 0x344:
       return s->mip;
-    case 0x3a0:
-      return s->pmpcfg0;
     case 0x3b0:
-      return s->pmpaddr0;
+      return s->pmpaddr0;      
     case 0x3b1:
       return s->pmpaddr1;      
     case 0x3b2:
@@ -529,24 +500,21 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
     case 0xc00:
       return s->icnt;
     case 0xc01:
-       return s->get_time();
+      return s->get_time();
     case 0xc02:
       return s->icnt;
     case 0xc03:
-      return 0;
-    case 0xf11:
-    case 0xf12:
-    case 0xf13:
       return 0;
     case 0xf14:
       return s->mhartid;      
     default:
       printf("rd csr id 0x%x unimplemented, pc %lx\n", csr_id, s->pc);
-      undef = true;
+      //undef = true;
       break;
     }
   return 0;
 }
+
 
 static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
   undef = false;
@@ -554,13 +522,15 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
   switch(csr_id)
     {
     case 0x100:
-      //printf("%lx writes %lx, old %lx\n", s->pc, v, s->mstatus);
-      s->mstatus = (v & 0x000de133UL) | ((s->mstatus & (~0x000de133UL)));
+      //printf("writing sstatus at pc %lx\n", s->pc);
+      s->mstatus = (v & 0x0000de133UL) | ((s->mstatus & (~0x000de133UL)));
+      assert( ((s->mstatus >> MSTATUS_UXL_SHIFT) & 3) == 2);
       break;
     case 0x104:
-      s->mie = (s->mie & ~(s->mideleg)) | (v & s->mideleg);
+      s->mie = (s->mie & ~(s->mideleg)) | (v & s->mideleg);      
       break;
     case 0x105:
+      assert((v&3)  == 0);
       s->stvec = v;
       break;
     case 0x106:
@@ -576,17 +546,23 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       s->scause = v;
       break;
     case 0x143:
-      s->stvec = v;
+      s->stval = v;
       break;
-    case 0x144:
-      s->mip = (s->mip & ~(s->mideleg)) | (v & s->mideleg);      
+    case 0x144: {
+      s->mip = (s->mip & ~(s->mideleg)) | (v & s->mideleg);
+      if(s->mip != v) {
+	printf("mip changes to %lx at %lx\n", v, s->pc);
+	csr_t c(v);
+	std::cout << c.mie << "\n";
+      }            
       break;
+    }
     case 0x180:
       if(c.satp.mode == 8 &&
 	 c.satp.asid == 0) {
 	s->satp = v;
-	////printf("tlb had %lu entries\n", tlb.size());
-	//tlb.clear();	
+	//printf("tlb had %lu entries\n", tlb.size());
+	clear_tlb();	
       }
       break;
     case 0x300:
@@ -602,6 +578,11 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       s->mideleg = v;
       break;
     case 0x304:
+      //if(s->mie != v) {
+      //printf("mie changes to %lx at %lx\n", v, s->pc);
+      //csr_t c(v);
+      //std::cout << c.mie << "\n";
+      //}
       s->mie = v;
       break;
     case 0x305:
@@ -623,24 +604,29 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       s->pmpcfg0 = v;
       break;
     case 0x3b0:
+      //printf("pmpaddr0 set to %lx\n", v);
       s->pmpaddr0 = v;
       break;
     case 0x3b1:
+      //printf("pmpaddr1 set to %lx\n", v);
       s->pmpaddr1 = v;
       break;
     case 0x3b2:
+      //printf("pmpaddr2 set to %lx\n", v);
       s->pmpaddr2 = v;
       break;
     case 0x3b3:
+      //printf("pmpaddr3 set to %lx\n", v);
       s->pmpaddr3 = v;
       break;
 
       /* linux hacking */
     case 0xc03:
       std::cout << (char)(v&0xff);
+      std::fflush(nullptr);
       break;
     case 0xc04:
-      //s->brk = v&1;
+      s->brk = v&1;
       //if(s->brk) {
       //std::cout << "you have panicd linux, game over\n";
       //}
@@ -979,9 +965,6 @@ void execRiscv(state_t *s) {
     
     except_cause = CAUSE_ILLEGAL_INSTRUCTION;
     tval = s->pc;
-    printf("s->pc = %lx\n", s->pc);
-    std::cout << *s;
-    exit(-1);    
     std::cout << std::hex << s->pc << std::dec
 	      << " : " << getAsmString(inst, s->pc)
 	      << " , raw " << std::hex
@@ -990,6 +973,7 @@ void execRiscv(state_t *s) {
 	      << " , icnt " << s->icnt
 	      << " ,  priv " << s->priv
 	      << "\n";
+    
     goto handle_exception;
   }
 
@@ -1004,17 +988,8 @@ void execRiscv(state_t *s) {
 	int64_t disp64 = disp;
 	int64_t ea = ((disp64 << 32) >> 32) + s->gpr[m.l.rs1];
 	int sz = 1<<(m.s.sel & 3);
-	int page_fault = 0;
-	bool unaligned = (ea & (sz-1)) != 0;
-	if(unaligned) {
-	  printf("WARN : unaligned load fault (pc %lx) for ea %lx, sz = %d\n",
-		 s->pc, ea, sz);
-	  //except_cause = CAUSE_MISALIGNED_LOAD;
-	  //tval = ea;
-	  //goto handle_exception;
-	}
 	
-
+	int page_fault = 0;
 	int64_t pa = s->translate(ea, page_fault, sz);
 	  
 	if(page_fault) {
@@ -1039,9 +1014,6 @@ void execRiscv(state_t *s) {
 	    break;
 	  case 0x3: /* ld */
 	    s->gpr[m.l.rd] = s->load64(pa);
-	    if(unaligned) {
-	      printf("unaligned data = %lx\n", s->gpr[m.l.rd]);
-	    }
 	    //if(s->pc == 0x1ea70UL) {
 	    //printf("loaded %lx from pa %lx, ea %lx\n", s->gpr[m.l.rd], pa, ea);
 	    //}
@@ -2048,17 +2020,6 @@ void execRiscv(state_t *s) {
  instruction_complete:
   s->icnt++;
   return;
-
- report_unimplemented:  
-  except_cause = CAUSE_ILLEGAL_INSTRUCTION;
-  tval = s->pc;
-  std::cout << std::hex << s->pc << std::dec                                                                                                                    
-	    << " : " << getAsmString(inst, s->pc)    
-	    << " "
-	    << inst 
-	    << std::dec
-	    << " , icnt " << s->icnt                                                                                                                              
-	    << "\n";
   
  handle_exception: {
     bool delegate = false;
@@ -2126,15 +2087,15 @@ void execRiscv(state_t *s) {
   }
   return;
   
- // report_unimplemented:
- //  std::cout << std::hex << s->pc << std::dec
- // 	    << " : " << getAsmString(inst, s->pc)
- // 	    << " , raw " << std::hex
- // 	    << inst
- // 	    << std::dec
- // 	    << " , icnt " << s->icnt
- // 	    << "\n";  
- //  assert(false);
+ report_unimplemented:
+  std::cout << std::hex << s->pc << std::dec
+	    << " : " << getAsmString(inst, s->pc)
+	    << " , raw " << std::hex
+	    << inst
+	    << std::dec
+	    << " , icnt " << s->icnt
+	    << "\n";  
+  assert(false);
   
   
 }
@@ -2150,11 +2111,6 @@ void runRiscv(state_t *s, uint64_t dumpIcnt) {
     execRiscv(s);
     bool dump = (s->icnt >= dumpIcnt) and (s->priv == 0);
 
-    // if(*(int*)(s->mem + 400000) == 0) {
-    //   std::cout << "ZERO NOW\n";
-    //   return;
-    // }
-    
     //if(not(dump) and (s->icnt >= dumpIcnt)) {
     //printf("should dump but priv is %d at pc %lx\n",
     //s->priv, s->pc);
