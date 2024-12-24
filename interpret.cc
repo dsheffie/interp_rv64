@@ -69,7 +69,7 @@ bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
     switch(pa-CLINT_BASE_ADDR)
       {
       case 0x0:
-	printf("msip access\n");
+	//printf("msip access\n");
 	break;
       case 0x4000:	
 	if(store) {
@@ -233,6 +233,20 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     if(globals::tracer and entered_user) {
       globals::tracer->add(ea, ea, fetch ? 1 : 2);      
     }
+
+    // bool ok = (ea >= globals::ram_phys_start) and
+    //   (ea < (globals::ram_phys_start + globals::fdt_ram_size));
+
+    // ok |= (ea < (1UL<<16));
+    
+    // if(not(ok))  {
+    //   std::cout << "bad untranslated address " << std::hex << ea
+    // 		<< std::dec
+    // 		<< " store " 
+    // 		<< store
+    // 		<< "\n";
+    // }
+    
     return ea;
   }  
   csr_t c(satp);
@@ -262,6 +276,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     else if(dcache and not(fetch)) {
       dcache->access(t_pa, icnt, pc);
     }
+    
     return t_pa;
   }
 
@@ -395,6 +410,17 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   //   printf("tlb pa = %lx\n", tlb_pa);
   //   assert(pa == tlb_pa);
   // }
+  bool ok = (pa >= globals::ram_phys_start) and
+      (pa < (globals::ram_phys_start + globals::fdt_ram_size));
+
+    if(not(ok)) {
+      std::cout << "bad translated address, va " << std::hex
+		<< ea
+		<< " , va "
+		<< pa
+		<< std::dec
+		<< "\n";
+    }
 
   return pa;
 }
@@ -953,6 +979,9 @@ void execRiscv(state_t *s) {
     
     except_cause = CAUSE_ILLEGAL_INSTRUCTION;
     tval = s->pc;
+    printf("s->pc = %lx\n", s->pc);
+    std::cout << *s;
+    exit(-1);    
     std::cout << std::hex << s->pc << std::dec
 	      << " : " << getAsmString(inst, s->pc)
 	      << " , raw " << std::hex
@@ -961,7 +990,6 @@ void execRiscv(state_t *s) {
 	      << " , icnt " << s->icnt
 	      << " ,  priv " << s->priv
 	      << "\n";
-    
     goto handle_exception;
   }
 
@@ -2031,7 +2059,6 @@ void execRiscv(state_t *s) {
 	    << std::dec
 	    << " , icnt " << s->icnt                                                                                                                              
 	    << "\n";
-
   
  handle_exception: {
     bool delegate = false;
@@ -2123,6 +2150,11 @@ void runRiscv(state_t *s, uint64_t dumpIcnt) {
     execRiscv(s);
     bool dump = (s->icnt >= dumpIcnt) and (s->priv == 0);
 
+    // if(*(int*)(s->mem + 400000) == 0) {
+    //   std::cout << "ZERO NOW\n";
+    //   return;
+    // }
+    
     //if(not(dump) and (s->icnt >= dumpIcnt)) {
     //printf("should dump but priv is %d at pc %lx\n",
     //s->priv, s->pc);
