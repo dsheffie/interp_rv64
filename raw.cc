@@ -81,7 +81,10 @@ void load_raw(const char* fn, state_t *ms) {
   fd = open(fn, O_RDONLY);
   rc = fstat(fd,&s);
   buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  assert(buf != reinterpret_cast<void*>(-1L));
+  if(buf == reinterpret_cast<void*>(-1L)) {
+    std::cout << "mmap of " << fn << " failed!\n";
+    exit(-1);
+  }
   
   for(size_t i = 0; i < s.st_size; i++) {
     mem[globals::ram_phys_start+i] = buf[i];

@@ -104,6 +104,7 @@ int main(int argc, char *argv[]) {
       ("file,f", po::value<std::string>(&filename), "rv32 binary")
       ("max,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
       ("dump", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
+      ("fullsim", po::value<bool>(&globals::fullsim)->default_value(true), "full ssystem simulation")
       ("checkpoints", po::value<bool>(&take_checkpoints)->default_value(false), "take checkpoints at dump icnt internal")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
       ("load_dump", po::value<bool>(&load_dump)->default_value(false), "load a dump")
