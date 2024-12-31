@@ -787,6 +787,7 @@ void execRiscv(state_t *s) {
   if(lop != 3) { /* compressed instructions generate exceptions */
     int sel = ((inst>>13)&7);
     std::cout << "lop " << lop <<  ", sel " << sel << "\n";
+    abort();
     bool ok = false;
     inst &= 65535;
     switch(lop)
@@ -1000,7 +1001,14 @@ void execRiscv(state_t *s) {
 	  //std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
 	  goto handle_exception;
 	}
+	
+	int p = (pa >> 12) & 3;
+	int v = (ea >> 12) & 3;
+	s->va_track_pa += (v==p);
+	s->loads++;
 
+	
+	
 	switch(m.s.sel)
 	  {
 	  case 0x0: /* lb */
@@ -1351,6 +1359,21 @@ void execRiscv(state_t *s) {
 	    }
 	    break;
 	  }
+	  case 0x4: {/* amoxor.d */
+	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
+	    if(page_fault) {
+	      except_cause = CAUSE_STORE_PAGE_FAULT;
+	      tval = s->gpr[m.a.rs1];
+	      goto handle_exception;
+	    }	    	    	    
+	    int64_t x = s->load64(pa);
+	    s->store64(pa, s->gpr[m.a.rs2] ^ x);	    
+	    if(m.a.rd != 0) {
+	      s->gpr[m.a.rd] = x;
+	    }
+	    break;
+	  }	    
+	    
 	  case 0x8: {/* amoor.d */
 	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
 	    if(page_fault) {
@@ -1496,6 +1519,11 @@ void execRiscv(state_t *s) {
 	//std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
 	///if(s->pc == 0xffffffff804ecedcUL) exit(-1);
 	goto handle_exception;
+      }
+
+      if(pa >= 1UL<<32) {
+	printf("bad physical address, va = %lx, pa = %lx\n", ea, pa);
+	exit(-1);
       }
       
       switch(m.s.sel)
@@ -1850,6 +1878,7 @@ void execRiscv(state_t *s) {
       }
       else if(bits19to7z and (csr_id == 0x105)) {  /* wfi */
 	//globals::log = 1;
+	s->pc += 4;
 	break;
       }
       else if(bits19to7z and (csr_id == 0x002)) {  /* uret */

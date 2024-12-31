@@ -111,6 +111,10 @@ struct state_t{
   int64_t mtimecmp;
   virtio *vio;
   uart *u8250;
+
+  uint64_t va_track_pa;
+  uint64_t loads;
+  
   int xlen() const {
     return 64;
   }

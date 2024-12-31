@@ -52,6 +52,8 @@ void catchUnixSignal(int n) {
   if(s) {
     std::cout << "caught SIGINT at icnt "
 	      << s->icnt << "\n";
+    printf("loads = %ld\n", s->loads);
+    printf("match = %ld\n", s->va_track_pa);
   }
   exit(-1);
 }
@@ -193,6 +195,8 @@ int main(int argc, char *argv[]) {
     globals::tracer = new trace(tracename);
   }
 
+  s->va_track_pa = s->loads = 0;
+  
   //globals::branch_tracer = new branch_trace("branches.trc");
   signal(SIGINT, catchUnixSignal);
   double runtime = timestamp();
