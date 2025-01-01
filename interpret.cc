@@ -51,10 +51,17 @@ int64_t state_t::get_time() const {
 }
 
 bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
-  if(pa >= VIRTIO_BASE_ADDR and (pa < (VIRTIO_BASE_ADDR + VIRTIO_SIZE))) {
-    assert(vio);
-    return vio->handle(pa, store, x);
-  }
+  // if((pa <= (1UL<<21)) and store) {
+  //   std::cout << std::hex << this->pc << " writing bbl code "
+  // 	      << std::dec << "\n";
+  //   dump_calls();
+  //   exit(-1);
+  // }
+  
+  //if(pa >= VIRTIO_BASE_ADDR and (pa < (VIRTIO_BASE_ADDR + VIRTIO_SIZE))) {
+  //assert(vio);
+  //return vio->handle(pa, store, x);
+  //}
   if(pa >= UART_BASE_ADDR and (pa < (UART_BASE_ADDR + UART_SIZE))) {
     printf(">> %s uart range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-UART_BASE_ADDR);
     return u8250->handle(pa, store, x);
@@ -65,7 +72,7 @@ bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
     return true;
   }
   if(pa >= CLINT_BASE_ADDR and (pa < (CLINT_BASE_ADDR + CLINT_SIZE))) {
-    assert(store);
+    //assert(store);
     switch(pa-CLINT_BASE_ADDR)
       {
       case 0x0:
@@ -84,7 +91,7 @@ bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
 	}
 	break;
       case 0xbff8:
-	assert(not(store));
+	//assert(not(store));
 	break;
       default:
 	break;
@@ -253,7 +260,6 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   }
 
   uint64_t t_pa = lookup_tlb(ea, tlb_hit, tlb_dirty);
-  
   if(tlb_hit and (tlb_dirty or not(store))) {
     if(store) assert(tlb_dirty);
     if(fetch and icache) {
@@ -264,7 +270,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     }
     return t_pa;
   }
-
+  
   assert(c.satp.mode == 8);
   a = (c.satp.ppn * 4096) + (((ea >> 30) & 511)*8);
   u = *reinterpret_cast<uint64_t*>(mem + a);
@@ -648,14 +654,7 @@ void execRiscv(state_t *s) {
   int64_t irq = 0;
   riscv_t m(0);
   curr_pc = s->pc;
-  //if(curr_pc == 0x1ea88L){
-  //  printf("icnt %lu, pc %lx, ra %lx\n", s->icnt, s->pc, s->gpr[1]);
-  //}
-  //if(not(s->icnt % (1UL<<24))) {
-  //printf("icnt %lu, pc %lx\n", s->icnt, s->pc);
-  //}
-  //assert( ((s->mstatus >> MSTATUS_UXL_SHIFT) & 3) == 2);
-  //assert( ((s->mstatus >> MSTATUS_SXL_SHIFT) & 3) == 2);  
+
   int mxl = (s->mstatus >> MSTATUS_UXL_SHIFT) & 3;
   if(mxl == 0) {
     printf("mxl = 0 at pc %lx, icnt %ld,mstatus %lx\n",
@@ -771,7 +770,7 @@ void execRiscv(state_t *s) {
 
   assert(s->gpr[0] == 0);
   
-  if(globals::log) {
+  if(/*s->priv == 3 and */globals::log) {
     std::cout << std::hex << s->pc << std::dec
 	      << " : " << getAsmString(inst, s->pc)
 	      << " , raw " << std::hex
@@ -1741,13 +1740,14 @@ void execRiscv(state_t *s) {
 	      case 0x0:
 		s->gpr[m.r.rd] = s->gpr[m.r.rs1] | s->gpr[m.r.rs2];
 		if((m.r.rd == m.r.rs1) and (m.r.rs1 == m.r.rs2)) {
-		  if(tracing_armed) {
-		    s->brk = 1;
-		    std::cout << "ran for " << (s->icnt - tracing_start_icnt) << " insns\n";
-		  }
-		  tracing_armed = true;
-		  tracing_start_icnt = s->icnt;
-		  std::cout << ">>>> or with all regs equal\n";
+		  // if(tracing_armed) {
+		  //   s->brk = 1;
+		  //   std::cout << "ran for " << (s->icnt - tracing_start_icnt) << " insns\n";
+		  // }
+		  // tracing_armed = true;
+		  // tracing_start_icnt = s->icnt;
+		  // std::cout << ">>>> or with all regs equal\n";
+		  //globals::log = true;
 		  //exit(-1);
 		}
 		break;

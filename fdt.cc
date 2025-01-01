@@ -346,15 +346,6 @@ int riscv_build_fdt(uint8_t *dst,
     //misa = riscv_cpu_get_misa(m->cpu_state);
     /* blindly copied from tinyemu */
     misa = 0x141101;
-    //misa &= (~4UL);
-    //misa &= (~8UL);
-    //misa &= (~32UL);
-    //for(int i = 0; i < 26; i++) {
-    //if(misa & (1<<i)) {
-    //std::cout << "bit " << i << " set\n";
-    //}
-    //}
-    //std::cout << std::hex << misa << std::dec << "\n";
     
     q = isa_string;
     q += snprintf(isa_string, sizeof(isa_string), "rv%d", max_xlen);
