@@ -46,6 +46,7 @@ uint64_t globals::fw_start_addr = 1UL<<21;
 uint64_t globals::ram_phys_start = 0x80000000UL;
 trace* globals::tracer = nullptr;
 branch_trace* globals::branch_tracer = nullptr;
+std::ofstream* globals::console_log = nullptr;
 
 static state_t *s = nullptr;
 

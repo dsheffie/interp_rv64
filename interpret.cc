@@ -521,6 +521,8 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
   return 0;
 }
 
+static int curr_pos = 0;
+static char cons_buf[256] = {0};
 
 static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
   undef = false;
@@ -627,10 +629,25 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       break;
 
       /* linux hacking */
-    case 0xc03:
-      std::cout << (char)(v&0xff);
+    case 0xc03: {
+      char c = static_cast<char>(v&0xff);
+      //if(globals::console_log != nullptr) {
+      //(*globals::console_log) << std::string(c);
+      //}
+      cons_buf[curr_pos++] = c;
+      curr_pos &= 255;
+      if(c == '\n' or c == 0) {
+	int m = strncmp("fpga_done", cons_buf, 9);
+	if(m == 0) {
+	  s->brk = 1;
+	}
+	memset(cons_buf,0,256);	
+	curr_pos = 0;
+      }
+      std::cout << c;
       std::fflush(nullptr);
       break;
+    }
     case 0xc04:
       s->brk = v&1;
       //if(s->brk) {

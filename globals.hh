@@ -4,6 +4,8 @@
 struct trace;
 struct branch_trace;
 
+#include <iostream>
+
 namespace globals {
   extern uint64_t tohost_addr;
   extern uint64_t fromhost_addr;
@@ -20,6 +22,7 @@ namespace globals {
   extern trace *tracer;
   extern branch_trace *branch_tracer;
   extern std::map<std::string, uint64_t> symtab;
+  extern std::ofstream *console_log;
 };
 
 #endif
