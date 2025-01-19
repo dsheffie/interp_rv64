@@ -367,7 +367,6 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     }
     store64(a, r.r);    
   }
-
   
   if(fetch) {
     ++ipgszcnt[pgsz];
@@ -638,6 +637,10 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       curr_pos &= 255;
       if(c == '\n' or c == 0) {
 	int m = strncmp("fpga_done", cons_buf, 9);
+	if(m == 0) {
+	  s->brk = 1;
+	}
+	m = strncmp("Kernel panic", cons_buf, 12);	
 	if(m == 0) {
 	  s->brk = 1;
 	}
@@ -2085,8 +2088,8 @@ void execRiscv(state_t *s) {
       cause |= 1UL<<63;
     }
     
-    if(globals::log) {
-      std::cout << "took fault at pc "
+    if(globals::log /* | (cause != 9 and cause < 16)*/) {
+      std::cout << "--> took fault at pc "
 		<< std::hex << s->pc
 		<< ", tval " << tval
 		<< std::dec
@@ -2095,6 +2098,7 @@ void execRiscv(state_t *s) {
 		<< cause << std::dec << " : ";
       if(cause < 16) {
 	std::cout << cause_reasons.at(cause);
+	dump_calls();	
       }
       else {
 	std::cout << "irq " << (cause & 31);
