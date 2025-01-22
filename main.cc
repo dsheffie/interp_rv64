@@ -98,7 +98,7 @@ int main(int argc, char *argv[]) {
   bool raw = false, load_dump = false, take_checkpoints = false;
   std::string tohost, fromhost;
   int lg2_icache_lines, lg2_dcache_lines;
-  int icache_ways, dcache_ways;
+  int icache_ways, dcache_ways, dtlb_entries;
   uint64_t init_icnt = 0;
   try {
     po::options_description desc("Options");
@@ -122,6 +122,7 @@ int main(int argc, char *argv[]) {
       ("interactive", po::value<bool>(&globals::interactive)->default_value(false), "interactive shell")
       ("lg2_icache_lines", po::value<int>(&lg2_icache_lines)->default_value(0), "number of icache lines")
       ("lg2_dcache_lines", po::value<int>(&lg2_dcache_lines)->default_value(0), "number of dcache lines")
+      ("dtlb_entries", po::value<int>(&dtlb_entries)->default_value(0), "number of dtlb entries")
       ("icache_ways", po::value<int>(&icache_ways)->default_value(1), "number of icache ways")
       ("dcache_ways", po::value<int>(&dcache_ways)->default_value(1), "number of dcache ways")
       ("tracename", po::value<std::string>(&tracename), "tracename")
@@ -152,6 +153,10 @@ int main(int argc, char *argv[]) {
   }
   if(lg2_icache_lines != 0) {
     s->icache = make_cache(icache_ways, lg2_icache_lines);
+  }
+
+  if(dtlb_entries) {
+    s->dtlb = new tlb(dtlb_entries);
   }
   
 #ifdef __linux__
@@ -280,6 +285,19 @@ int main(int argc, char *argv[]) {
 	   mpki);
     
     delete s->icache;
+  }
+  if(s->dtlb) {
+    double mpki = s->dtlb->get_accesses() -
+      s->dtlb->get_hits();
+    mpki *= (1000.0 / (s->icnt - init_icnt));
+    
+    printf("dtlb: %lu entries, %lu hits, %lu total, %g hit rate, %g mpki\n",
+	   s->dtlb->get_entries(),	   
+	   s->dtlb->get_hits(),
+	   s->dtlb->get_accesses(),
+	   static_cast<double>(s->dtlb->get_hits()) / static_cast<double>(s->dtlb->get_accesses()),
+	   mpki);
+    delete s->dtlb;
   }
   if(s->vio) {
     delete s->vio;

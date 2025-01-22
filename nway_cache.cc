@@ -34,6 +34,34 @@ void direct_mapped_cache::access(addr_t ea, uint64_t icnt, uint64_t pc) {
 
 }
 
+tlb::tlb(size_t entries) : entries(entries), hits(0), accesses(0) {}
+
+void tlb::add(uint64_t page, uint64_t mask) {
+  //printf("adding page %lx with mask %lx\n", page, mask);
+  if(lru.size() == entries) {
+    lru.pop_back();
+  }
+  lru.emplace_front(page, mask);
+}
+
+bool tlb::access(uint64_t ea) {
+  auto it = lru.begin(), E = lru.end();
+  bool found = false;
+  accesses++;
+  while(it != E) {
+    uint64_t mask = it->second, page = it->first;
+    if((ea & (~mask)) == page) {
+      found = true;
+      lru.erase(it);
+      lru.emplace_front(page, mask);
+      hits++;
+      break;
+    }
+    it++;
+  }
+  return found;
+}
+
 nway_cache::nway_cache(size_t nways, size_t lg2_lines) :
   cache(nways, lg2_lines), hit_mru(0)  {
     ways = new way*[(1UL<<lg2_lines)];
@@ -58,7 +86,7 @@ void nway_cache::access(addr_t ea,  uint64_t icnt, uint64_t pc) {
 }
 
 
-nway_cache::way::way(size_t ways) :
+way::way(size_t ways) :
   entries(nullptr), freelist(nullptr), lrulist(nullptr), ways(ways) {
   entries = new entry[ways];
   memset(entries,0,sizeof(entry)*ways);
@@ -71,7 +99,7 @@ nway_cache::way::way(size_t ways) :
   }
 }
 
-bool nway_cache::way::access(addr_t ea,  uint64_t icnt, bool &mru) {
+bool way::access(uint64_t ea,  uint64_t icnt, bool &mru) {
   bool found = false;
   entry *p = lrulist, *l = nullptr;
   mru = false;      
@@ -86,6 +114,7 @@ bool nway_cache::way::access(addr_t ea,  uint64_t icnt, bool &mru) {
     l = p;
     p = p->next;
   }
+    
   if(not(found)) {
     if(freelist != nullptr) {
       l = freelist;

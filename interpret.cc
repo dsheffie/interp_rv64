@@ -260,7 +260,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   }
 
   uint64_t t_pa = lookup_tlb(ea, tlb_hit, tlb_dirty);
-  if(tlb_hit and (tlb_dirty or not(store))) {
+  if((dtlb == nullptr) and tlb_hit and (tlb_dirty or not(store))) {
     if(store) assert(tlb_dirty);
     if(fetch and icache) {
       icache->access(t_pa, icnt, pc);
@@ -376,6 +376,12 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   }
   int64_t m = ((1L << mask_bits) - 1);
   int64_t pa = ((r.sv39.ppn * 4096) & (~m)) | (ea & m);
+
+  if(dtlb and not(fetch)) {
+    if(not(dtlb->access(ea))) {
+      dtlb->add((ea & (~m)), m);
+    }
+  }
   
   if(globals::tracer and entered_user) {
     globals::tracer->add(ea, pa, fetch ? 1 : 2);

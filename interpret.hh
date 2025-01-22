@@ -79,6 +79,7 @@ struct state_t{
   uint64_t dpgszcnt[4];
   cache *icache;
   cache *dcache;
+  tlb *dtlb;  
   riscv_priv priv;
   
   /* lots of CSRs */

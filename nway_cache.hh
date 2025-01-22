@@ -7,7 +7,7 @@
 #include <iostream>
 #include <cassert>
 #include <map>
-
+#include <list>
 
 
 class cache {
@@ -72,25 +72,45 @@ public:
   void access(addr_t ea, uint64_t icnt, uint64_t pc) override ;
 };
 
+struct way {
+  struct entry {
+    entry *next;
+    entry *prev;
+    uint64_t addr;
+  };
+  size_t ways;    
+  entry *entries;
+  entry *freelist;  
+  entry *lrulist;
+  way(size_t ways);
+  bool access(uint64_t ea,  uint64_t icnt, bool &mru);
+  ~way() {
+    delete [] entries;
+  }
+};
+
+class tlb {
+  std::list<std::pair<uint64_t, uint64_t>> lru;
+  uint64_t entries, hits, accesses;
+public:
+  tlb(size_t entries);
+  ~tlb() {}
+  uint64_t get_entries() const {
+    return entries;
+  }
+  uint64_t get_hits() const {
+    return hits;
+  }
+  uint64_t get_accesses() const {
+    return accesses;
+  }
+  bool access(uint64_t ea);
+  void add(uint64_t page, uint64_t mask);
+};
 
 class nway_cache : public cache{
 private:
-  struct way {
-    struct entry {
-      entry *next;
-      entry *prev;
-      addr_t addr;
-    };
-    size_t ways;    
-    entry *entries;
-    entry *freelist;  
-    entry *lrulist;
-    way(size_t ways);
-    bool access(addr_t ea,  uint64_t icnt, bool &mru);
-    ~way() {
-      delete [] entries;
-    }
-  };
+ 
   uint64_t hit_mru;
   way **ways;
   
