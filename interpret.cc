@@ -274,12 +274,14 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   assert(c.satp.mode == 8);
   a = (c.satp.ppn * 4096) + (((ea >> 30) & 511)*8);
   u = *reinterpret_cast<uint64_t*>(mem + a);
+  r.r = u;
+  assert(r.sv39.n == false);  
   if((u&1) == 0) {
-    //std::cout << "mapping does not exist\n";    
+    //printf("page not present fault\n");
     fault = 1;
     return 2;
-  }  
-  r.r = u;
+  }
+
   if(r.sv39.x || r.sv39.w || r.sv39.r) {
     mask_bits = 30;
     pgsz = 0;
@@ -288,41 +290,53 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   
   a = (r.sv39.ppn * 4096) + (((ea >> 21) & 511)*8);
   u = *reinterpret_cast<uint64_t*>(mem + a);
-
+  r.r = u;
+  assert(r.sv39.n == false);
   if((u&1) == 0) {
     fault = 1;
     return 1;
   }
   
-  r.r = u;
+
   if(r.sv39.x || r.sv39.w || r.sv39.r) {
     mask_bits = 21;
     pgsz = 1;
     goto translation_complete;
   }
   a = (r.sv39.ppn * 4096) + (((ea >> 12) & 511)*8);
-  
-  u = *reinterpret_cast<uint64_t*>(mem + a);  
+  u = *reinterpret_cast<uint64_t*>(mem + a);
+  r.r = u;    
   if((u&1) == 0) {
     //std::cout << "mapping does not exist for " << std::hex << ea << std::dec << " <<\n";
+    //printf("page not present fault\n");    
     fault = 1;
     return 0;
   }
-  r.r = u;  
+
   if(not(r.sv39.x || r.sv39.w || r.sv39.r)) {
     std::cout << "huh no translation for " << std::hex << pc << std::dec << "\n";
     std::cout << "huh no translation for " << std::hex << ea << std::dec << "\n";
     std::cout << "u = " << std::hex << u << std::dec << "\n";
   }
-
   assert(r.sv39.x || r.sv39.w || r.sv39.r);
-  mask_bits = 12;
+  
+  if(r.sv39.n) {
+    //std::cout << "translation for " << std::hex << ea << std::dec << " has n bit set\n";
+    //std::cout << "ppn = " << std::hex << (r.sv39.ppn&15) << std::dec << "\n";
+    assert( (r.sv39.ppn&15) == 8);
+    mask_bits = 16;
+    //exit(-1);
+  }
+  else {
+    mask_bits = 12;
+  }
   pgsz = 2;
  translation_complete:
-
+    
   //* permission checks */
   if(fetch && (r.sv39.x == 0)) {
     //std::cout << "not executable fetch\n";
+    //printf("not executable fault\n");    
     fault = 1;
     return 0;
   }
@@ -393,10 +407,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     dcache->access(pa, icnt, pc);
   }
 
-  
-  
   insert_tlb(ea, r.sv39.ppn * 4096, mask_bits, r.sv39.d);
-
   
   //tlb[ea >>  12] = std::pair<uint64_t, uint64_t>(r.r, (r.sv39.ppn << 12) | mask_bits );
   // if(tlb_pa != 0 && (pa != tlb_pa)) {
@@ -2094,7 +2105,7 @@ void execRiscv(state_t *s) {
       cause |= 1UL<<63;
     }
     
-    if(globals::log /* | (cause != 9 and cause < 16)*/) {
+    if( /*(cause != 9 and cause < 16)*/ globals::log) {
       std::cout << "--> took fault at pc "
 		<< std::hex << s->pc
 		<< ", tval " << tval
@@ -2165,7 +2176,7 @@ void runRiscv(state_t *s, uint64_t dumpIcnt) {
   
   do {
     execRiscv(s);
-    bool dump = (s->icnt >= dumpIcnt) and (s->priv == 0);
+    bool dump = (s->icnt >= dumpIcnt) /*and (s->priv == 0)*/;
 
     //if(not(dump) and (s->icnt >= dumpIcnt)) {
     //printf("should dump but priv is %d at pc %lx\n",
