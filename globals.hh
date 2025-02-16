@@ -16,6 +16,7 @@ namespace globals {
   extern bool fullsim;
   extern bool interactive;
   extern bool fdt_uart;
+  extern bool svnapot;
   extern uint64_t fdt_ram_size;
   extern uint64_t ram_phys_start;
   extern uint64_t fw_start_addr;

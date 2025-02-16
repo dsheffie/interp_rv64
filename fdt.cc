@@ -356,6 +356,10 @@ int riscv_build_fdt(uint8_t *dst,
     *q = '\0';
     //std::cout << isa_string << "\n";
     fdt_prop_str(s, "riscv,isa", isa_string);
+    if(globals::svnapot) {
+      fdt_prop_str(s, "riscv,isa-extensions", "svnapot");
+    }
+
     
     fdt_prop_str(s, "mmu-type", "riscv,sv39");
     fdt_prop_u32(s, "clock-frequency", 100000000);

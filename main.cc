@@ -41,6 +41,7 @@ bool globals::silent = true;
 bool globals::fullsim = true;
 bool globals::fdt_uart = false;
 bool globals::interactive = false;
+bool globals::svnapot = true;
 uint64_t globals::fdt_ram_size = 1UL<<24;
 uint64_t globals::fw_start_addr = 1UL<<21;
 uint64_t globals::ram_phys_start = 0x80000000UL;
@@ -50,12 +51,19 @@ std::ofstream* globals::console_log = nullptr;
 
 static state_t *s = nullptr;
 
+static const uint64_t disk_addr = (384+32)*1024UL*1024UL;
+
 void catchUnixSignal(int n) {
   if(s) {
     std::cout << "caught SIGINT at icnt "
 	      << s->icnt << "\n";
     printf("loads = %ld\n", s->loads);
     printf("match = %ld\n", s->va_track_pa);
+
+    // uint8_t *buf = &s->mem[disk_addr];
+    // int fd = ::open("disk.img", O_RDWR|O_CREAT|O_TRUNC, 0600);
+    // write(fd, buf, 16*1024*1024);
+    // close(fd);        
   }
   exit(-1);
 }
@@ -126,6 +134,7 @@ int main(int argc, char *argv[]) {
       ("icache_ways", po::value<int>(&icache_ways)->default_value(1), "number of icache ways")
       ("dcache_ways", po::value<int>(&dcache_ways)->default_value(1), "number of dcache ways")
       ("tracename", po::value<std::string>(&tracename), "tracename")
+      ("svnapot", po::value<bool>(&globals::svnapot)->default_value(true), "enable svnapot")
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -202,6 +211,16 @@ int main(int argc, char *argv[]) {
     globals::tracer = new trace(tracename);
   }
 
+  // if(0) { /* load initial disk image */
+  //   struct stat st;
+  //   int fd = open("diskimage.img", O_RDONLY);
+  //   fstat(fd, &st);
+  //   char * buf = (char*)mmap(nullptr, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  //   memcpy(&s->mem[disk_addr], buf, st.st_size);
+  //   munmap(buf, st.st_size);
+  //   close(fd);
+  // }
+  
   s->va_track_pa = s->loads = 0;
   
   //globals::branch_tracer = new branch_trace("branches.trc");
@@ -255,6 +274,12 @@ int main(int argc, char *argv[]) {
     }
   }
 
+  // {
+  //   uint8_t *buf = &s->mem[disk_addr];
+  //   int fd = ::open("disk.img", O_RDWR|O_CREAT|O_TRUNC, 0600);
+  //   write(fd, buf, 16*1024*1024);
+  //   close(fd);
+  // }
   
   munmap(mempt, 1UL<<32);
   if(globals::sysArgv) {
