@@ -247,6 +247,29 @@ static void fdt_prop_tab_str(FDTState *s, const char *prop_name,
     free(tab);
 }
 
+static void fdt_prop_tab_str(FDTState *s, const char *prop_name,
+			     const std::vector<std::string> &props) 
+{
+    va_list ap;
+    int size, str_size;
+    char *tab;
+    size = 0;
+    for(const std::string &str : props) {
+      str_size = strlen(str.c_str()) + 1;
+      size += str_size;
+    }
+    tab = reinterpret_cast<char*>(malloc(size));
+    size = 0;
+    for(const std::string &str : props) {
+      const char *ptr = str.c_str();
+      str_size = strlen(ptr) + 1;
+      memcpy(tab + size, ptr, str_size);
+      size += str_size;
+    }
+    fdt_prop(s, prop_name, tab, size);
+    free(tab);
+}
+
 /* write the FDT to 'dst1'. return the FDT size in bytes */
 int fdt_output(FDTState *s, uint8_t *dst)
 {
@@ -356,10 +379,17 @@ int riscv_build_fdt(uint8_t *dst,
     *q = '\0';
     //std::cout << isa_string << "\n";
     fdt_prop_str(s, "riscv,isa", isa_string);
-    if(globals::svnapot) {
-      fdt_prop_str(s, "riscv,isa-extensions", "svnapot");
-    }
 
+    std::vector<std::string> rv_exts = {
+      "i", "m", "a",
+      "zicsr",
+      "zifencei",
+      "zicond"
+    };
+    if(globals::svnapot) {
+      rv_exts.push_back("svnapot");
+    }
+    fdt_prop_tab_str(s, "riscv,isa-extensions", rv_exts);
     
     fdt_prop_str(s, "mmu-type", "riscv,sv39");
     fdt_prop_u32(s, "clock-frequency", 100000000);
