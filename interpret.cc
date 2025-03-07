@@ -15,6 +15,7 @@
 #include "virtio.hh"
 #include "uart.hh"
 #include "trace.hh"
+#include "branch_predictor.hh"
 
 #include <stack>
 static uint64_t curr_pc = 0;
@@ -1601,11 +1602,19 @@ void execRiscv(state_t *s) {
       tgt64 = (tgt64<<32)>>32;
       tgt64 += s->gpr[m.jj.rs1];
       tgt64 &= ~(1UL);
+      uint64_t bpu_idx = 0;
+      bool bpu_pred = false;
+      if(globals::bpred) {
+	bpu_pred = globals::bpred->predict(s->pc, bpu_idx);
+      }
+      
       if(m.jj.rd != 0) {
 	s->gpr[m.jj.rd] = s->pc + 4;
       }
       //std::cout << "target = " << std::hex << tgt64 << std::dec << "\n";
       s->last_call = s->pc;
+
+      
       bool rs1_is_link = m.jj.rs1==1 or m.jj.rs1==5;
       bool rd_is_link = m.jj.rd==1 or m.jj.rd==5;
       
@@ -1623,9 +1632,11 @@ void execRiscv(state_t *s) {
 	if(globals::branch_tracer) {
 	  globals::branch_tracer->add(s->pc, tgt64, true, false, true, false);
 	}	
-
-     }
-      
+	
+      }
+      if(globals::bpred) {
+	globals::bpred->update(s->pc, bpu_idx, bpu_pred, true);
+      }      
       s->pc = tgt64;
       break;
     }
@@ -1644,6 +1655,11 @@ void execRiscv(state_t *s) {
       if(rd != 0) {
 	s->gpr[rd] = s->pc + 4;
       }
+      uint64_t bpu_idx = 0;
+      bool bpu_pred = false;      
+      if(globals::bpred) {
+	bpu_pred = globals::bpred->predict(s->pc, bpu_idx);
+      }      
       s->last_call = s->pc;
       bool rd_is_link = rd==1 or rd==5;      
       if(rd_is_link) {
@@ -1652,6 +1668,9 @@ void execRiscv(state_t *s) {
 	  globals::branch_tracer->add(s->pc, s->pc + jaddr, true, true, false, false);
 	}		
       }
+      if(globals::bpred) {
+	globals::bpred->update(s->pc, bpu_idx, bpu_pred, true);
+      }      
       s->pc += jaddr;
       break;
     }
@@ -1846,6 +1865,11 @@ void execRiscv(state_t *s) {
       bool takeBranch = false;
       uint64_t u_rs1 = *reinterpret_cast<uint64_t*>(&s->gpr[m.b.rs1]);
       uint64_t u_rs2 = *reinterpret_cast<uint64_t*>(&s->gpr[m.b.rs2]);
+      uint64_t bpu_idx = 0;
+      bool bpu_pred = false;
+      if(globals::bpred) {
+	bpu_pred = globals::bpred->predict(s->pc, bpu_idx);
+      }
       switch(m.b.sel)
 	{
 	case 0: /* beq */
@@ -1879,7 +1903,12 @@ void execRiscv(state_t *s) {
       if(globals::branch_tracer) {
 	globals::branch_tracer->add(s->pc, (disp+s->pc), takeBranch);
       }
+      if(globals::bpred) {
+	globals::bpred->update(s->pc, bpu_idx, bpu_pred, takeBranch);
+      }
+      
       s->pc = takeBranch ? disp + s->pc : s->pc + 4;
+      
       break;
     }
 

@@ -15,6 +15,27 @@
 #define KCYN  "\x1B[36m"
 #define KWHT  "\x1B[37m"
 
+template <typename T, typename std::enable_if<std::is_integral<T>::value,T>::type* = nullptr>
+T ln2(T x) {
+  T y = 1, l =0;
+  while(y < x) {
+    l++;
+    y *= 2;
+  }
+  return l;
+}
+
+template <typename T, typename std::enable_if<std::is_integral<T>::value,T>::type* = nullptr>
+std::string as_bitvec(const T & x) {
+  std::stringstream s;
+  const size_t len = sizeof(T)*8;
+  for(size_t i = 0; i < len; i++) {
+    s << ((x >> i) & 1) ;
+  }
+  return s.str();
+}
+
+
 void dbt_backtrace();
 
 #ifndef UNREACHABLE

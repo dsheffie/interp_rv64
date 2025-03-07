@@ -3,7 +3,7 @@
 
 struct trace;
 struct branch_trace;
-
+struct branch_predictor;
 #include <iostream>
 
 namespace globals {
@@ -24,6 +24,7 @@ namespace globals {
   extern branch_trace *branch_tracer;
   extern std::map<std::string, uint64_t> symtab;
   extern std::ofstream *console_log;
+  extern branch_predictor *bpred;
 };
 
 #endif

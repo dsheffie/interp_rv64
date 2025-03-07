@@ -26,6 +26,7 @@
 #include "virtio.hh"
 #include "uart.hh"
 #include "trace.hh"
+#include "branch_predictor.hh"
 
 extern const char* githash;
 
@@ -48,6 +49,7 @@ uint64_t globals::ram_phys_start = 0x80000000UL;
 trace* globals::tracer = nullptr;
 branch_trace* globals::branch_tracer = nullptr;
 std::ofstream* globals::console_log = nullptr;
+branch_predictor *globals::bpred = nullptr;
 
 static state_t *s = nullptr;
 static double starttime = 0.0;
@@ -63,6 +65,11 @@ void catchUnixSignal(int n) {
     printf("loads = %ld\n", s->loads);
     printf("match = %ld\n", s->va_track_pa);
     printf("simulator mips = %g\n", mips);
+    if(globals::bpred) {
+      uint64_t n_br = 0, n_mis=0, n_inst=0;      
+      globals::bpred->get_stats(n_br,n_mis,n_inst);
+      printf("bpu %g mpki\n", 1000.0*(static_cast<double>(n_mis) / n_inst));
+    }
     // uint8_t *buf = &s->mem[disk_addr];
     // int fd = ::open("disk.img", O_RDWR|O_CREAT|O_TRUNC, 0600);
     // write(fd, buf, 16*1024*1024);
@@ -186,6 +193,8 @@ int main(int argc, char *argv[]) {
   if(not(filename.empty())) {
     fileIsDump = isDump(filename);
   }
+
+  globals::bpred = new gshare(s->icnt, 16);
   
   if(s->mem == nullptr) {
     std::cerr << "INTERP : couldn't allocate backing memory!\n";
@@ -276,6 +285,11 @@ int main(int argc, char *argv[]) {
 	     s->ipgszcnt[i], s->dpgszcnt[i]
 	     );
     }
+    if(globals::bpred) {
+      uint64_t n_br = 0, n_mis=0, n_inst=0;      
+      globals::bpred->get_stats(n_br,n_mis,n_inst);
+      printf("bpu %g mpki\n", 1000.0*(static_cast<double>(n_mis) / n_inst));
+    }    
   }
 
   // {
@@ -343,7 +357,9 @@ int main(int argc, char *argv[]) {
   if(globals::branch_tracer) {
     delete globals::branch_tracer;
   }
-  
+  if(globals::bpred) {
+    delete globals::bpred;
+  }
   
   return 0;
 }
