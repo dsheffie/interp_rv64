@@ -50,16 +50,19 @@ branch_trace* globals::branch_tracer = nullptr;
 std::ofstream* globals::console_log = nullptr;
 
 static state_t *s = nullptr;
+static double starttime = 0.0;
 
 static const uint64_t disk_addr = (384+32)*1024UL*1024UL;
 
 void catchUnixSignal(int n) {
   if(s) {
+    double runtime = timestamp()-starttime;
+    double mips = (static_cast<double>(s->icnt)/runtime)*1e-6;
     std::cout << "caught SIGINT at icnt "
 	      << s->icnt << "\n";
     printf("loads = %ld\n", s->loads);
     printf("match = %ld\n", s->va_track_pa);
-
+    printf("simulator mips = %g\n", mips);
     // uint8_t *buf = &s->mem[disk_addr];
     // int fd = ::open("disk.img", O_RDWR|O_CREAT|O_TRUNC, 0600);
     // write(fd, buf, 16*1024*1024);
@@ -225,7 +228,8 @@ int main(int argc, char *argv[]) {
   
   //globals::branch_tracer = new branch_trace("branches.trc");
   signal(SIGINT, catchUnixSignal);
-  double runtime = timestamp();
+
+  starttime = timestamp();
   if(take_checkpoints) {
     while((s->icnt < s->maxicnt) and not(s->brk)) {
       bool take_cp = ((s->icnt % dumpIcnt) == 0);
@@ -255,7 +259,7 @@ int main(int argc, char *argv[]) {
   else {
     runInteractiveRiscv(s);
   }
-  runtime = timestamp()-runtime;
+  double runtime = timestamp()-starttime;
 
   if(not(globals::silent)) {
     std::cerr << KGRN << "INTERP: "

@@ -63,11 +63,11 @@ bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
   //return vio->handle(pa, store, x);
   //}
   if(pa >= UART_BASE_ADDR and (pa < (UART_BASE_ADDR + UART_SIZE))) {
-    printf(">> %s uart range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-UART_BASE_ADDR);
+    //printf(">> %s uart range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-UART_BASE_ADDR);
     return u8250->handle(pa, store, x);
   }
   if(pa >= PLIC_BASE_ADDR and (pa < (PLIC_BASE_ADDR + PLIC_SIZE))) {
-    printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
+    //printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
     //exit(-1);
     return true;
   }
@@ -530,7 +530,9 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
     case 0xf14:
       return s->mhartid;      
     default:
-      printf("rd csr id 0x%x unimplemented, pc %lx\n", csr_id, s->pc);
+      if(not(globals::silent)) {
+	printf("rd csr id 0x%x unimplemented, pc %lx\n", csr_id, s->pc);
+      }
       //undef = true;
       break;
     }
@@ -675,7 +677,9 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       //}
       break;
     default:
-      printf("wr csr id 0x%x unimplemented\n", csr_id);
+      if(not(globals::silent)) {
+	printf("wr csr id 0x%x unimplemented\n", csr_id);
+      }
       undef = true;
       break;
     }
@@ -1058,10 +1062,6 @@ void execRiscv(state_t *s) {
 	    break;
 	  case 0x3: /* ld */
 	    s->gpr[m.l.rd] = s->load64(pa);
-	    //if(s->pc == 0x1ea70UL) {
-	    //printf("loaded %lx from pa %lx, ea %lx\n", s->gpr[m.l.rd], pa, ea);
-	    //}
-	    
 	    break;
 	  case 0x4:/* lbu */
 	    s->gpr[m.l.rd] = s->load8u(pa);
@@ -1550,18 +1550,8 @@ void execRiscv(state_t *s) {
       if(fault) {
 	except_cause = CAUSE_STORE_PAGE_FAULT;
 	tval = ea;
-	//std::cout << "ea = " << std::hex << ea << std::dec << " causes st pf\n";
-	//std::cout << "pa = " << std::hex << pa << std::dec << "\n";
-	//std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
-	///if(s->pc == 0xffffffff804ecedcUL) exit(-1);
 	goto handle_exception;
       }
-
-      if(pa >= 1UL<<32) {
-	printf("bad physical address, va = %lx, pa = %lx\n", ea, pa);
-	exit(-1);
-      }
-      
       switch(m.s.sel)
 	{
 	case 0x0: /* sb */
