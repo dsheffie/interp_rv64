@@ -350,13 +350,9 @@ int main(int argc, char *argv[]) {
     double mpki = s->dtlb->get_accesses() -
       s->dtlb->get_hits();
     mpki *= (1000.0 / (s->icnt - init_icnt));
-    
-    printf("dtlb: %lu entries, %lu hits, %lu total, %g hit rate, %g mpki\n",
-	   s->dtlb->get_entries(),	   
-	   s->dtlb->get_hits(),
-	   s->dtlb->get_accesses(),
-	   static_cast<double>(s->dtlb->get_hits()) / static_cast<double>(s->dtlb->get_accesses()),
-	   mpki);
+    std::cout << "dtlb: " << s->dtlb->get_entries() << " entries, " << s->dtlb->get_hits() << " hits, " << s->dtlb->get_accesses() << " total, "
+	      << static_cast<double>(s->dtlb->get_hits()) / static_cast<double>(s->dtlb->get_accesses()) << " hit rate,"
+	      << mpki << " mpki\n";
     delete s->dtlb;
   }
   if(s->vio) {

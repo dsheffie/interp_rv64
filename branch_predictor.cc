@@ -4,7 +4,8 @@
 #include <sstream>
 
 branch_predictor::branch_predictor(uint64_t &icnt):
-  icnt(icnt), bhr(nullptr), n_branches(0), n_mispredicts(0), old_gbl_hist(0) {}
+  icnt(icnt), bhr(nullptr), n_branches(0), n_mispredicts(0), old_gbl_hist(0) {
+}
 
 void branch_predictor::get_stats(uint64_t &n_br,
 				 uint64_t &n_mis,

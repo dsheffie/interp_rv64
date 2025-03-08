@@ -5,6 +5,7 @@
 #include <ostream>
 #include <map>
 #include <string>
+#include <array>
 #include "counter2b.hh"
 #include "sim_bitvec.hh"
 
@@ -18,6 +19,7 @@
 
 class branch_predictor {
 public:
+  enum class br_type { direct_br, cond, call, ret, indirect_call, indirect_br};
 #define ITEM(X) X,
   enum class bpred_impl {
     BPRED_IMPL_LIST(ITEM)
@@ -27,10 +29,37 @@ public:
 protected:
   uint64_t &icnt;
   sim_bitvec* bhr;    
-  uint64_t n_branches;
-  uint64_t n_mispredicts;
+  uint64_t n_branches, n_mispredicts;
   uint64_t old_gbl_hist;
+  std::array<uint64_t,6> branch_ty_cnt, branch_ty_mispred_cnt;  
   std::map<uint32_t, uint64_t> mispredict_map;
+  static int br_type_idx(const br_type &ty) {
+    int idx = 0;
+    switch(ty)
+      {
+      case br_type::direct_br:
+	idx = 0;
+	break;
+      case br_type::cond:
+	idx = 1;
+	break;
+      case br_type::call:
+	idx = 2;
+	break;
+      case br_type::ret:
+	idx = 3;
+	break;
+      case br_type::indirect_call:
+	idx = 4;
+	break;		
+      case br_type::indirect_br:
+	idx = 5;
+	break;	
+      default:
+	break;
+      }
+    return idx;
+  }
   void update_bhr(bool);
 public:
   branch_predictor(uint64_t &icnt);
