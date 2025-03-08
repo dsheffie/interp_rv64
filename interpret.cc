@@ -1616,6 +1616,9 @@ void execRiscv(state_t *s) {
       tgt64 += s->gpr[m.jj.rs1];
       tgt64 &= ~(1UL);
       uint64_t bpu_idx = 0;
+      
+      branch_predictor::br_type ty = branch_predictor::br_type::call;
+	
       if(globals::bpred) {
 	globals::bpred->predict(s->pc, bpu_idx);
       }
@@ -1647,12 +1650,11 @@ void execRiscv(state_t *s) {
 	
       }
       if(globals::bpred) {
-	globals::bpred->update(s->pc, bpu_idx, true, true);
+	globals::bpred->update(s->pc, bpu_idx, true, true, ty);
       }      
       s->pc = tgt64;
       break;
     }
-
       
       //imm[20|10:1|11|19:12] rd 1101111 JAL
     case 0x6f: {
@@ -1680,7 +1682,8 @@ void execRiscv(state_t *s) {
 	}		
       }
       if(globals::bpred) {
-	globals::bpred->update(s->pc, bpu_idx, true, true);
+	globals::bpred->update(s->pc, bpu_idx, true, true,
+			       rd==0 ? branch_predictor::br_type::direct_br : branch_predictor::br_type::call);
       }      
       s->pc += jaddr;
       break;
@@ -1915,7 +1918,8 @@ void execRiscv(state_t *s) {
 	globals::branch_tracer->add(s->pc, (disp+s->pc), takeBranch);
       }
       if(globals::bpred) {
-	globals::bpred->update(s->pc, bpu_idx, bpu_pred, takeBranch);
+	globals::bpred->update(s->pc, bpu_idx, bpu_pred, takeBranch,
+			       branch_predictor::br_type::cond);
       }
       
       s->pc = takeBranch ? disp + s->pc : s->pc + 4;

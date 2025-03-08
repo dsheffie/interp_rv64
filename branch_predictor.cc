@@ -30,9 +30,14 @@ void branch_predictor::update_bhr(bool t) {
   }
 }
 
-void branch_predictor::update(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
+void branch_predictor::update(uint64_t addr, uint64_t idx, bool prediction, bool taken, br_type ty) {
   update_(addr, idx, prediction, taken);
   update_bhr(taken);
+  int br_idx = br_type_idx(ty);
+  branch_ty_cnt.at(br_idx)++;
+  if(prediction != taken) {
+    branch_ty_mispred_cnt.at(br_idx)++;
+  }
 }
 
 uberhistory::uberhistory(uint64_t &icnt, uint32_t lg_history_entries) :

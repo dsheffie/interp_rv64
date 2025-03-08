@@ -76,7 +76,7 @@ public:
   std::map<uint32_t, uint64_t> &getMap() {
     return mispredict_map;
   }
-  void update(uint64_t, uint64_t, bool, bool);
+  void update(uint64_t, uint64_t, bool, bool, br_type);
 };
 
 class gshare : public branch_predictor {
