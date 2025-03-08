@@ -71,10 +71,8 @@ void load_raw(const char* fn, state_t *ms) {
   if(not(initrd_addr == 0 and initrd_size == 0)) {
     printf("initrd_addr %lx, initrd_size %lx\n", initrd_addr, initrd_size);
   }
-
-  int64_t fdt_addr = (1UL<<16)+64;
   
-  riscv_build_fdt(&mem[fdt_addr],
+  riscv_build_fdt(&mem[globals::fdt_addr],
 		  kern_addr,
 		  kern_size,
 		  initrd_addr,
@@ -87,7 +85,7 @@ void load_raw(const char* fn, state_t *ms) {
   
   WRITE_WORD(0, 0x297 + globals::fw_start_addr - BOOT_ROM_ADDR); //0
   WRITE_WORD(4, 0xf597); //auipc
-  WRITE_WORD(8, 0x58593 + ((fdt_addr - 4) << 20)); //2
+  WRITE_WORD(8, 0x58593 + ((globals::fdt_addr - 4) << 20)); //2
   WRITE_WORD(12, 0xf1402573); //3
   WRITE_WORD(16, 0x00028067); //4
   ms->pc = BOOT_ROM_ADDR;

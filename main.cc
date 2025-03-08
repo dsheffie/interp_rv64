@@ -45,6 +45,7 @@ bool globals::interactive = false;
 bool globals::svnapot = true;
 uint64_t globals::fdt_ram_size = 1UL<<24;
 uint64_t globals::fw_start_addr = 1UL<<21;
+uint64_t globals::fdt_addr = (1UL<<16) + 64;
 uint64_t globals::ram_phys_start = 0x80000000UL;
 trace* globals::tracer = nullptr;
 branch_trace* globals::branch_tracer = nullptr;
