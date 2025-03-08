@@ -1,4 +1,4 @@
-#ifndef __bpred_hh__x
+#ifndef __bpred_hh__
 #define __bpred_hh__
 
 #include <cstdint>
@@ -31,12 +31,13 @@ protected:
   uint64_t n_mispredicts;
   uint64_t old_gbl_hist;
   std::map<uint32_t, uint64_t> mispredict_map;
+  void update_bhr(bool);
 public:
   branch_predictor(uint64_t &icnt);
   virtual ~branch_predictor();
   virtual void get_stats(uint64_t &n_br, uint64_t &n_mis, uint64_t &n_inst) const;
   virtual bool predict(uint64_t, uint64_t &)  = 0;
-  virtual void update(uint64_t, uint64_t, bool, bool) = 0;
+  virtual void update_(uint64_t, uint64_t, bool, bool) = 0;
   virtual int needed_history_length() const { return 0; }
   virtual const char* getTypeString() const =  0;
   static bpred_impl lookup_impl(const std::string& impl_name);
@@ -46,6 +47,7 @@ public:
   std::map<uint32_t, uint64_t> &getMap() {
     return mispredict_map;
   }
+  void update(uint64_t, uint64_t, bool, bool);
 };
 
 class gshare : public branch_predictor {
@@ -61,7 +63,7 @@ public:
     return typeString;
   }
   bool predict(uint64_t, uint64_t &) override;
-  void update(uint64_t addr, uint64_t idx, bool prediction, bool taken) override;
+  void update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) override;
 };
 
 
@@ -110,7 +112,7 @@ public:
     return typeString;
   }
   bool predict(uint64_t, uint64_t &) override;
-  void update(uint64_t addr, uint64_t idx, bool prediction, bool taken) override;
+  void update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) override;
   int needed_history_length() const override {
     return table_lengths[0];
   }
@@ -128,7 +130,7 @@ public:
     return typeString;
   }  
   bool predict(uint64_t, uint64_t &) override;
-  void update(uint64_t addr, uint64_t idx, bool prediction, bool taken) override;
+  void update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) override;
 };
 
 
@@ -147,7 +149,7 @@ public:
     return typeString;    
   }
   bool predict(uint64_t, uint64_t &) override;
-  void update(uint64_t addr, uint64_t idx, bool prediction, bool taken) override;
+  void update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) override;
 };
 
 class uberhistory : public branch_predictor {
@@ -162,7 +164,7 @@ public:
     return typeString;
   }
   bool predict(uint64_t, uint64_t &) override;
-  void update(uint64_t addr, uint64_t idx, bool prediction, bool taken) override;
+  void update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) override;
 };
 
 std::ostream &operator<<(std::ostream &, const branch_predictor&);

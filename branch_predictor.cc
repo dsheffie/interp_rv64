@@ -20,6 +20,20 @@ branch_predictor::~branch_predictor() {
   }
 }
 
+void branch_predictor::update_bhr(bool t) {
+  if(bhr) {
+    bhr->shift_left(1);
+    if(t) {
+      bhr->set_bit(0);
+    }
+  }
+}
+
+void branch_predictor::update(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
+  update_(addr, idx, prediction, taken);
+  update_bhr(taken);
+}
+
 uberhistory::uberhistory(uint64_t &icnt, uint32_t lg_history_entries) :
   branch_predictor(icnt) {
 }
@@ -40,7 +54,7 @@ bool uberhistory::predict(uint64_t addr, uint64_t &idx)  {
   return pht[sidx] > 1;
 }
 
-void uberhistory::update(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
+void uberhistory::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
   bool mispredict = prediction != taken;
 
   int32_t h = static_cast<int32_t>(pht[sidx]);
@@ -138,7 +152,7 @@ bool tage::predict(uint64_t addr, uint64_t & idx) {
   return prediction;
 }
 
-void tage::update(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
+void tage::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
   uint32_t n_pht_entries = 1U<<lg_pht_entries;
 			       
   uint64_t table = idx >> 32;
@@ -248,8 +262,8 @@ bool gshare::predict(uint64_t addr, uint64_t &idx) {
   return pht->get_value(idx) > 1;
 }
 
-void gshare::update(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
-
+void gshare::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
+  
   uint64_t fold_bhr = old_gbl_hist;
   fold_bhr = (fold_bhr >> 32) ^ (fold_bhr & ((1UL<<32)-1));
   fold_bhr = (fold_bhr >> 16) ^ (fold_bhr & ((1UL<<16)-1));
@@ -291,7 +305,7 @@ bool gtagged::predict(uint64_t addr, uint64_t &idx) {
   return (it->second > 1);
 }
 
-void gtagged::update(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
+void gtagged::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
   uint8_t &e = pht[idx];  
   if(taken) {
     e = (e==3) ? 3 : (e + 1);
@@ -334,7 +348,7 @@ bool bimodal::predict(uint64_t addr, uint64_t &idx) {
   return t_pht->get_value(idx)>1;
 }
 
-void bimodal::update(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
+void bimodal::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
   uint32_t c_idx = (addr>>2) & ((1U<<lg_c_pht_entries)-1);
   if(c_pht->get_value(c_idx) < 2) {
     if(not(taken and (nt_pht->get_value(idx) > 1))) {

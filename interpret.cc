@@ -1603,9 +1603,8 @@ void execRiscv(state_t *s) {
       tgt64 += s->gpr[m.jj.rs1];
       tgt64 &= ~(1UL);
       uint64_t bpu_idx = 0;
-      bool bpu_pred = false;
       if(globals::bpred) {
-	bpu_pred = globals::bpred->predict(s->pc, bpu_idx);
+	globals::bpred->predict(s->pc, bpu_idx);
       }
       
       if(m.jj.rd != 0) {
@@ -1635,7 +1634,7 @@ void execRiscv(state_t *s) {
 	
       }
       if(globals::bpred) {
-	globals::bpred->update(s->pc, bpu_idx, bpu_pred, true);
+	globals::bpred->update(s->pc, bpu_idx, true, true);
       }      
       s->pc = tgt64;
       break;
@@ -1656,9 +1655,8 @@ void execRiscv(state_t *s) {
 	s->gpr[rd] = s->pc + 4;
       }
       uint64_t bpu_idx = 0;
-      bool bpu_pred = false;      
       if(globals::bpred) {
-	bpu_pred = globals::bpred->predict(s->pc, bpu_idx);
+	globals::bpred->predict(s->pc, bpu_idx);
       }      
       s->last_call = s->pc;
       bool rd_is_link = rd==1 or rd==5;      
@@ -1669,7 +1667,7 @@ void execRiscv(state_t *s) {
 	}		
       }
       if(globals::bpred) {
-	globals::bpred->update(s->pc, bpu_idx, bpu_pred, true);
+	globals::bpred->update(s->pc, bpu_idx, true, true);
       }      
       s->pc += jaddr;
       break;
