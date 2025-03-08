@@ -326,12 +326,14 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     //std::cout << "ppn = " << std::hex << (r.sv39.ppn&15) << std::dec << "\n";
     assert( (r.sv39.ppn&15) == 8);
     mask_bits = 16;
+    pgsz = 3;    
     //exit(-1);
   }
   else {
     mask_bits = 12;
+    pgsz = 2;    
   }
-  pgsz = 2;
+
  translation_complete:
     
   //* permission checks */

@@ -75,8 +75,8 @@ struct state_t{
   uint64_t llsc_addr;
   uint64_t maxicnt;
   uint64_t icnt;
-  uint64_t ipgszcnt[4];
-  uint64_t dpgszcnt[4];
+  uint64_t ipgszcnt[5];
+  uint64_t dpgszcnt[5];
   cache *icache;
   cache *dcache;
   tlb *dtlb;  

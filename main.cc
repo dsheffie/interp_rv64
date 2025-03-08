@@ -280,9 +280,26 @@ int main(int argc, char *argv[]) {
     for(int i = 0; i < 3; i++) {
       if((s->ipgszcnt[i] == 0) and (s->dpgszcnt[i]==0))
 	continue;
+      uint64_t pgsz = 0;
+      switch(i)
+	{
+	case 0:
+	  pgsz = 1UL<<30;
+	  break;
+	case 1:
+	  pgsz = 1UL<<21;
+	  break;
+	case 2:
+	  pgsz = 1UL<<12;
+	  break;
+	case 3:
+	  pgsz = 1UL<<16;
+	  break;
+	}
       printf("%lu pg sizes : iside %lu accesses, dside %lu accesses\n",
-	     i==2 ? (1U<<12) : (i == 1) ? (1UL<<21) : (1UL<<30),
-	     s->ipgszcnt[i], s->dpgszcnt[i]
+	     pgsz,
+	     s->ipgszcnt[i],
+	     s->dpgszcnt[i]
 	     );
     }
     if(globals::bpred) {
