@@ -77,7 +77,6 @@ bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
     switch(pa-CLINT_BASE_ADDR)
       {
       case 0x0:
-	printf("msip access\n");
 	break;
       case 0x4000:	
 	if(store) {
@@ -584,13 +583,13 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       break;
     case 0x144: {
       s->mip = (s->mip & ~(s->mideleg)) | (v & s->mideleg);
-      if(s->mip != v) {
-	std::cout << "mip changes to " << std::hex << v
-		  << " at " << s->pc << std::dec
-		  << "\n";
-	csr_t c(v);
-	std::cout << c.mie << "\n";
-      }            
+      // if(s->mip != v) {
+      // 	std::cout << "mip changes to " << std::hex << v
+      // 		  << " at " << s->pc << std::dec
+      // 		  << "\n";
+      // 	csr_t c(v);
+      // 	std::cout << c.mie << "\n";
+      // }            
       break;
     }
     case 0x180:
