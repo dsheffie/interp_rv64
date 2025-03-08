@@ -438,8 +438,7 @@ static void set_priv(state_t *s, int priv) {
       assert(mxl == 2);
     }
     if(mxl != 2) {
-      printf("huh trying to change mxl to %d, curr priv = %d, next priv = %d\n",
-	     mxl, s->priv, priv);
+      std::cout << "huh trying to change mxl to " << mxl << ", curr priv = " << s->priv << ", next priv = " << priv << "\n";
     }
     //assert(mxl == 2);
   }
@@ -534,7 +533,13 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
       return s->mhartid;      
     default:
       if(not(globals::silent)) {
-	printf("rd csr id 0x%x unimplemented, pc %lx\n", csr_id, s->pc);
+	std::cout << "rd csr id 0x"
+		  << std::hex
+		  << csr_id
+		  <<" unimplemented, pc "
+		  << s->pc
+		  << std::dec
+		  << "\n";
       }
       //undef = true;
       break;
@@ -580,7 +585,9 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
     case 0x144: {
       s->mip = (s->mip & ~(s->mideleg)) | (v & s->mideleg);
       if(s->mip != v) {
-	printf("mip changes to %lx at %lx\n", v, s->pc);
+	std::cout << "mip changes to " << std::hex << v
+		  << " at " << s->pc << std::dec
+		  << "\n";
 	csr_t c(v);
 	std::cout << c.mie << "\n";
       }            
@@ -701,8 +708,12 @@ void execRiscv(state_t *s) {
 
   int mxl = (s->mstatus >> MSTATUS_UXL_SHIFT) & 3;
   if(mxl == 0) {
-    printf("mxl = 0 at pc %lx, icnt %ld,mstatus %lx\n",
-	   s->pc, s->icnt, s->mstatus);
+    std::cout << "mxl = 0 at pc " << std::hex
+      	      << s->pc << ", status "
+	      << s->mstatus
+	      << std::dec
+	      << ", icnt " << s->icnt
+	      << "\n";
     exit(-1);
   }
 
@@ -1811,7 +1822,7 @@ void execRiscv(state_t *s) {
 	      }
 	      default:
 		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
-		printf("pc = %lx\n", s->pc);
+		std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
 		assert(0);
 	      }
 	    break;
@@ -2216,12 +2227,15 @@ void runInteractiveRiscv(state_t *s) {
   int fault = 0;
   while(run) {
     int64_t steps = 0;
-    printf("enter steps\n");
-    scanf("%lu", &steps);
+    std::cout << "enter steps\n";
+    std::cin >> steps;
     
-    if(steps == 0)
+    if(steps == 0) {
       continue;
-    printf("running for %lu steps\n", steps);
+    }
+
+    std::cout << "running for " << steps <<  " steps\n";
+    
     while(steps) {
       execRiscv(s);
       run = s->brk==0 and (s->icnt < s->maxicnt);
@@ -2231,9 +2245,15 @@ void runInteractiveRiscv(state_t *s) {
     }
     uint64_t phys_pc = s->translate(s->pc, fault, 8, false, false);
     uint32_t insn = s->load32(phys_pc);
-    
-    printf("priv %d vpc %lx, ppc %lx : %s\n",
-	   s->priv, s->pc, phys_pc, getAsmString(insn,s->pc).c_str());
+    std::cout << "priv " << s->priv << " vpc "
+	      << std::hex
+	      << s->pc
+	      << " ppc "
+	      << phys_pc
+	      << " : "
+	      << std::dec
+	      << getAsmString(insn,s->pc)
+	      << "\n";
 
     //dump_calls();
   }
