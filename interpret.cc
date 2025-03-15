@@ -1543,6 +1543,8 @@ void execRiscv(state_t *s) {
 	else {
 	  std::cout << "special = " << m.r.special << "\n";
 	  std::cout << "sel = " << m.r.sel << "\n";
+	  //disassemble(std::cout, inst, s->pc);
+	  //exit(-1);
 	  goto report_unimplemented;
 	}
 	

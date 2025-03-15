@@ -10,8 +10,8 @@ const std::string &getGPRName(uint32_t r);
 void initCapstone();
 void stopCapstone();
 
-std::string getAsmString(uint32_t inst,uint32_t addr);
-void disassemble(std::ostream &out, uint32_t inst, uint32_t addr);
+std::string getAsmString(uint32_t inst,uint64_t addr);
+void disassemble(std::ostream &out, uint32_t inst, uint64_t addr);
 
 
 #endif

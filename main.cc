@@ -195,7 +195,7 @@ int main(int argc, char *argv[]) {
     fileIsDump = isDump(filename);
   }
 
-  globals::bpred = new gshare(s->icnt, 16);
+  //globals::bpred = new gshare(s->icnt, 16);
   
   if(s->mem == nullptr) {
     std::cerr << "INTERP : couldn't allocate backing memory!\n";
