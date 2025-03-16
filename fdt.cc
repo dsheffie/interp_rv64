@@ -381,7 +381,10 @@ int riscv_build_fdt(uint8_t *dst,
     fdt_prop_str(s, "riscv,isa", isa_string);
 
     std::vector<std::string> rv_exts = {
-      "i", "m", "a",
+      "i",
+      "m",
+      "a",
+      "zba",
       "zicsr",
       "zifencei",
       "zicond"
