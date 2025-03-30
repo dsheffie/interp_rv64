@@ -337,7 +337,7 @@ int riscv_build_fdt(uint8_t *dst,
 {
     FDTState *s;
     int size, max_xlen = 64, i, cur_phandle, intc_phandle, plic_phandle;
-    char isa_string[128], *q;
+    char isa_string[128];
     uint32_t misa;
     uint32_t tab[4];
     uint64_t ram_size = globals::fdt_ram_size;
@@ -370,15 +370,7 @@ int riscv_build_fdt(uint8_t *dst,
     /* blindly copied from tinyemu */
     misa = 0x141101;
     
-    q = isa_string;
-    q += snprintf(isa_string, sizeof(isa_string), "rv%d", max_xlen);
-    for(i = 0; i < 26; i++) {
-        if (misa & (1 << i))
-            *q++ = 'a' + i;
-    }
-    *q = '\0';
-    //std::cout << isa_string << "\n";
-    fdt_prop_str(s, "riscv,isa", isa_string);
+    fdt_prop_str(s, "riscv,isa", "rv64ima");
 
     std::vector<std::string> rv_exts = {
       "i",
