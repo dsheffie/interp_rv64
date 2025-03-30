@@ -1157,7 +1157,7 @@ void execRiscv(state_t *s) {
       simm64 = (simm64 <<32) >> 32;
       uint32_t subop =(inst>>12)&7;
       uint32_t shamt = (inst>>20) & (s->xlen()-1);
-
+      uint32_t sel =  (inst >> 26) & 127;	    
       if(rd != 0) {
 	switch(m.i.sel)
 	  {
@@ -1166,7 +1166,25 @@ void execRiscv(state_t *s) {
 	    break;
 	  }
 	  case 1: /* slli */
-	    s->sext_xlen((*reinterpret_cast<uint64_t*>(&s->gpr[m.i.rs1])) << shamt, rd);
+	    if( (inst>>20) == 0x604) { /* sext.b */
+	      int64_t z8 = s->gpr[m.i.rs1];
+	      int64_t z64 = (z8 << 56) >> 56;
+	      s->sext_xlen(z64, rd);
+	    }
+	    else if( (inst>>20) == 0x605) { /* sext.h */
+	      int64_t z16 = s->gpr[m.i.rs1];
+	      int64_t z64 = (z16 << 48) >> 48;
+	      s->sext_xlen(z64, rd);
+	    }
+	    else {
+	      if(sel == 0) {
+		s->sext_xlen((*reinterpret_cast<uint64_t*>(&s->gpr[m.i.rs1])) << shamt, rd);
+	      }
+	      else {
+		
+		assert(0);
+	      }
+	    }
 	    break;
 	  case 2: /* slti */
 	    s->gpr[rd] = (s->gpr[m.i.rs1] < simm64);
@@ -1181,7 +1199,6 @@ void execRiscv(state_t *s) {
 	    s->sext_xlen((s->gpr[m.i.rs1] ^ simm64), rd);
 	    break;
 	  case 5: { /* srli & srai */
-	    uint32_t sel =  (inst >> 26) & 127;	    
 	    if(sel == 0) { /* srli */
 	      s->gpr[rd] = (*reinterpret_cast<uint64_t*>(&s->gpr[m.i.rs1]) >> shamt);
 	    }
@@ -1227,15 +1244,24 @@ void execRiscv(state_t *s) {
 	    s->gpr[m.i.rd] = sext(r);
 	    break;
 	  }
-	  case 1: { /*SLLIW*/
-	    uint32_t sel = ((inst>>26)&3);
-	    if(sel == 0) {
+	  case 1: {
+	    uint32_t sel = ((inst>>26)&63);
+	    if(sel == 0) {  /*SLLIW*/
 	      int32_t r = *reinterpret_cast<int32_t*>(&s->gpr[m.i.rs1]) << shamt;
 	      s->gpr[m.i.rd] = sext(r);
 	    }
-	    else if(sel == 2) {
+	    else if(sel == 2) {  /*SLLIUW*/
 	      uint64_t c = static_cast<uint64_t>(s->get_reg_u32(m.i.rs1)) << shamt;
 	      s->sext_xlen(c, m.r.rd);	      
+	    }
+	    else if(sel == 0x18) { /* clzw */
+	      uint32_t u = *reinterpret_cast<uint32_t*>(&s->gpr[m.i.rs1]);	      
+	      if(u == 0) {
+		s->gpr[m.i.rd] = ~0UL;
+	      }
+	      else {
+		s->gpr[m.i.rd] = __builtin_clz(u);
+	      }
 	    }
 	    else {
 	      goto report_unimplemented;

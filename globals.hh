@@ -26,6 +26,7 @@ namespace globals {
   extern std::map<std::string, uint64_t> symtab;
   extern std::ofstream *console_log;
   extern branch_predictor *bpred;
+  extern bool enable_zbb;
 };
 
 #endif

@@ -52,6 +52,8 @@ branch_trace* globals::branch_tracer = nullptr;
 std::ofstream* globals::console_log = nullptr;
 branch_predictor *globals::bpred = nullptr;
 
+bool globals::enable_zbb = true;
+
 static state_t *s = nullptr;
 static double starttime = 0.0;
 
