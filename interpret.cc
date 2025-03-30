@@ -1909,7 +1909,7 @@ void execRiscv(state_t *s) {
 		*reinterpret_cast<uint64_t*>(&s->gpr[m.r.rd]) = u_rs2==0 ? (~0UL) : (u_rs1 / u_rs2);
 		break;
 	      case 0x5: /* minu */
-		*reinterpret_cast<uint64_t*>(&s->gpr[m.r.rd]) = std::min(u_rs1, u_rs1);
+		*reinterpret_cast<uint64_t*>(&s->gpr[m.r.rd]) = std::min(u_rs1, u_rs2);
 		break;
 	      case 0x7: 
 		s->gpr[m.r.rd] = s->gpr[m.r.rs2]==0 ? 0 : s->gpr[m.r.rs1];
