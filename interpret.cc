@@ -730,6 +730,10 @@ void execRiscv(state_t *s) {
   riscv_t m(0);
   curr_pc = s->pc;
 
+  if( not(s->unpaged_mode()) ) {
+    globals::insn_histo[s->satp>>16][s->pc]++;
+  }
+  
   int mxl = (s->mstatus >> MSTATUS_UXL_SHIFT) & 3;
   if(mxl == 0) {
     std::cout << "mxl = 0 at pc " << std::hex

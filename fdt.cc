@@ -377,6 +377,7 @@ int riscv_build_fdt(uint8_t *dst,
       "m",
       "a",
       "zba",
+      "zbb",
       "zicsr",
       "zifencei",
       "zicond"

@@ -53,6 +53,7 @@ std::ofstream* globals::console_log = nullptr;
 branch_predictor *globals::bpred = nullptr;
 
 bool globals::enable_zbb = true;
+std::map<uint64_t, std::map<uint64_t, uint64_t>> globals::insn_histo;
 
 static state_t *s = nullptr;
 static double starttime = 0.0;
@@ -375,6 +376,25 @@ int main(int argc, char *argv[]) {
   }
   if(globals::bpred) {
     delete globals::bpred;
+  }
+
+  for(const auto &p : globals::insn_histo) {
+    const auto &m = p.second;
+    uint64_t cnt = 0;
+    std::stringstream ss;
+    ss << "region-" << std::hex << p.first
+       << std::dec << ".txt";
+    std::ofstream hh(ss.str());
+    for(const auto &e : p.second) {
+      hh << std::hex << e.first << std::dec
+	 << "," << e.second << "\n";
+      cnt += e.second;
+    }
+    std::cout << "pgtbl "
+	      << std::hex
+	      << p.first
+	      << std::dec
+	      << ", " << cnt << "\n";
   }
   
   return 0;
