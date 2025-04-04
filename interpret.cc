@@ -730,9 +730,9 @@ void execRiscv(state_t *s) {
   riscv_t m(0);
   curr_pc = s->pc;
 
-  if( not(s->unpaged_mode()) ) {
-    globals::insn_histo[s->satp>>16][s->pc]++;
-  }
+  //if( not(s->unpaged_mode()) ) {
+  // globals::insn_histo[s->satp>>16][s->pc]++;
+  //}
   
   int mxl = (s->mstatus >> MSTATUS_UXL_SHIFT) & 3;
   if(mxl == 0) {
@@ -1178,6 +1178,10 @@ void execRiscv(state_t *s) {
 	      uint64_t u = *reinterpret_cast<uint64_t*>(&s->gpr[m.i.rs1]);
 	      s->gpr[m.i.rd] = u==0 ? ~0UL : __builtin_ctzl(u);
 	    }
+	    else if((inst>>20) == 0x602) { /* cpop */
+	      uint64_t u = *reinterpret_cast<uint64_t*>(&s->gpr[m.i.rs1]);
+	      s->gpr[m.i.rd] =  __builtin_popcountl(u);
+	    }	 
 	    else if( (inst>>20) == 0x604) { /* sext.b */
 	      int64_t z8 = s->gpr[m.i.rs1];
 	      int64_t z64 = (z8 << 56) >> 56;
@@ -1193,7 +1197,7 @@ void execRiscv(state_t *s) {
 		s->sext_xlen((*reinterpret_cast<uint64_t*>(&s->gpr[m.i.rs1])) << shamt, rd);
 	      }
 	      else {
-		
+		printf("WTF AT PC %lx\n", s->pc);
 		assert(0);
 	      }
 	    }
@@ -1855,6 +1859,9 @@ void execRiscv(state_t *s) {
 		s->gpr[m.r.rd] = (t>>64);
 		break;
 	      }
+	      case 0x30: /* rol */
+		s->gpr[rd] = rol64(s->get_reg_u64(m.i.rs1), s->gpr[m.r.rs2] & (s->xlen()-1));		
+		break;	
 	      default:
 		std::cout << "sel = " << m.r.sel << ", special = " << m.r.special << "\n";
 		std::cout << std::hex << s->pc << std::dec << "\n";
