@@ -46,12 +46,12 @@ bool globals::svnapot = true;
 uint64_t globals::fdt_ram_size = 1UL<<24;
 uint64_t globals::fw_start_addr = 1UL<<21;
 uint64_t globals::fdt_addr = (1UL<<16) + 64;
-uint64_t globals::ram_phys_start = 0x80000000UL;
+uint64_t globals::ram_phys_start = 0x0;
 trace* globals::tracer = nullptr;
 branch_trace* globals::branch_tracer = nullptr;
 std::ofstream* globals::console_log = nullptr;
 branch_predictor *globals::bpred = nullptr;
-
+bool globals::extract_kernel = false;
 bool globals::enable_zbb = true;
 std::map<uint64_t, std::map<uint64_t, uint64_t>> globals::insn_histo;
 
@@ -140,7 +140,7 @@ int main(int argc, char *argv[]) {
       ("romhost", po::value<std::string>(&fromhost)->default_value("0"), "from host address")
       ("uart", po::value<bool>(&globals::fdt_uart)->default_value(false), "enable uart in fdt")
       ("ram_size", po::value<uint64_t>(&globals::fdt_ram_size)->default_value(1UL<<30), "fdt ram size")
-      ("phys_start", po::value<uint64_t>(&globals::ram_phys_start)->default_value(0x80000000UL), "start address for physical memory")
+      ("phys_start", po::value<uint64_t>(&globals::ram_phys_start)->default_value(1UL<<21), "start address for physical memory")
       ("interactive", po::value<bool>(&globals::interactive)->default_value(false), "interactive shell")
       ("lg2_icache_lines", po::value<int>(&lg2_icache_lines)->default_value(0), "number of icache lines")
       ("lg2_dcache_lines", po::value<int>(&lg2_dcache_lines)->default_value(0), "number of dcache lines")
@@ -149,6 +149,7 @@ int main(int argc, char *argv[]) {
       ("dcache_ways", po::value<int>(&dcache_ways)->default_value(1), "number of dcache ways")
       ("tracename", po::value<std::string>(&tracename), "tracename")
       ("svnapot", po::value<bool>(&globals::svnapot)->default_value(true), "enable svnapot")
+      ("extract_kernel,k", po::value<bool>(&globals::extract_kernel)->default_value(false), "extract kernel.bin")
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -169,8 +170,13 @@ int main(int argc, char *argv[]) {
 
   int rc = posix_memalign((void**)&s, pgSize, pgSize); 
   initState(s);
-  s->maxicnt = maxinsns;
-
+  if(globals::extract_kernel) {
+    s->maxicnt = maxinsns = 0;
+  }
+  else {
+    s->maxicnt = maxinsns;
+  }
+  
   if(lg2_dcache_lines != 0) {
     s->dcache = make_cache(dcache_ways, lg2_dcache_lines);
   }

@@ -167,6 +167,16 @@ void loadState(state_t &s, const std::string &filename) {
     memcpy(s.mem+p.va, p.data, 4096);
   }
 
+  if(globals::extract_kernel) {
+    const uint64_t kern_addr = 0x200000UL + globals::ram_phys_start;
+    uint64_t kern_size = *reinterpret_cast<uint64_t*>(s.mem + kern_addr-sizeof(uint64_t));
+    int fd = ::open("kernel.extracted.bin", O_RDWR|O_CREAT|O_TRUNC, 0600);
+    assert(fd != -1);
+    write(fd, s.mem+kern_addr, kern_size);
+    close(fd);
+  }
+
+  
   switch(h.priv&3)
     {
     case 0:
