@@ -45,6 +45,8 @@ void load_raw(const char* fn, state_t *ms) {
     for(size_t i = 0; i < kern_size; i++) {
       mem[kern_addr+i] = buf[i];
     }
+    /* save the size of the kernel */
+    *reinterpret_cast<uint64_t*>(&mem[kern_addr-sizeof(uint64_t)]) = kern_size;
     kern_end = kern_addr+kern_size;
     munmap(buf, kern_size);
     close(fd);
