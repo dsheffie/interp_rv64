@@ -1296,6 +1296,9 @@ void execRiscv(state_t *s) {
 		  case 1: /* ctzw */
 		    s->gpr[m.i.rd] = __builtin_ctz(u);		    
 		    break;
+		  case 2: /* cpopw */
+		    s->gpr[m.i.rd] = __builtin_popcount(u);		    
+		    break;		    
 		  default:
 		    assert(0);
 		  }
@@ -1606,6 +1609,13 @@ void execRiscv(state_t *s) {
 	  int32_t c = a << (s->gpr[m.r.rs2]&31);
 	  s->sext_xlen(c, m.r.rd);
 	}
+	else if((m.r.sel == 1) & (m.r.special == 0x30)) { /* rol.w */
+	  uint32_t x = *reinterpret_cast<uint32_t*>(&s->gpr[m.r.rs1]);
+	  int amt = (s->gpr[m.r.rs2]&31);
+	  uint32_t xx = rol32(x, amt);
+	  //printf("rol32 : x = %x, amt = %d, xx = %x\n", x, amt, xx);
+	  s->gpr[m.i.rd] = sext(xx);
+	}		
 	else if((m.r.sel == 4) & (m.r.special == 1)) { /* divw */
 	  int32_t c = ~0;
 	  if(b != 0) {
@@ -1677,6 +1687,7 @@ void execRiscv(state_t *s) {
 	else {
 	  std::cout << "special = " << m.r.special << "\n";
 	  std::cout << "sel = " << m.r.sel << "\n";
+	  assert(false);
 	  //disassemble(std::cout, inst, s->pc);
 	  //exit(-1);
 	  goto report_unimplemented;
