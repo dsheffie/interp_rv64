@@ -245,7 +245,17 @@ static bool entered_user = false;
 
 
 uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fetch) {
+  csr_t c(satp);
+  pte_t r(0);
+
+  uint64_t a = 0, u = 0;
+  int mask_bits = -1;
+  int pgsz = 0;
+  uint64_t tlb_pa = 0;
+  bool tlb_hit = false, tlb_dirty = false;
+  
   fault = false;
+  
   if(unpaged_mode()) {
     if(fetch and icache) {
       icache->access(ea, icnt, pc);
@@ -258,24 +268,9 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
       globals::tracer->add(ea, ea, fetch ? 1 : 2);      
     }
     return ea;
-  }  
-  csr_t c(satp);
-  pte_t r(0);
-  uint64_t ea0 = ea & (~4095L);
-  uint64_t ea1 = ((ea + sz - 1) & (~4095L));
-  bool same_page = (ea0 == ea1);
-  uint64_t a = 0, u = 0;
-  int mask_bits = -1;
-  int pgsz = 0;
-  uint64_t tlb_pa = 0;
-  bool tlb_hit = false, tlb_dirty = false;
-  //if we are unaligned assert out (for now)
-  if(!same_page) {
-    fault = 1;
-    std::cout << "split page!";
-    return 4;
   }
-
+  
+  
   uint64_t t_pa = lookup_tlb(ea, tlb_hit, tlb_dirty);
   
   if((dtlb == nullptr) and tlb_hit and (tlb_dirty or not(store))) {
@@ -305,7 +300,6 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     pgsz = 0;
     goto translation_complete;
   }
-  
   a = (r.sv39.ppn * 4096) + (((ea >> 21) & 511)*8);
   u = *reinterpret_cast<uint64_t*>(mem + a);
   r.r = u;
@@ -314,9 +308,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     fault = 1;
     return 1;
   }
-  
-
-  if(r.sv39.x || r.sv39.w || r.sv39.r) {
+  if(r.sv39.x or r.sv39.w or r.sv39.r) {
     mask_bits = 21;
     pgsz = 1;
     goto translation_complete;
@@ -331,20 +323,16 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     return 0;
   }
 
-  if(not(r.sv39.x || r.sv39.w || r.sv39.r)) {
+  if(not(r.sv39.x or r.sv39.w or r.sv39.r)) {
     std::cout << "huh no translation for " << std::hex << pc << std::dec << "\n";
     std::cout << "huh no translation for " << std::hex << ea << std::dec << "\n";
     std::cout << "u = " << std::hex << u << std::dec << "\n";
   }
-  assert(r.sv39.x || r.sv39.w || r.sv39.r);
   
   if(r.sv39.n) {
-    //std::cout << "translation for " << std::hex << ea << std::dec << " has n bit set\n";
-    //std::cout << "ppn = " << std::hex << (r.sv39.ppn&15) << std::dec << "\n";
     assert( (r.sv39.ppn&15) == 8);
     mask_bits = 16;
     pgsz = 3;    
-    //exit(-1);
   }
   else {
     mask_bits = 12;
@@ -428,16 +416,6 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   }
 
   insert_tlb(ea, r.sv39.ppn * 4096, mask_bits, r.sv39.d);
-  
-  //tlb[ea >>  12] = std::pair<uint64_t, uint64_t>(r.r, (r.sv39.ppn << 12) | mask_bits );
-  // if(tlb_pa != 0 && (pa != tlb_pa)) {
-  //   std::cout << "m = " << std::hex << m << std::dec << "\n";
-  //   printf("ea     = %lx\n", ea);
-  //   printf("pa     = %lx\n", pa);
-  //   printf("tlb pa = %lx\n", tlb_pa);
-  //   assert(pa == tlb_pa);
-  // }
-
   return pa;
 }
 

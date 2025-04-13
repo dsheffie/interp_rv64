@@ -31,7 +31,7 @@ bool uart::handle(uint64_t addr, bool store, int64_t st_data) {
 	//offs, store, s->pc, st_data);
 	
 	//u8250_handle_out(uart, value);
-	printf("%c", st_data);
+	printf("%c", static_cast<char>(st_data));
 	pending_ints |= 1 << U8250_INT_THRE;
 	break;
       case 1:
