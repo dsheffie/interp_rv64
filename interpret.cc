@@ -25,7 +25,7 @@ static std::stack<int64_t> calls;
 static bool tracing_armed = false;
 static uint64_t tracing_start_icnt = 0;
 
-
+static uint64_t lookup_tlb(uint64_t va, bool &hit, bool &dirty) __attribute__((always_inline));
 
 static inline uint64_t ror64(const uint64_t x, int amt) {
  return (x >> amt) | (x << (64 - amt));
@@ -210,16 +210,9 @@ static void clear_tlb() {
   }
 }
 
-static uint64_t hash_tlb(uint64_t pfn) {
-  //pfn ^= pfn << 13;
-  //pfn ^= pfn >> 7;
-  //pfn ^= pfn << 17;
-  return pfn & (TLB_SZ-1);
-}
-
 static void insert_tlb(uint64_t va, uint64_t paddr, int mask_bits, bool dirty) {
   uint64_t pfn = va >> 12;
-  uint64_t h = hash_tlb(pfn);
+  uint64_t h = pfn & (TLB_SZ-1);
   tlb[h].valid = true;
   tlb[h].pfn = pfn;
   tlb[h].dirty = dirty;
@@ -229,7 +222,7 @@ static void insert_tlb(uint64_t va, uint64_t paddr, int mask_bits, bool dirty) {
 static uint64_t lookup_tlb(uint64_t va, bool &hit, bool &dirty) {
   ++globals::tlb_accesses;
   uint64_t pfn = va >> 12;
-  uint64_t h = hash_tlb(pfn);  
+  uint64_t h = pfn & (TLB_SZ-1);
   if(not(tlb[h].valid)) {
     hit = false;
     return 0;
