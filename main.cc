@@ -130,7 +130,7 @@ int main(int argc, char *argv[]) {
       ("help,h", "Print help messages") 
       ("args,a", po::value<std::string>(&sysArgs), "arguments to riscv binary") 
       ("file,f", po::value<std::string>(&filename), "rv32 binary")
-      ("max,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
+      ("maxicnt,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
       ("dump", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
       ("fullsim", po::value<bool>(&globals::fullsim)->default_value(true), "full ssystem simulation")
       ("checkpoints", po::value<bool>(&take_checkpoints)->default_value(false), "take checkpoints at dump icnt internal")
