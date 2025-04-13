@@ -198,7 +198,7 @@ struct tlb_entry {
   bool valid;
 };
 
-uint64_t tlb_accesses = 0, tlb_hits = 0;
+
 
 static const uint64_t TLB_SZ = 1UL<<5;
 
@@ -227,8 +227,7 @@ static void insert_tlb(uint64_t va, uint64_t paddr, int mask_bits, bool dirty) {
 }
 
 static uint64_t lookup_tlb(uint64_t va, bool &hit, bool &dirty) {
-  ++tlb_accesses;
-  
+  ++globals::tlb_accesses;
   uint64_t pfn = va >> 12;
   uint64_t h = hash_tlb(pfn);  
   if(not(tlb[h].valid)) {
@@ -245,7 +244,7 @@ static uint64_t lookup_tlb(uint64_t va, bool &hit, bool &dirty) {
   uint64_t pa = (ppn & (~m)) | (va & m);
   dirty = tlb[h].dirty;
   hit = true;
-  ++tlb_hits;
+  ++globals::tlb_hits;
   return pa;
 }
 
@@ -285,6 +284,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   }
 
   uint64_t t_pa = lookup_tlb(ea, tlb_hit, tlb_dirty);
+  
   if((dtlb == nullptr) and tlb_hit and (tlb_dirty or not(store))) {
     if(store) assert(tlb_dirty);
     if(fetch and icache) {

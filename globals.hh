@@ -7,6 +7,8 @@ struct branch_predictor;
 #include <iostream>
 
 namespace globals {
+  extern uint64_t tlb_accesses;
+  extern uint64_t tlb_hits;  
   extern uint64_t tohost_addr;
   extern uint64_t fromhost_addr;
   extern int sysArgc;

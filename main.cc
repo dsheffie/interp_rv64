@@ -32,6 +32,8 @@ extern const char* githash;
 
 void load_raw(const char* fn, state_t *ms);
 
+uint64_t globals::tlb_accesses = 0;
+uint64_t globals::tlb_hits = 0;
 uint64_t globals::tohost_addr = 0;
 uint64_t globals::fromhost_addr = 0;
 bool globals::log = false;
@@ -311,6 +313,8 @@ int main(int argc, char *argv[]) {
 	     s->ipgszcnt[i],
 	     s->dpgszcnt[i]
 	     );
+      std::cout << "tlb_accesses = " << globals::tlb_accesses << "\n";
+      std::cout << "tlb_hits     = " << globals::tlb_hits << "\n";
     }
     if(globals::bpred) {
       uint64_t n_br = 0, n_mis=0, n_inst=0;      
