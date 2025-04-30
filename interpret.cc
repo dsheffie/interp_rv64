@@ -257,13 +257,9 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   fault = false;
   
   if(unpaged_mode()) {
-    if(fetch and icache) {
-      icache->access(ea, icnt, pc);
-    }
-    else if(dcache and not(fetch)) {
+    if(dcache and not(fetch)) {
       dcache->access(ea, icnt, pc);
     }
-
     if(globals::tracer and entered_user) {
       globals::tracer->add(ea, ea, fetch ? 1 : 2);      
     }
@@ -275,10 +271,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   
   if((dtlb == nullptr) and tlb_hit and (tlb_dirty or not(store))) {
     if(store) assert(tlb_dirty);
-    if(fetch and icache) {
-      icache->access(t_pa, icnt, pc);
-    }
-    else if(dcache and not(fetch)) {
+    if(dcache and not(fetch)) {
       dcache->access(t_pa, icnt, pc);
     }
     return t_pa;
@@ -408,10 +401,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   if(globals::tracer and entered_user) {
     globals::tracer->add(ea, pa, fetch ? 1 : 2);
   }
-  if(fetch and icache) {
-    icache->access(pa, icnt, pc);
-  }
-  else if(dcache and not(fetch)) {
+  if(dcache and not(fetch)) {
     dcache->access(pa, icnt, pc);
   }
 
@@ -593,7 +583,8 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
 	 c.satp.asid == 0) {
 	s->satp = v;
 	//printf("tlb had %lu entries\n", tlb.size());
-	clear_tlb();	
+	clear_tlb();
+	s->last_phys_pc = 0;	
       }
       break;
     case 0x300:
@@ -689,8 +680,8 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       break;
     }
 }
-
-void execRiscv(state_t *s) {
+template <bool useIcache, bool useDcache>
+void execRiscv_(state_t *s) {
   uint8_t *mem = s->mem;
   int fetch_fault = 0, except_cause = -1;
   uint64_t tval = -1;
@@ -751,10 +742,23 @@ void execRiscv(state_t *s) {
     except_cause = CAUSE_INTERRUPT | irq;
     goto handle_exception;
   }
+
+  /* if we're on the same page as the past instruction, reuse
+   * the saved physical address */
+  static const uint64_t lg_pg_sz = 12;
+  static const uint64_t pg_mask = (1UL<<lg_pg_sz)-1;
+  if((s->last_pc>>lg_pg_sz) == (s->pc>>lg_pg_sz) && s->last_phys_pc) {
+    phys_pc = (s->pc & pg_mask) | (s->last_phys_pc & (~pg_mask));
+  }
+  else {
+    phys_pc = s->translate(s->pc, fetch_fault, 4, false, true);
+  }
+  if(useIcache) {
+    s->icache->access(phys_pc, s->icnt, s->pc);
+  }
+
+  s->last_phys_pc = phys_pc;
   
-  phys_pc = s->translate(s->pc, fetch_fault, 4, false, true);
-
-
   /* lightly modified from tinyemu */
   
   if(fetch_fault) {
@@ -2350,23 +2354,29 @@ void runRiscv(state_t *s, uint64_t dumpIcnt) {
     (s->icnt < dumpIcnt);
   if(not(keep_going))
     return;
-  
-  do {
-    execRiscv(s);
-    bool dump = (s->icnt >= dumpIcnt) /*and (s->priv == 0)*/;
 
-    //if(not(dump) and (s->icnt >= dumpIcnt)) {
-    //printf("should dump but priv is %d at pc %lx\n",
-    //s->priv, s->pc);
-    //}
+  if(s->icache and s->dcache) {
+    abort();
+  }
+  else if(s->icache and s->dcache == nullptr) {
+    abort();
+  }
+  else if(s->icache==nullptr and s->dcache) {
+    abort();
+  }
+  else {
+    do {
+      execRiscv_<false,false>(s);
+      bool dump = (s->icnt >= dumpIcnt) /*and (s->priv == 0)*/;
+      keep_going = (s->brk==0) and
+	(s->icnt < s->maxicnt) and
+	not(dump);
+    } while(keep_going);
+  }
+}
 
-    
-    keep_going = (s->brk==0) and
-      (s->icnt < s->maxicnt) and
-      not(dump);
-    
-  } while(keep_going);
-
+void execRiscv(state_t *s) {
+  execRiscv_<false,false>(s);
 }
 
 void runInteractiveRiscv(state_t *s) {
@@ -2384,7 +2394,7 @@ void runInteractiveRiscv(state_t *s) {
     std::cout << "running for " << steps <<  " steps\n";
     
     while(steps) {
-      execRiscv(s);
+      execRiscv_<false,false>(s);
       run = s->brk==0 and (s->icnt < s->maxicnt);
       if(not(run))
 	break;

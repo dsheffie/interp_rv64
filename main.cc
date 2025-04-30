@@ -189,6 +189,8 @@ int main(int argc, char *argv[]) {
   if(dtlb_entries) {
     s->dtlb = new tlb(dtlb_entries);
   }
+  s->last_pc = 0;
+  s->last_phys_pc = 0;
   
 #ifdef __linux__
   void* mempt = mmap(nullptr, 1UL<<32, PROT_READ | PROT_WRITE,
