@@ -65,7 +65,6 @@ void initState(state_t *s) {
   s->misa = 0x8000000000141101L;
   s->priv = priv_machine;
   s->mstatus = ((uint64_t)2 << MSTATUS_UXL_SHIFT) |((uint64_t)2 << MSTATUS_SXL_SHIFT);
-  s->u8250 = new uart(s);
 }
 
 uint64_t mtimecmp_cnt = 0;
@@ -88,10 +87,6 @@ bool state_t::memory_map_check(uint64_t pa, bool store, int64_t x) {
   //assert(vio);
   //return vio->handle(pa, store, x);
   //}
-  if(pa >= UART_BASE_ADDR and (pa < (UART_BASE_ADDR + UART_SIZE))) {
-    //printf(">> %s uart range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-UART_BASE_ADDR);
-    return u8250->handle(pa, store, x);
-  }
   if(pa >= PLIC_BASE_ADDR and (pa < (PLIC_BASE_ADDR + PLIC_SIZE))) {
     //printf(">> %s plic range at pc %lx, offset %ld bytes\n", store ? "write" : "read", pc, pa-PLIC_BASE_ADDR);
     //exit(-1);
@@ -733,7 +728,6 @@ void execRiscv_(state_t *s) {
     s->mip |= cc.raw;
   }
 
-  s->u8250->update_irq();
   
   irq = take_interrupt(s);
   if(irq) {

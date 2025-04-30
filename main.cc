@@ -374,9 +374,7 @@ int main(int argc, char *argv[]) {
   if(s->vio) {
     delete s->vio;
   }
-  if(s->u8250) {
-    delete s->u8250;
-  }
+
   free(s);
   stopCapstone();
 
