@@ -25,7 +25,6 @@ static std::stack<int64_t> calls;
 static bool tracing_armed = false;
 static uint64_t tracing_start_icnt = 0;
 
-static uint64_t lookup_tlb(uint64_t va, bool &hit, bool &dirty) __attribute__((always_inline));
 
 static inline uint64_t ror64(const uint64_t x, int amt) {
  return (x >> amt) | (x << (64 - amt));
@@ -205,7 +204,7 @@ static void clear_tlb() {
   }
 }
 
-static void insert_tlb(uint64_t va, uint64_t paddr, int mask_bits, bool dirty) {
+void insert_tlb(uint64_t va, uint64_t paddr, int mask_bits, bool dirty) {
   uint64_t pfn = va >> 12;
   uint64_t h = pfn & (TLB_SZ-1);
   tlb[h].valid = true;
@@ -214,7 +213,7 @@ static void insert_tlb(uint64_t va, uint64_t paddr, int mask_bits, bool dirty) {
   tlb[h].paddr = paddr | mask_bits;
 }
 
-static uint64_t lookup_tlb(uint64_t va, bool &hit, bool &dirty) {
+uint64_t lookup_tlb(uint64_t va, bool &hit, bool &dirty) {
   ++globals::tlb_accesses;
   uint64_t pfn = va >> 12;
   uint64_t h = pfn & (TLB_SZ-1);
@@ -239,170 +238,6 @@ static uint64_t lookup_tlb(uint64_t va, bool &hit, bool &dirty) {
 static bool entered_user = false;
 
 
-uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fetch) {
-  csr_t c(satp);
-  pte_t r(0);
-
-  uint64_t a = 0, u = 0;
-  int mask_bits = -1;
-  int pgsz = 0;
-  uint64_t tlb_pa = 0;
-  bool tlb_hit = false, tlb_dirty = false;
-  
-  fault = false;
-  
-  if(unpaged_mode()) {
-    if(dcache and not(fetch)) {
-      dcache->access(ea, icnt, pc);
-    }
-    if(globals::tracer and entered_user) {
-      globals::tracer->add(ea, ea, fetch ? 1 : 2);      
-    }
-    return ea;
-  }
-  
-  
-  uint64_t t_pa = lookup_tlb(ea, tlb_hit, tlb_dirty);
-  
-  if((dtlb == nullptr) and tlb_hit and (tlb_dirty or not(store))) {
-    if(store) assert(tlb_dirty);
-    if(dcache and not(fetch)) {
-      dcache->access(t_pa, icnt, pc);
-    }
-    return t_pa;
-  }
-  
-  assert(c.satp.mode == 8);
-  a = (c.satp.ppn * 4096) + (((ea >> 30) & 511)*8);
-  u = *reinterpret_cast<uint64_t*>(mem + a);
-  r.r = u;
-  assert(r.sv39.n == false);  
-  if((u&1) == 0) {
-    //printf("page not present fault\n");
-    fault = 1;
-    return 2;
-  }
-
-  if(r.sv39.x || r.sv39.w || r.sv39.r) {
-    mask_bits = 30;
-    pgsz = 0;
-    goto translation_complete;
-  }
-  a = (r.sv39.ppn * 4096) + (((ea >> 21) & 511)*8);
-  u = *reinterpret_cast<uint64_t*>(mem + a);
-  r.r = u;
-  assert(r.sv39.n == false);
-  if((u&1) == 0) {
-    fault = 1;
-    return 1;
-  }
-  if(r.sv39.x or r.sv39.w or r.sv39.r) {
-    mask_bits = 21;
-    pgsz = 1;
-    goto translation_complete;
-  }
-  a = (r.sv39.ppn * 4096) + (((ea >> 12) & 511)*8);
-  u = *reinterpret_cast<uint64_t*>(mem + a);
-  r.r = u;    
-  if((u&1) == 0) {
-    //std::cout << "mapping does not exist for " << std::hex << ea << std::dec << " <<\n";
-    //printf("page not present fault\n");    
-    fault = 1;
-    return 0;
-  }
-
-  if(not(r.sv39.x or r.sv39.w or r.sv39.r)) {
-    std::cout << "huh no translation for " << std::hex << pc << std::dec << "\n";
-    std::cout << "huh no translation for " << std::hex << ea << std::dec << "\n";
-    std::cout << "u = " << std::hex << u << std::dec << "\n";
-  }
-  
-  if(r.sv39.n) {
-    assert( (r.sv39.ppn&15) == 8);
-    mask_bits = 16;
-    pgsz = 3;    
-  }
-  else {
-    mask_bits = 12;
-    pgsz = 2;    
-  }
-
- translation_complete:
-    
-  //* permission checks */
-  if(fetch && (r.sv39.x == 0)) {
-    //std::cout << "not executable fetch\n";
-    //printf("not executable fault\n");    
-    fault = 1;
-    return 0;
-  }
-  if(store && (r.sv39.w == 0)) {
-    //printf("store to non-writeable page, pte addr %lx\n", a);
-    fault = 1;
-    return 0;
-  }
-  if(r.sv39.w && (r.sv39.r == 0)) {
-    fault = 1;
-    return 0;
-  }
-  if(not(store or fetch) && (r.sv39.r == 0)) {
-    //std::cout << "read to not readable page\n";
-    fault = 1;
-    return 0;
-  }
-  if(r.sv39.u == 0 && (priv == priv_user)) {
-    fault = 1;
-    return 0;
-  }
-  if(r.sv39.u == 1 && fetch && (priv != priv_user)) {
-    fault = 1;
-    return 0;
-  }
-  assert(mask_bits != -1);
-
-  
-  if(r.sv39.a == 0) {
-    r.sv39.a = 1;
-    if(dcache) {
-      dcache->access(a, icnt, ~0UL);
-    }    
-    store64(a, r.r);
-  }
-  if((r.sv39.d == 0) && store) {
-    //printf("marking %lx dirty\n", ea & (~4095UL));
-    //abort();
-    r.sv39.d = 1;
-    if(dcache) {
-      dcache->access(a, icnt, ~0UL);
-    }
-    store64(a, r.r);    
-  }
-  
-  if(fetch) {
-    ++ipgszcnt[pgsz];
-  }
-  else {
-    ++dpgszcnt[pgsz];
-  }
-  int64_t m = ((1L << mask_bits) - 1);
-  int64_t pa = ((r.sv39.ppn * 4096) & (~m)) | (ea & m);
-
-  if(dtlb and not(fetch)) {
-    if(not(dtlb->access(ea))) {
-      dtlb->add((ea & (~m)), m);
-    }
-  }
-  
-  if(globals::tracer and entered_user) {
-    globals::tracer->add(ea, pa, fetch ? 1 : 2);
-  }
-  if(dcache and not(fetch)) {
-    dcache->access(pa, icnt, pc);
-  }
-
-  insert_tlb(ea, r.sv39.ppn * 4096, mask_bits, r.sv39.d);
-  return pa;
-}
 
 static void set_priv(state_t *s, int priv) {
   if (s->priv != priv) {
@@ -745,7 +580,7 @@ void execRiscv_(state_t *s) {
     phys_pc = (s->pc & pg_mask) | (s->last_phys_pc & (~pg_mask));
   }
   else {
-    phys_pc = s->translate(s->pc, fetch_fault, 4, false, true);
+    phys_pc = s->translate<false>(s->pc, fetch_fault, 4, false, true);
   }
   if(useIcache) {
     s->icache->access(phys_pc, s->icnt, s->pc);
@@ -860,7 +695,7 @@ void execRiscv_(state_t *s) {
 	    assert(disp == 0);
 	    int64_t ea = disp + s->gpr[rs1];
 	    int fault;
-	    int64_t pa = s->translate(ea, fault, 4, false);	    
+	    int64_t pa = s->translate<useDcache>(ea, fault, 4, false);	    
 	    if(fault) {
 	      except_cause = CAUSE_LOAD_PAGE_FAULT;
 	      tval = ea;
@@ -886,7 +721,7 @@ void execRiscv_(state_t *s) {
 	    assert(disp == 0);
 	    int64_t ea = disp + s->gpr[rs1];
 	    int fault;
-	    int64_t pa = s->translate(ea, fault, 4, true);	    
+	    int64_t pa = s->translate<useDcache>(ea, fault, 4, true);	    
 	    if(fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = ea;
@@ -992,7 +827,7 @@ void execRiscv_(state_t *s) {
 	    uint32_t d = ((hi<<3) | lo)<<3;
 	    int64_t ea = d + s->gpr[2];
 	    int fault;
-	    int64_t pa = s->translate(ea, fault, 8, true);	    
+	    int64_t pa = s->translate<useDcache>(ea, fault, 8, true);	    
 	    if(fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = ea;
@@ -1042,7 +877,7 @@ void execRiscv_(state_t *s) {
 	int sz = 1<<(m.s.sel & 3);
 	
 	int page_fault = 0;
-	int64_t pa = s->translate(ea, page_fault, sz);
+	int64_t pa = s->translate<useDcache>(ea, page_fault, sz);
 	  
 	if(page_fault) {
 	  except_cause = CAUSE_LOAD_PAGE_FAULT;
@@ -1099,7 +934,7 @@ void execRiscv_(state_t *s) {
 	case 0x2: {/* lwx */
 	  int64_t ea = s->gpr[m.r.rs1] + s->gpr[m.r.rs2];
 	  int page_fault = 0;
-	  int64_t pa = s->translate(ea, page_fault, 4);
+	  int64_t pa = s->translate<useDcache>(ea, page_fault, 4);
 	  if(page_fault) {
 	    except_cause = CAUSE_LOAD_PAGE_FAULT;
 	    tval = ea;
@@ -1312,11 +1147,11 @@ void execRiscv_(state_t *s) {
       int page_fault = 0;
       uint64_t pa = 0;
       if(m.a.sel == 2) {
-	pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
+	pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 4, true);
 	switch(m.a.hiop)
 	  {
 	  case 0x0: {/* amoadd.w */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 4, true);
 	    if(page_fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1330,7 +1165,7 @@ void execRiscv_(state_t *s) {
 	    break;
 	  }
 	  case 0x1: {/* amoswap.w */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4,  true);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 4,  true);
 	    if(page_fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1344,7 +1179,7 @@ void execRiscv_(state_t *s) {
 	    break;
 	  }
 	  case 0x2: { /* lr.w */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 4);
 	    if(page_fault) {
 	      except_cause = CAUSE_LOAD_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1358,7 +1193,7 @@ void execRiscv_(state_t *s) {
 	    break;
 	  }
 	  case 0x3 : { /* sc.w */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 4, true);
 	    if(page_fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1374,7 +1209,7 @@ void execRiscv_(state_t *s) {
 	    break;
 	  }
 	  case 0x8: {/* amoor.w */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 4, true);
 	    if(page_fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1389,7 +1224,7 @@ void execRiscv_(state_t *s) {
 	    break;
 	  }
 	  case 0xc: {/* amoand.w */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 4, true);
 	    if(page_fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1403,7 +1238,7 @@ void execRiscv_(state_t *s) {
 	    break;
 	  }
 	  case 0x1c: {/* amomaxu.w */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 4, true);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 4, true);
 	    if(page_fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1423,11 +1258,11 @@ void execRiscv_(state_t *s) {
 	  }
       }
       else if(m.a.sel == 3) {
-	pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, false);
+	pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 8, false);
 	switch(m.a.hiop)
 	  {
 	  case 0x0: {/* amoadd.d */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 8, true);
 	    if(page_fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1441,7 +1276,7 @@ void execRiscv_(state_t *s) {
 	    break;
 	  }
 	  case 0x1: {/* amoswap.d */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 8, true);
 	    if(page_fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1455,7 +1290,7 @@ void execRiscv_(state_t *s) {
 	    break;
 	  }
 	  case 0x2: { /* lr.d */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 8);
 	    if(page_fault) {
 	      except_cause = CAUSE_LOAD_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1469,7 +1304,7 @@ void execRiscv_(state_t *s) {
 	    break;
 	  }
 	  case 0x3 : { /* sc.d */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8,  true);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 8,  true);
 	    if(page_fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1485,7 +1320,7 @@ void execRiscv_(state_t *s) {
 	    break;
 	  }
 	  case 0x4: {/* amoxor.d */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 8, true);
 	    if(page_fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1500,7 +1335,7 @@ void execRiscv_(state_t *s) {
 	  }	    
 	    
 	  case 0x8: {/* amoor.d */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 8, true);
 	    if(page_fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1514,7 +1349,7 @@ void execRiscv_(state_t *s) {
 	    break;
 	  }
 	  case 0xc: {/* amoand.d */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 8, true);
 	    if(page_fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1529,7 +1364,7 @@ void execRiscv_(state_t *s) {
 	    break;
 	  }
 	  case 0x1c: {/* amoand.d */
-	    pa = s->translate(s->gpr[m.a.rs1], page_fault, 8, true);
+	    pa = s->translate<useDcache>(s->gpr[m.a.rs1], page_fault, 8, true);
 	    if(page_fault) {
 	      except_cause = CAUSE_STORE_PAGE_FAULT;
 	      tval = s->gpr[m.a.rs1];
@@ -1674,7 +1509,7 @@ void execRiscv_(state_t *s) {
       int fault;
 
       int sz = 1<<(m.s.sel);
-      int64_t pa = s->translate(ea, fault, sz, true);
+      int64_t pa = s->translate<useDcache>(ea, fault, sz, true);
       
       if(fault) {
 	except_cause = CAUSE_STORE_PAGE_FAULT;
@@ -2394,7 +2229,7 @@ void runInteractiveRiscv(state_t *s) {
 	break;
       --steps;
     }
-    uint64_t phys_pc = s->translate(s->pc, fault, 8, false, false);
+    uint64_t phys_pc = s->translate<false>(s->pc, fault, 8, false, false);
     uint32_t insn = s->load32(phys_pc);
     std::cout << "priv " << s->priv << " vpc "
 	      << std::hex

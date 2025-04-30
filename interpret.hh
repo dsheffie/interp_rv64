@@ -8,6 +8,8 @@
 #include <map>
 #include <string>
 #include <cassert>
+
+#include "globals.hh"
 #include "nway_cache.hh"
 #include "temu_code.hh"
 
@@ -55,14 +57,79 @@ struct mie_t {
   uint64_t z : 52;
 };
 
+struct mstatus_t {
+  uint64_t j0 : 1;
+  uint64_t sie : 1;
+  uint64_t j2 : 1;
+  uint64_t mie : 1;
+  uint64_t j4 : 1;
+  uint64_t spie : 1;
+  uint64_t ube : 1;
+  uint64_t mpie : 1;
+  uint64_t spp : 1;
+  uint64_t vs : 2;
+  uint64_t mpp : 2;
+  uint64_t fs : 2;
+  uint64_t xs : 2;
+  uint64_t mprv : 1;
+  uint64_t sum : 1;
+  uint64_t mxr : 1;
+  uint64_t tvm : 1;
+  uint64_t tw : 1;
+  uint64_t tsr : 1;
+  uint64_t junk23 : 9;
+  uint64_t uxl : 2;
+  uint64_t sxl : 2;
+  uint64_t sbe : 1;
+  uint64_t mbe : 1;
+  uint64_t junk38 : 25;
+  uint64_t sd : 1;
+};
+
+
 struct satp_t {
   uint64_t ppn : 44;
   uint64_t asid : 16;
   uint64_t mode : 4;
 };
 
+union csr_t {
+  satp_t satp;
+  mip_t mip;
+  mie_t mie;
+  mstatus_t mstatus;
+  uint64_t raw;
+  csr_t(uint64_t x) : raw(x) {}
+};
+
+struct sv39_t {
+  uint64_t v : 1;
+  uint64_t r : 1;
+  uint64_t w : 1;
+  uint64_t x : 1;
+  uint64_t u : 1;
+  uint64_t g : 1;
+  uint64_t a : 1;
+  uint64_t d : 1;
+  uint64_t rsw : 2;
+  uint64_t ppn : 44;
+  uint64_t mbz : 7;
+  uint64_t pbmt : 2;
+  uint64_t n : 1;
+};
+
+union pte_t {
+  sv39_t sv39;
+  uint64_t r;
+  pte_t(uint64_t x) : r(x) {}
+};
+
+
 struct virtio;
 struct uart;
+
+void insert_tlb(uint64_t va, uint64_t paddr, int mask_bits, bool dirty);
+uint64_t lookup_tlb(uint64_t va, bool &hit, bool &dirty);
 
 struct state_t{
   uint64_t pc;
@@ -172,9 +239,172 @@ struct state_t{
   void store64(uint64_t pa, int64_t x);
 
   
-  uint64_t translate(uint64_t ea, int &fault, int sz,
-		     bool store = false, bool fetch = false) __attribute__((always_inline));
+  //uint64_t translate(uint64_t ea, int &fault, int sz,
+  //bool store = false, bool fetch = false) __attribute__((always_inline));
 
+  template <bool useDcache>
+  uint64_t translate(uint64_t ea, int &fault, int sz, bool store = false,
+		     bool fetch = false) __attribute__((always_inline)) {
+  csr_t c(satp);
+  pte_t r(0);
+
+  uint64_t a = 0, u = 0;
+  int mask_bits = -1;
+  int pgsz = 0;
+  uint64_t tlb_pa = 0;
+  bool tlb_hit = false, tlb_dirty = false;
+  
+  fault = false;
+  
+  if(unpaged_mode()) {
+    if(useDcache and not(fetch)) {
+      dcache->access(ea, icnt, pc);
+    }
+    return ea;
+  }
+  
+  
+  uint64_t t_pa = lookup_tlb(ea, tlb_hit, tlb_dirty);
+  
+  if((dtlb == nullptr) and tlb_hit and (tlb_dirty or not(store))) {
+    if(store) assert(tlb_dirty);
+    if(useDcache and not(fetch)) {
+      dcache->access(t_pa, icnt, pc);
+    }
+    return t_pa;
+  }
+  
+  assert(c.satp.mode == 8);
+  a = (c.satp.ppn * 4096) + (((ea >> 30) & 511)*8);
+  u = *reinterpret_cast<uint64_t*>(mem + a);
+  r.r = u;
+  assert(r.sv39.n == false);  
+  if((u&1) == 0) {
+    //printf("page not present fault\n");
+    fault = 1;
+    return 2;
+  }
+
+  if(r.sv39.x || r.sv39.w || r.sv39.r) {
+    mask_bits = 30;
+    pgsz = 0;
+    goto translation_complete;
+  }
+  a = (r.sv39.ppn * 4096) + (((ea >> 21) & 511)*8);
+  u = *reinterpret_cast<uint64_t*>(mem + a);
+  r.r = u;
+  assert(r.sv39.n == false);
+  if((u&1) == 0) {
+    fault = 1;
+    return 1;
+  }
+  if(r.sv39.x or r.sv39.w or r.sv39.r) {
+    mask_bits = 21;
+    pgsz = 1;
+    goto translation_complete;
+  }
+  a = (r.sv39.ppn * 4096) + (((ea >> 12) & 511)*8);
+  u = *reinterpret_cast<uint64_t*>(mem + a);
+  r.r = u;    
+  if((u&1) == 0) {
+    //std::cout << "mapping does not exist for " << std::hex << ea << std::dec << " <<\n";
+    //printf("page not present fault\n");    
+    fault = 1;
+    return 0;
+  }
+
+  if(not(r.sv39.x or r.sv39.w or r.sv39.r)) {
+    std::cout << "huh no translation for " << std::hex << pc << std::dec << "\n";
+    std::cout << "huh no translation for " << std::hex << ea << std::dec << "\n";
+    std::cout << "u = " << std::hex << u << std::dec << "\n";
+  }
+  
+  if(r.sv39.n) {
+    assert( (r.sv39.ppn&15) == 8);
+    mask_bits = 16;
+    pgsz = 3;    
+  }
+  else {
+    mask_bits = 12;
+    pgsz = 2;    
+  }
+
+ translation_complete:
+    
+  //* permission checks */
+  if(fetch && (r.sv39.x == 0)) {
+    //std::cout << "not executable fetch\n";
+    //printf("not executable fault\n");    
+    fault = 1;
+    return 0;
+  }
+  if(store && (r.sv39.w == 0)) {
+    //printf("store to non-writeable page, pte addr %lx\n", a);
+    fault = 1;
+    return 0;
+  }
+  if(r.sv39.w && (r.sv39.r == 0)) {
+    fault = 1;
+    return 0;
+  }
+  if(not(store or fetch) && (r.sv39.r == 0)) {
+    //std::cout << "read to not readable page\n";
+    fault = 1;
+    return 0;
+  }
+  if(r.sv39.u == 0 && (priv == priv_user)) {
+    fault = 1;
+    return 0;
+  }
+  if(r.sv39.u == 1 && fetch && (priv != priv_user)) {
+    fault = 1;
+    return 0;
+  }
+  assert(mask_bits != -1);
+
+  
+  if(r.sv39.a == 0) {
+    r.sv39.a = 1;
+    if(dcache) {
+      dcache->access(a, icnt, ~0UL);
+    }    
+    store64(a, r.r);
+  }
+  if((r.sv39.d == 0) && store) {
+    //printf("marking %lx dirty\n", ea & (~4095UL));
+    //abort();
+    r.sv39.d = 1;
+    if(dcache) {
+      dcache->access(a, icnt, ~0UL);
+    }
+    store64(a, r.r);    
+  }
+  
+  if(fetch) {
+    ++ipgszcnt[pgsz];
+  }
+  else {
+    ++dpgszcnt[pgsz];
+  }
+  int64_t m = ((1L << mask_bits) - 1);
+  int64_t pa = ((r.sv39.ppn * 4096) & (~m)) | (ea & m);
+
+  if(dtlb and not(fetch)) {
+    if(not(dtlb->access(ea))) {
+      dtlb->add((ea & (~m)), m);
+    }
+  }
+  
+
+  if(useDcache and not(fetch)) {
+    dcache->access(pa, icnt, pc);
+  }
+
+  insert_tlb(ea, r.sv39.ppn * 4096, mask_bits, r.sv39.d);
+  return pa;
+}
+
+  
    
 };
 
@@ -295,43 +525,7 @@ union rvc_t {
 
 
 
-struct mstatus_t {
-  uint64_t j0 : 1;
-  uint64_t sie : 1;
-  uint64_t j2 : 1;
-  uint64_t mie : 1;
-  uint64_t j4 : 1;
-  uint64_t spie : 1;
-  uint64_t ube : 1;
-  uint64_t mpie : 1;
-  uint64_t spp : 1;
-  uint64_t vs : 2;
-  uint64_t mpp : 2;
-  uint64_t fs : 2;
-  uint64_t xs : 2;
-  uint64_t mprv : 1;
-  uint64_t sum : 1;
-  uint64_t mxr : 1;
-  uint64_t tvm : 1;
-  uint64_t tw : 1;
-  uint64_t tsr : 1;
-  uint64_t junk23 : 9;
-  uint64_t uxl : 2;
-  uint64_t sxl : 2;
-  uint64_t sbe : 1;
-  uint64_t mbe : 1;
-  uint64_t junk38 : 25;
-  uint64_t sd : 1;
-};
 
-union csr_t {
-  satp_t satp;
-  mip_t mip;
-  mie_t mie;
-  mstatus_t mstatus;
-  uint64_t raw;
-  csr_t(uint64_t x) : raw(x) {}
-};
 
 static inline std::ostream &operator<<(std::ostream &out, mie_t mie) {
   if(mie.ssie)
@@ -436,29 +630,6 @@ static inline void what_changed(std::ostream &out, mstatus_t a, mstatus_t b) {
     out << "a.sd = " << a.sd << ", b.sd = " << b.sd << "\n";
   }                    
 }
-
-
-struct sv39_t {
-  uint64_t v : 1;
-  uint64_t r : 1;
-  uint64_t w : 1;
-  uint64_t x : 1;
-  uint64_t u : 1;
-  uint64_t g : 1;
-  uint64_t a : 1;
-  uint64_t d : 1;
-  uint64_t rsw : 2;
-  uint64_t ppn : 44;
-  uint64_t mbz : 7;
-  uint64_t pbmt : 2;
-  uint64_t n : 1;
-};
-
-union pte_t {
-  sv39_t sv39;
-  uint64_t r;
-  pte_t(uint64_t x) : r(x) {}
-};
 
 void initState(state_t *s);
 void runRiscv(state_t *s, uint64_t dumpIcnt);
