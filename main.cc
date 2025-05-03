@@ -49,6 +49,7 @@ uint64_t globals::fdt_ram_size = 1UL<<24;
 uint64_t globals::fw_start_addr = 1UL<<21;
 uint64_t globals::fdt_addr = (1UL<<16) + 64;
 uint64_t globals::ram_phys_start = 0x0;
+uint32_t globals::cpu_freq = 100*1000*1000;
 trace* globals::tracer = nullptr;
 branch_trace* globals::branch_tracer = nullptr;
 std::ofstream* globals::console_log = nullptr;
@@ -152,6 +153,7 @@ int main(int argc, char *argv[]) {
       ("tracename", po::value<std::string>(&tracename), "tracename")
       ("svnapot", po::value<bool>(&globals::svnapot)->default_value(true), "enable svnapot")
       ("extract_kernel,k", po::value<bool>(&globals::extract_kernel)->default_value(false), "extract kernel.bin")
+      ("freq", po::value<uint32_t>(&globals::cpu_freq)->default_value(100*1000*1000), "system freq")
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);

@@ -37,8 +37,6 @@
 #define TEMU_JUST_DEFINES
 #include "temu_code.hh"
 
-#define RTC_FREQ 100000000
-
 /* fdt and general code stolen from tinyemu */
 /* FDT machine description */
 
@@ -357,7 +355,7 @@ int riscv_build_fdt(uint8_t *dst,
     fdt_begin_node(s, "cpus");
     fdt_prop_u32(s, "#address-cells", 1);
     fdt_prop_u32(s, "#size-cells", 0);
-    fdt_prop_u32(s, "timebase-frequency", RTC_FREQ);
+    fdt_prop_u32(s, "timebase-frequency", globals::cpu_freq);
 
     /* cpu */
     fdt_begin_node_num(s, "cpu", 0);
@@ -388,7 +386,7 @@ int riscv_build_fdt(uint8_t *dst,
     fdt_prop_tab_str(s, "riscv,isa-extensions", rv_exts);
     
     fdt_prop_str(s, "mmu-type", "riscv,sv39");
-    fdt_prop_u32(s, "clock-frequency", 100000000);
+    fdt_prop_u32(s, "clock-frequency", globals::cpu_freq);
 
     fdt_begin_node(s, "interrupt-controller");
     fdt_prop_u32(s, "#interrupt-cells", 1);
