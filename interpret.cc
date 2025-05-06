@@ -2265,7 +2265,7 @@ void execRiscv_(state_t *s) {
   
  handle_exception: {
     bool delegate = false;
-    
+    s->last_phys_pc = 0;
     if(s->priv == priv_user || s->priv == priv_supervisor) {
       if(except_cause & CAUSE_INTERRUPT) {
 	uint32_t cc = (except_cause & 0x7fffffffUL);
