@@ -38,7 +38,7 @@ void load_raw(const char* fn, state_t *ms) {
   
   //hack linux kernel
   fd = open("kernel.bin", O_RDONLY);
-  if(fd != 1) {
+  if(fd != -1) {
     rc = fstat(fd, &s);
     kern_size = s.st_size;
     buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
