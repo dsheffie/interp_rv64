@@ -18,12 +18,16 @@ protected:
   size_t nways,lg2_lines;
   uint64_t hits, accesses;
   uint64_t dead_time,total_time;
+  uint64_t *access_distribution;
 public:
   cache(size_t nways, size_t lg2_lines) :
     nways(nways), lg2_lines(lg2_lines),
     hits(0), accesses(0),
-    dead_time(0), total_time(0) {}
-
+    dead_time(0), total_time(0) {
+    access_distribution = new uint64_t[1UL<<lg2_lines];
+    memset(access_distribution, 0, sizeof(uint64_t)*(1UL<<lg2_lines));
+  }
+  void dump_set_distribution() const;
   size_t get_assoc() const {
     return nways;
   }
@@ -50,7 +54,9 @@ public:
     return total_time-dead_time;
   }
   
-  virtual ~cache() {}
+  virtual ~cache() {
+    delete [] access_distribution;
+  }
   virtual void access(addr_t ea,  uint64_t icnt, uint64_t pc) = 0;
 };
 
@@ -60,7 +66,6 @@ private:
   uint32_t lg_vb_sz;
   addr_t *tags;
   addr_t *vb_tags;
-  uint64_t *cnts;
   uint64_t *first_accessed;
   uint64_t *last_accessed;
 public:

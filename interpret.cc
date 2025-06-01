@@ -2356,7 +2356,13 @@ void runRiscv(state_t *s, uint64_t dumpIcnt) {
     abort();
   }
   else if(s->icache==nullptr and s->dcache) {
-    abort();
+    do {
+      execRiscv_<false,true>(s);
+      bool dump = (s->icnt >= dumpIcnt) /*and (s->priv == 0)*/;
+      keep_going = (s->brk==0) and
+	(s->icnt < s->maxicnt) and
+	not(dump);
+    } while(keep_going);    
   }
   else {
     do {

@@ -350,6 +350,7 @@ int main(int argc, char *argv[]) {
 	   s->dcache->get_hits(),
 	   s->dcache->get_accesses(),
 	   mpki);
+    s->dcache->dump_set_distribution();
     delete s->dcache;
   }
   if(s->icache) {

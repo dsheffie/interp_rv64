@@ -1,12 +1,12 @@
 #include "nway_cache.hh"
+#include <ostream>
+#include <fstream>
 
 direct_mapped_cache::direct_mapped_cache(size_t lg2_lines) :
   cache(1, lg2_lines), vb_x(1), lg_vb_sz(6)  {
   tags = new addr_t[(1UL<<lg2_lines)];
-  cnts = new uint64_t[(1UL<<lg2_lines)];
   vb_tags = new addr_t[1UL<<lg_vb_sz];
   memset(vb_tags, 0, sizeof(addr_t)*(1UL<<lg_vb_sz));
-  memset(cnts, 0, sizeof(uint64_t)*(1UL<<lg2_lines));
   first_accessed = new uint64_t[(1UL<<lg2_lines)];
   last_accessed = new uint64_t[(1UL<<lg2_lines)];
   memset(tags, 0, sizeof(addr_t)*(1UL<<lg2_lines));
@@ -16,7 +16,6 @@ direct_mapped_cache::direct_mapped_cache(size_t lg2_lines) :
 }
 direct_mapped_cache::~direct_mapped_cache() {
   delete [] tags;
-  delete [] cnts;
   delete [] vb_tags;
   delete [] first_accessed;
   delete [] last_accessed;
@@ -26,7 +25,7 @@ void direct_mapped_cache::access(addr_t ea, uint64_t icnt, uint64_t pc) {
     ea &= MASK;
     size_t idx = (ea >> CL_LEN) & ((1U<<lg2_lines)-1);
     accesses++;
-    cnts[idx]++;
+    access_distribution[idx]++;
     
     if(tags[idx] == ea) {
       hits++;
@@ -78,7 +77,7 @@ void nway_cache::access(addr_t ea,  uint64_t icnt, uint64_t pc) {
   bool mru = false;
   bool h = ways[idx]->access(ea, icnt, mru);
   //printf("search for addr %lx, pc %lx was hit %d\n", ea, pc, h);
-	   
+  access_distribution[idx]++;	   
   if(h) {
     hits++;
     if(mru) hit_mru++;
@@ -159,4 +158,12 @@ bool way::access(uint64_t ea,  uint64_t icnt, bool &mru) {
     }
   }
   return found;
+}
+
+
+void cache::dump_set_distribution() const {
+  std::ofstream out("dcache_sets.csv");
+  for(size_t i = 0; i < (1UL<<lg2_lines); i++) {
+    out << i << "," << access_distribution[i] << "\n";
+  }
 }
