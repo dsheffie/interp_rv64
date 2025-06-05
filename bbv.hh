@@ -4,16 +4,17 @@
 #include <map>
 #include <vector>
 #include <cstdint>
+#include <string>
 
 class bbv {
 private:
   uint64_t interval;
   std::vector<std::map<uint64_t,uint64_t>> bbvs;
 public:
-  bbv(uint64_t interval) : interval(interval) {}
+  bbv(uint64_t interval = 10*1000*1000) : interval(interval) {}
   void addSample(uint64_t tgt, uint64_t bbsz);
   void nextSample(uint64_t icnt);
-  void dumpBBVs() const;
+  void dumpBBVs(const std::string &prefix) const;
 };
 
 #endif

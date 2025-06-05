@@ -23,14 +23,13 @@ void bbv::nextSample(uint64_t icnt) {
   }
   if(not(bbvs.empty())) {
     std::map<uint64_t, uint64_t> &m = bbvs.at(bbvs.size() - 1);
-    std::cout << "last bbv had " << m.size() << " entries\n";
   }
   bbvs.push_back(std::map<uint64_t, uint64_t>());
   //printf("new bbl for interval %lu\n", icnt);
 }
 
-void bbv::dumpBBVs() const {
-  std::ofstream out("test.bbv");
+void bbv::dumpBBVs(const std::string &prefix) const {
+  std::ofstream out(prefix + std::string(".bbv"));
   std::map<uint64_t, uint64_t> remap;
   uint64_t c = 1;
   for(const auto & v :  bbvs) {

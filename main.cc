@@ -124,7 +124,7 @@ int main(int argc, char *argv[]) {
   std::string tohost, fromhost;
   int lg2_icache_lines, lg2_dcache_lines;
   int icache_ways, dcache_ways, dtlb_entries;
-  uint64_t init_icnt = 0;
+  uint64_t init_icnt = 0, simpoint_interval;
   try {
     po::options_description desc("Options");
     desc.add_options() 
@@ -133,7 +133,8 @@ int main(int argc, char *argv[]) {
       ("file,f", po::value<std::string>(&filename), "rv32 binary")
       ("maxicnt,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
       ("dump", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
-      ("simpoint", po::value<bool>(&simpoint)->default_value(false), "use simpoint")      
+      ("simpoint", po::value<bool>(&simpoint)->default_value(false), "use simpoint")
+      ("simpoint_interval", po::value<uint64_t>(&simpoint_interval)->default_value(100*1000*1000), "simpoint interval")
       ("fullsim", po::value<bool>(&globals::fullsim)->default_value(true), "full ssystem simulation")
       ("checkpoints", po::value<bool>(&take_checkpoints)->default_value(false), "take checkpoints at dump icnt internal")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
@@ -257,9 +258,9 @@ int main(int argc, char *argv[]) {
 
   starttime = timestamp();
   if(simpoint) {
-    s->bblog = new bbv(100*1024*1024);
+    s->bblog = new bbv(simpoint_interval);
     runRiscvSimPoint(s);
-    s->bblog->dumpBBVs();
+    s->bblog->dumpBBVs(filename);
     delete s->bblog;
   }
   else if(take_checkpoints) {
