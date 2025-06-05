@@ -675,7 +675,7 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       break;
     }
 }
-template <bool useIcache, bool useDcache>
+template <bool useIcache, bool useDcache, bool useBBV>
 void execRiscv_(state_t *s) {
   uint8_t *mem = s->mem;
   int fetch_fault = 0, except_cause = -1;
@@ -687,6 +687,11 @@ void execRiscv_(state_t *s) {
   riscv_t m(0);
   curr_pc = s->pc;
 
+  if(useBBV) {
+    s->bblog->nextSample(s->icnt);
+    s->bbsz++;
+  }
+  
   //if( not(s->unpaged_mode()) ) {
   // globals::insn_histo[s->satp>>16][s->pc]++;
   //}
@@ -1767,6 +1772,11 @@ void execRiscv_(state_t *s) {
       if(globals::bpred) {
 	globals::bpred->update(s->pc, bpu_idx, true, true, ty);
       }      
+      if(useBBV) {
+	int ff = -1;
+	s->bblog->addSample(s->translate(s->pc, ff, 4, false, true), s->bbsz);
+	s->bbsz = 0;
+      }
       s->pc = tgt64;
       break;
     }
@@ -1800,7 +1810,12 @@ void execRiscv_(state_t *s) {
 	globals::bpred->update(s->pc, bpu_idx, true, true,
 			       rd==0 ? branch_predictor::br_type::direct_br : branch_predictor::br_type::call);
       }      
-      s->pc += jaddr;
+      if(useBBV) {
+	int ff = -1;
+	s->bblog->addSample(s->translate(s->pc, ff, 4, false, true), s->bbsz);
+	s->bbsz = 0;	
+      }
+      s->pc += jaddr;      
       break;
     }
     case 0x33: {      
@@ -2063,9 +2078,12 @@ void execRiscv_(state_t *s) {
 	globals::bpred->update(s->pc, bpu_idx, bpu_pred, takeBranch,
 			       branch_predictor::br_type::cond);
       }
-      
+      if(useBBV) {
+	int ff;
+	s->bblog->addSample(s->translate(s->pc, ff, 4, false, true), s->bbsz);
+	s->bbsz = 0;	
+      }
       s->pc = takeBranch ? disp + s->pc : s->pc + 4;
-      
       break;
     }
 
@@ -2342,6 +2360,21 @@ void execRiscv_(state_t *s) {
   
 }
 
+void runRiscvSimPoint(state_t *s) {
+  bool keep_going = (s->brk==0) and
+    (s->icnt < s->maxicnt);
+  
+  if(not(keep_going))
+    return;
+
+  do {
+    execRiscv_<false,false,true>(s);
+    keep_going = (s->brk==0) and
+      (s->icnt < s->maxicnt);
+  } while(keep_going);  
+}
+
+
 void runRiscv(state_t *s, uint64_t dumpIcnt) {
   bool keep_going = (s->brk==0) and
     (s->icnt < s->maxicnt) and
@@ -2357,7 +2390,7 @@ void runRiscv(state_t *s, uint64_t dumpIcnt) {
   }
   else if(s->icache==nullptr and s->dcache) {
     do {
-      execRiscv_<false,true>(s);
+      execRiscv_<false,true,false>(s);
       bool dump = (s->icnt >= dumpIcnt) /*and (s->priv == 0)*/;
       keep_going = (s->brk==0) and
 	(s->icnt < s->maxicnt) and
@@ -2366,7 +2399,7 @@ void runRiscv(state_t *s, uint64_t dumpIcnt) {
   }
   else {
     do {
-      execRiscv_<false,false>(s);
+      execRiscv_<false,false,false>(s);
       bool dump = (s->icnt >= dumpIcnt) /*and (s->priv == 0)*/;
       keep_going = (s->brk==0) and
 	(s->icnt < s->maxicnt) and
@@ -2376,7 +2409,7 @@ void runRiscv(state_t *s, uint64_t dumpIcnt) {
 }
 
 void execRiscv(state_t *s) {
-  execRiscv_<false,false>(s);
+  execRiscv_<false,false,false>(s);
 }
 
 void runInteractiveRiscv(state_t *s) {
@@ -2394,7 +2427,7 @@ void runInteractiveRiscv(state_t *s) {
     std::cout << "running for " << steps <<  " steps\n";
     
     while(steps) {
-      execRiscv_<false,false>(s);
+      execRiscv_<false,false,false>(s);
       run = s->brk==0 and (s->icnt < s->maxicnt);
       if(not(run))
 	break;

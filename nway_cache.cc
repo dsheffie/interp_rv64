@@ -3,33 +3,24 @@
 #include <fstream>
 
 direct_mapped_cache::direct_mapped_cache(size_t lg2_lines) :
-  cache(1, lg2_lines), vb_x(1), lg_vb_sz(6)  {
+  cache(1, lg2_lines)  {
   tags = new addr_t[(1UL<<lg2_lines)];
-  vb_tags = new addr_t[1UL<<lg_vb_sz];
-  memset(vb_tags, 0, sizeof(addr_t)*(1UL<<lg_vb_sz));
-  first_accessed = new uint64_t[(1UL<<lg2_lines)];
-  last_accessed = new uint64_t[(1UL<<lg2_lines)];
   memset(tags, 0, sizeof(addr_t)*(1UL<<lg2_lines));
-  memset(first_accessed, 0, sizeof(uint64_t)*(1UL<<lg2_lines));
-  memset(last_accessed, 0, sizeof(uint64_t)*(1UL<<lg2_lines));
   
 }
 direct_mapped_cache::~direct_mapped_cache() {
   delete [] tags;
-  delete [] vb_tags;
-  delete [] first_accessed;
-  delete [] last_accessed;
 }
 
 void direct_mapped_cache::access(addr_t ea, uint64_t icnt, uint64_t pc) {
-    ea &= MASK;
-    size_t idx = (ea >> CL_LEN) & ((1U<<lg2_lines)-1);
-    accesses++;
-    access_distribution[idx]++;
-    
-    if(tags[idx] == ea) {
-      hits++;
-    }
+  ea &= MASK;
+  size_t idx = (ea >> CL_LEN) & ((1U<<lg2_lines)-1);
+  accesses++;
+  access_distribution[idx]++;
+  
+  if(tags[idx] == ea) {
+    hits++;
+  }
 
 }
 

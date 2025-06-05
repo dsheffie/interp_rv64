@@ -120,7 +120,7 @@ int main(int argc, char *argv[]) {
   size_t pgSize = getpagesize();
   std::string sysArgs, filename, tracename;
   uint64_t maxinsns = ~(0UL), dumpIcnt = ~(0UL);
-  bool raw = false, load_dump = false, take_checkpoints = false;
+  bool simpoint = false, raw = false, load_dump = false, take_checkpoints = false;
   std::string tohost, fromhost;
   int lg2_icache_lines, lg2_dcache_lines;
   int icache_ways, dcache_ways, dtlb_entries;
@@ -133,6 +133,7 @@ int main(int argc, char *argv[]) {
       ("file,f", po::value<std::string>(&filename), "rv32 binary")
       ("maxicnt,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
       ("dump", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
+      ("simpoint", po::value<bool>(&simpoint)->default_value(false), "use simpoint")      
       ("fullsim", po::value<bool>(&globals::fullsim)->default_value(true), "full ssystem simulation")
       ("checkpoints", po::value<bool>(&take_checkpoints)->default_value(false), "take checkpoints at dump icnt internal")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
@@ -255,7 +256,13 @@ int main(int argc, char *argv[]) {
   signal(SIGINT, catchUnixSignal);
 
   starttime = timestamp();
-  if(take_checkpoints) {
+  if(simpoint) {
+    s->bblog = new bbv(100*1024*1024);
+    runRiscvSimPoint(s);
+    s->bblog->dumpBBVs();
+    delete s->bblog;
+  }
+  else if(take_checkpoints) {
     while((s->icnt < s->maxicnt) and not(s->brk)) {
       bool take_cp = ((s->icnt % dumpIcnt) == 0);
       if((s->icnt % dumpIcnt) == 0) {

@@ -9,6 +9,7 @@
 #include <string>
 #include <cassert>
 #include "nway_cache.hh"
+#include "bbv.hh"
 #include "temu_code.hh"
 
 #define MARGS 20
@@ -76,6 +77,7 @@ struct state_t{
   uint64_t llsc_addr;
   uint64_t maxicnt;
   uint64_t icnt;
+  uint64_t bbsz;
   uint64_t ipgszcnt[5];
   uint64_t dpgszcnt[5];
   cache *icache;
@@ -112,6 +114,7 @@ struct state_t{
   int64_t pmpcfg0;
   int64_t mtimecmp;
   virtio *vio;
+  bbv *bblog;
   uint64_t va_track_pa;
   uint64_t loads;
   
@@ -175,7 +178,6 @@ struct state_t{
   uint64_t translate(uint64_t ea, int &fault, int sz,
 		     bool store = false, bool fetch = false) __attribute__((always_inline));
 
-   
 };
 
 void handle_syscall(state_t *s, uint64_t tohost);
@@ -463,6 +465,7 @@ union pte_t {
 void initState(state_t *s);
 void runRiscv(state_t *s, uint64_t dumpIcnt);
 void execRiscv(state_t *s);
+void runRiscvSimPoint(state_t *s);
 void runInteractiveRiscv(state_t *s);
 
 /* stolen from libgloss-htif : syscall.h */

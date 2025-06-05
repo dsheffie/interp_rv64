@@ -62,12 +62,7 @@ public:
 
 class direct_mapped_cache : public cache {
 private:
-  uint32_t vb_x;
-  uint32_t lg_vb_sz;
   addr_t *tags;
-  addr_t *vb_tags;
-  uint64_t *first_accessed;
-  uint64_t *last_accessed;
 public:
   direct_mapped_cache(size_t lg2_lines); 
   ~direct_mapped_cache();
