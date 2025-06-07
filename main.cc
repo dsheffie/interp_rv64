@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) {
   std::string sysArgs, filename, tracename;
   uint64_t maxinsns = ~(0UL), dumpIcnt = ~(0UL);
   bool simpoint = false, raw = false, load_dump = false, take_checkpoints = false;
-  std::string tohost, fromhost;
+  std::string tohost, fromhost, simpoint_file;
   int lg2_icache_lines, lg2_dcache_lines;
   int icache_ways, dcache_ways, dtlb_entries;
   uint64_t init_icnt = 0, simpoint_interval;
@@ -135,6 +135,7 @@ int main(int argc, char *argv[]) {
       ("dump", po::value<uint64_t>(&dumpIcnt)->default_value(~(0UL)), "dump after n instructions")
       ("simpoint", po::value<bool>(&simpoint)->default_value(false), "use simpoint")
       ("simpoint_interval", po::value<uint64_t>(&simpoint_interval)->default_value(100*1000*1000), "simpoint interval")
+      ("simpoint_file", po::value<std::string>(&simpoint_file)->default_value(""), "simpoint checkpoint locations")
       ("fullsim", po::value<bool>(&globals::fullsim)->default_value(true), "full ssystem simulation")
       ("checkpoints", po::value<bool>(&take_checkpoints)->default_value(false), "take checkpoints at dump icnt internal")
       ("silent,s", po::value<bool>(&globals::silent)->default_value(true), "no interpret messages")
@@ -263,9 +264,34 @@ int main(int argc, char *argv[]) {
     s->bblog->dumpBBVs(filename);
     delete s->bblog;
   }
+  else if(not(simpoint_file.empty())) {
+    std::string line;
+    std::ifstream in(simpoint_file);
+    std::vector<std::uint64_t> checkpoint_icnts;
+    while (std::getline(in, line)) {
+      int64_t cnt = -1, id = -1;
+      sscanf(line.c_str(), "%ld %ld", &cnt, &id);
+      cnt *= simpoint_interval;
+      checkpoint_icnts.push_back(cnt);
+      //std::cout << line << std::endl; // Print each line
+      //printf("cnt %ld, id %ld\n", cnt, id);
+    }
+    std::sort(checkpoint_icnts.begin(), checkpoint_icnts.end());
+    size_t ch_idx = 0, n_chpts = checkpoint_icnts.size();
+    while((s->icnt < s->maxicnt) and not(s->brk) and ch_idx < n_chpts) {
+      
+      if(checkpoint_icnts.at(ch_idx) == s->icnt) {
+	std::stringstream ss;
+	ss << filename << s->icnt << ".rv64.chpt";
+	std::cout << "dumping at icnt " << s->icnt << "\n";
+	dumpState(*s, ss.str());
+	++ch_idx;
+      }
+      execRiscv(s);
+    }    
+  }
   else if(take_checkpoints) {
     while((s->icnt < s->maxicnt) and not(s->brk)) {
-      bool take_cp = ((s->icnt % dumpIcnt) == 0);
       if((s->icnt % dumpIcnt) == 0) {
 	std::stringstream ss;
 	ss << filename << s->icnt << ".rv64.chpt";
