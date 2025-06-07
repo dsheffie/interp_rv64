@@ -283,7 +283,7 @@ int main(int argc, char *argv[]) {
       if(checkpoint_icnts.at(ch_idx) == s->icnt) {
 	std::stringstream ss;
 	ss << filename << s->icnt << ".rv64.chpt";
-	std::cout << "dumping at icnt " << s->icnt << "\n";
+	//std::cout << "dumping at icnt " << s->icnt << "\n";
 	dumpState(*s, ss.str());
 	++ch_idx;
       }
