@@ -259,10 +259,13 @@ int main(int argc, char *argv[]) {
 
   starttime = timestamp();
   if(simpoint) {
-    s->bblog = new bbv(simpoint_interval);
+    s->bblog = new av(simpoint_interval);
+    s->mlog = new av(simpoint_interval);
     runRiscvSimPoint(s);
-    s->bblog->dumpBBVs(filename);
+    s->bblog->dumpAVs(filename+".bbv");
+    s->mlog->dumpAVs(filename+".mav");
     delete s->bblog;
+    delete s->mlog;
   }
   else if(not(simpoint_file.empty())) {
     std::string line;

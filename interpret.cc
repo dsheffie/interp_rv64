@@ -675,7 +675,7 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       break;
     }
 }
-template <bool useIcache, bool useDcache, bool useBBV>
+template <bool useIcache, bool useDcache, bool useBBV, bool useMAV = false>
 void execRiscv_(state_t *s) {
   uint8_t *mem = s->mem;
   int fetch_fault = 0, except_cause = -1;
@@ -690,6 +690,9 @@ void execRiscv_(state_t *s) {
   if(useBBV) {
     s->bblog->nextSample(s->icnt);
     s->bbsz++;
+  }
+  if(useMAV) {
+    s->mlog->nextSample(s->icnt);
   }
   
   //if( not(s->unpaged_mode()) ) {
@@ -1056,6 +1059,9 @@ void execRiscv_(state_t *s) {
 	  //std::cout << "pa = " << std::hex << pa << std::dec << "\n";
 	  //std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
 	  goto handle_exception;
+	}
+	if(useMAV) {
+	  s->mlog->addSample((pa >> 12) << 12, 1);
 	}
 	
 	int p = (pa >> 12) & 3;
@@ -1686,6 +1692,10 @@ void execRiscv_(state_t *s) {
 	tval = ea;
 	goto handle_exception;
       }
+      if(useMAV) {
+	s->mlog->addSample((pa >> 12) << 12, 1);
+      }
+      
       switch(m.s.sel)
 	{
 	case 0x0: /* sb */
@@ -2368,7 +2378,7 @@ void runRiscvSimPoint(state_t *s) {
     return;
 
   do {
-    execRiscv_<false,false,true>(s);
+    execRiscv_<false,false,true,true>(s);
     keep_going = (s->brk==0) and
       (s->icnt < s->maxicnt);
   } while(keep_going);  

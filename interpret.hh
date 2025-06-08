@@ -9,7 +9,7 @@
 #include <string>
 #include <cassert>
 #include "nway_cache.hh"
-#include "bbv.hh"
+#include "av.hh"
 #include "temu_code.hh"
 
 #define MARGS 20
@@ -114,7 +114,8 @@ struct state_t{
   int64_t pmpcfg0;
   int64_t mtimecmp;
   virtio *vio;
-  bbv *bblog;
+  av *bblog;
+  av *mlog;
   uint64_t va_track_pa;
   uint64_t loads;
   

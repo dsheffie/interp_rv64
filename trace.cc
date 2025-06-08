@@ -73,7 +73,7 @@ void trace::simulate(cache *c) {
   auto end = ftell(fp);
   rewind(fp);
   n_entries = end/sizeof(entry);
-  printf("%lu transactions in trace\n", n_entries);
+  std::cout << n_entries << " transactions in trace\n";
   for(uint64_t i = 0; i < n_entries; i++) {
     size_t sz = fread(&e, sizeof(entry), 1, fp);
     assert(sz == 1);
@@ -83,15 +83,16 @@ void trace::simulate(cache *c) {
   double hitrate = static_cast<double>(c->get_hits()) /
     c->get_accesses();
   double mrurate = static_cast<double>(c->get_mru_hits()) /
-    c->get_accesses();  
-  printf("%lu byte cache, %zu way assoc, %lu byte lines, %g hit rate, %g mru hit rate\n",
-	 c->get_size(),
-	 c->get_assoc(),
-	 c->get_line_size(),
-	 hitrate,
-	 mrurate);
-  printf("%zu unique cachelines\n", unique_paddrs.size());
-  printf("%g roofline hitrate\n", static_cast<double>(n_entries-unique_paddrs.size()) / n_entries);
+    c->get_accesses();
+
+  std::cout << unique_paddrs.size() << "unique cachelines\n";
+  std::cout << (static_cast<double>(n_entries-unique_paddrs.size()) / n_entries)
+	    << "roofline hitrate\n";
+  std::cout << c->get_size() << " byte cache, "
+	    << c->get_assoc() << " way assoc, "
+	    << c->get_line_size() << " byte lines, "
+	    << hitrate << " hit rate, "
+	    << mrurate << " mru hat rate\n";
 }
 
 
