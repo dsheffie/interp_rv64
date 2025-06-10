@@ -9,31 +9,20 @@ import math
 import re
 import argparse
 import matplotlib
+#import numpy_ml
 matplotlib.use('PDF')
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
-
-def dist(x,y):
-    s = 0.0
-    for k in x:
-        if k not in y:
-            s = s + x[k]
-        else:
-            s = s + math.fabs(x[k] - y[k])
-            
-    for k in y:
-        if k not in x:
-            s = s + y[k]
-            
-            
-    return s
 
 def heatmap2d(arr, name):
     pp = PdfPages(name + '.pdf')
     plt.imshow(arr, cmap='viridis')
     plt.colorbar()
     plt.savefig(pp,format='pdf',dpi=300)
+    plt.title("Simpoint BBV Self-Similarity Matrix (Manhattan Distance)")
+    plt.ylabel("BBV vector i")
+    plt.xlabel("BBV vector j")    
     pp.close()
 
 if __name__ == '__main__':
@@ -63,11 +52,20 @@ if __name__ == '__main__':
                 
             vectors.append(d)
 
+    print('done loading, number vectors %d, num unique keys %d' % (len(vectors), len(keys)))
+    dmtx = np.zeros((len(vectors), len(keys)+1))
+    for i in range(0, len(vectors)):
+        v = vectors[i]
+        for k in v:
+            dmtx[i][k] = float(v[k])
+        
+    print('done generating dense matrix')
+
     mtx = np.zeros((len(vectors), len(vectors)))
-    mtx.fill(2.0)
+    sl = len(vectors) // 100
     for i in range(0, len(vectors)):
         for j in range(i, len(vectors)):
-            d = dist(vectors[i], vectors[j])
+            d =  np.sum(np.abs(dmtx[i] - dmtx[j]))
             mtx[i][j] = d
             mtx[j][i] = d
             

@@ -1,6 +1,7 @@
 #!/usr/bin/python3
 import numpy as np
 from sklearn.cluster import KMeans
+
 import subprocess
 import glob
 import time
@@ -14,34 +15,14 @@ import matplotlib.pyplot as plt
 from matplotlib.backends.backend_pdf import PdfPages
 
 
-def dist(x,y):
-    s = 0.0
-    for k in x:
-        if k not in y:
-            s = s + x[k]
-        else:
-            s = s + math.fabs(x[k] - y[k])
-            
-    for k in y:
-        if k not in x:
-            s = s + y[k]                        
-    return s
-
 def euclidean_dist(x,y):
     s = 0.0
-    
     for i in range(0, len(x)):
         d = (x[i] - y[i])
         s = s + d*d
         
     return math.sqrt(s);
 
-def heatmap2d(arr, name):
-    pp = PdfPages(name + '.pdf')
-    plt.imshow(arr, cmap='viridis')
-    plt.colorbar()
-    plt.savefig(pp,format='pdf',dpi=300)
-    pp.close()
 
 def make_matrix(vectors):
     max_d = 0
@@ -65,6 +46,17 @@ def random_projection(in_mtx, target_dim):
     t_mtx = in_mtx.dot(r_mtx)
     t_mtx = t_mtx - np.ones(t_mtx.shape)
     return t_mtx
+
+
+def find_best_kmeans(r, max_k):
+    best = None
+    best_k = -1
+    for clusters in range(4, max_k):
+        kmeans = KMeans(n_clusters=clusters, random_state=0, n_init="auto").fit(r)
+        best = kmeans
+        best_k = clusters
+        
+    return best, best_k
     
 if __name__ == '__main__':
     vectors = []
@@ -96,8 +88,7 @@ if __name__ == '__main__':
     m = make_matrix(vectors)        
     r = random_projection(m, 15)
 
-    clusters = 4
-    kmeans = KMeans(n_clusters=clusters, random_state=0, n_init="auto").fit(r)
+    kmeans, clusters = find_best_kmeans(r, 30)
     centers = [-1] * clusters
         
     #find samples closest to centers
