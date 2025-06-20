@@ -69,9 +69,9 @@ void catchUnixSignal(int n) {
     double mips = (static_cast<double>(s->icnt)/runtime)*1e-6;
     std::cout << "caught SIGINT at icnt "
 	      << s->icnt << "\n";
-    printf("loads = %ld\n", s->loads);
-    printf("match = %ld\n", s->va_track_pa);
-    printf("simulator mips = %g\n", mips);
+    std::cout << "loads = " << s->loads << "\n";
+    std::cout << "match = " << s->va_track_pa << "\n";
+    std::cout << "simulator mips = " << mips << "\n";
     if(globals::bpred) {
       uint64_t n_br = 0, n_mis=0, n_inst=0;      
       globals::bpred->get_stats(n_br,n_mis,n_inst);
@@ -354,11 +354,7 @@ int main(int argc, char *argv[]) {
 	  pgsz = 1UL<<16;
 	  break;
 	}
-      printf("%lu pg sizes : iside %lu accesses, dside %lu accesses\n",
-	     pgsz,
-	     s->ipgszcnt[i],
-	     s->dpgszcnt[i]
-	     );
+      std::cout << pgsz << " pg sizes : iside " << s->ipgszcnt[i] << ", dside " << s->dpgszcnt[i] << " accesses\n";
       std::cout << "tlb_accesses = " << globals::tlb_accesses << "\n";
       std::cout << "tlb_hits     = " << globals::tlb_hits << "\n";
     }
@@ -388,11 +384,11 @@ int main(int argc, char *argv[]) {
     double mpki = s->dcache->get_accesses() -
       s->dcache->get_hits();
     mpki *= (1000.0 / (s->icnt - init_icnt));
-    printf("dcache: %lu bytes, %lu hits, %lu total, %g mpki\n",
-	   s->dcache->get_size(),
-	   s->dcache->get_hits(),
-	   s->dcache->get_accesses(),
-	   mpki);
+    std::cout << "dcache: " << s->dcache->get_size() << " bytes, "
+	      << s->dcache->get_hits() << " hits, "
+	      << s->dcache->get_accesses() << " total, "
+	      << mpki
+	      << " mpki\n";
     s->dcache->dump_set_distribution();
     delete s->dcache;
   }
@@ -400,11 +396,11 @@ int main(int argc, char *argv[]) {
     double mpki = s->icache->get_accesses() -
       s->icache->get_hits();
     mpki *= (1000.0 / (s->icnt - init_icnt));
-    printf("icache: %lu bytes, %lu hits, %lu total, %g mpki\n",
-	   s->icache->get_size(),
-	   s->icache->get_hits(),
-	   s->icache->get_accesses(),
-	   mpki);
+    std::cout << "icache: " << s->icache->get_size() << " bytes, "
+	      << s->icache->get_hits() << " hits, "
+	      << s->icache->get_accesses() << " total, "
+	      << mpki
+	      << " mpki\n";
     
     delete s->icache;
   }

@@ -1177,7 +1177,7 @@ void execRiscv_(state_t *s) {
 		s->sext_xlen((*reinterpret_cast<uint64_t*>(&s->gpr[m.i.rs1])) << shamt, rd);
 	      }
 	      else {
-		printf("WTF AT PC %lx\n", s->pc);
+		std::cout << "WTF at PC " << FMT_HEX(s->pc) << "\n";
 		assert(0);
 	      }
 	    }

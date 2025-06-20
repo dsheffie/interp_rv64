@@ -15,6 +15,8 @@
 #define KCYN  "\x1B[36m"
 #define KWHT  "\x1B[37m"
 
+#define FMT_HEX(x) std::hex << x << std::dec
+
 template <typename T, typename std::enable_if<std::is_integral<T>::value,T>::type* = nullptr>
 T ln2(T x) {
   T y = 1, l =0;
