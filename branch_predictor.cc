@@ -118,112 +118,118 @@ tage::~tage() {
 
 bool tage::predict(uint64_t addr, uint64_t & idx) {
   //printf("%s : pc %lx, this = %p\n", __PRETTY_FUNCTION__, addr, this);
-  bool hit = false, prediction = false;
+  bool hit = false, prediction = false, alt_pred = false;
+  uint64_t addr_hash = pc_hash(addr);
 
-  uint64_t addr_hash = (addr >> 2) & tage::TAG_MASK;
-
+  tp.clear();
+  idx = 0;
+  
   for(size_t h = 0; h < tage::n_tables; h++) {
     uint64_t hash = 0;
     hash = bhr->xor_fold(tage::table_lengths[h]);
     hash ^= (addr << 2);
     hash &= (1UL << lg_pht_entries) - 1;
-    hashes[h] = hash;
-    pred_valid[h] = false;
+    tp.hashes[h] = hash;
   }
 
   for(size_t h = 0; h < tage::n_tables; h++)  {
-    bool tag_match = tage_tables[h][hashes[h]].tag == addr_hash;    
+    bool tag_match = tage_tables[h][tp.hashes[h]].tag == addr_hash;    
     if(tag_match) {
-      pred[h] = (tage_tables[h][hashes[h]].pred > 1);
-    }
-    if(tag_match and not(hit)) {
-      idx = (static_cast<uint64_t>(h+1) << 32) | hashes[h];
-      prediction = (tage_tables[h][hashes[h]].pred > 1);
-      hit = true;
+      tp.pred[h] = (tage_tables[h][tp.hashes[h]].pred > 1);
+      tp.pred_valid[h] = true;
     }
   }
 
+  for(int h = tage::n_tables-1; h >= 0; h--) {
+    bool tag_match = tage_tables[h][tp.hashes[h]].tag == addr_hash;
+    if(tag_match and (tp.pred_table == -1)) {
+      prediction = tp.prediction = tp.pred[h];
+      tp.pred_table = h;
+      hit = true;
+    }
+    else if(tag_match and (tp.pred_table != -1)) {
+      tp.alt_prediction = tp.pred[h];
+      tp.alt_pred_table = h;
+      break;
+    }
+  }
+  
   //missed tagged tables, provide prediction from pht
   if(hit == false) {
-    idx = addr_hash & ((1UL << lg_pht_entries) - 1);
     prediction = pht->get_value(idx) > 1;
   }
   
   return prediction;
 }
 
-void tage::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
-  uint32_t n_pht_entries = 1U<<lg_pht_entries;
-			       
-  uint64_t table = idx >> 32;
-  uint32_t entry = (idx & (static_cast<uint64_t>(1) << 32) - 1);
-
-  bool correct_pred = prediction == taken;
-  
-  assert(entry < n_pht_entries);
-  pred_table[table]++;
-  corr_pred_table[table] += correct_pred;
-  
-  if(table == 0) {
+void tage::update_correct(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
+  uint64_t table = tp.pred_table;
+  if(table == -1) {
+    uint32_t entry = (idx & (static_cast<uint64_t>(1) << 32) - 1);
     pht->update(entry, taken);
   }
   else {
-    int t = table - 1;
-    int p = tage_tables[t][entry].pred;
-    tage_tables[t][entry].pred = std::max(0, std::min(3, (taken ? p+1 : p-1)));
+    int entry = tp.hashes[table];
+    int p = tage_tables[table][entry].pred;
+    tage_tables[table][entry].pred = clamp<int, 3>((taken ? p+1 : p-1));    
+  }  
+}
 
-    for(size_t i = 0; i < tage::n_tables; i++) {
-      if(/*pred_valid[i] && */(i != t) && (pred[i] != prediction)) {
+void tage::update_incorrect(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
+  uint64_t table = tp.pred_table;
+  if(table == -1) {
+    uint32_t entry = (idx & (static_cast<uint64_t>(1) << 32) - 1);
+    pht->update(entry, taken);
+  }
+  else {
+    int entry = tp.hashes[table];
+    int p = tage_tables[table][entry].pred;
+    tage_tables[table][entry].pred = clamp<int, 3>((taken ? p+1 : p-1));
+    /* find component with u == 0 */
+    int a = -1;
+    for(int t = table+1; t < tage::n_tables; t++) {
+      int entry = tp.hashes[t];
+      int u = tage_tables[t][entry].useful;
+      if(u == 0) {
+	a = t;
+	tage_tables[t][entry].tag =  pc_hash(addr);
+	tage_tables[t][entry].pred = 1;
+	break;
+      }
+    }
+    if(a == -1)  { /* no place to allocate - decrement all useful */
+      for(int t = table+1; t < tage::n_tables; t++) {
+	int entry = tp.hashes[t];
 	int u = tage_tables[t][entry].useful;
-	tage_tables[t][entry].useful = std::max(0, std::min(0, (correct_pred ? u + 1 : u - 1))); 
-	//break;
+	tage_tables[t][entry].useful = clamp<int, 3>(u-1);  
       }
     }
   }
-  
-  if(not(correct_pred)) {
-    bool alloc = false;
-    int tagged_table = table - 1;
-    
-    //if(table == 1) printf("longest table mispredicted\n");
-    
-    for(int t = tagged_table+1; t < tage::n_tables; t++) {
-      
-      if(pred_valid[t] && (pred[t] == taken)) {
-	std::cout << "prediction from table " << table << " was incorrect but " << t << " was correct\n";
-	break;
-      }
-      
-    }
-    
-    for(size_t t = table; t < tage::n_tables; t++) {
-      if(tage_tables[t][hashes[t]].useful == 0) {
-	//std::cout << "allocate from table " << t << " for index " << entry << "\n";
-	alloc = true;
-	tage_tables[t][hashes[t]].pred = 1;
-	tage_tables[t][hashes[t]].tag = pc_hash(addr);
-	break;
-      }
-    }
+}
 
-    
-    for(int t = table; not(alloc) and (t < tage::n_tables); t++) {
-      int u = tage_tables[t][hashes[t]].useful;
-      tage_tables[t][hashes[t]].useful = std::max(0, u-1);
-    }
+
+
+void tage::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
+  uint32_t n_pht_entries = 1U<<lg_pht_entries;
+  uint64_t table = tp.pred_table;
+  bool correct_pred = prediction == taken;
+
+  if(correct_pred) {
+    update_correct(addr, idx, prediction, taken);
+  }
+  else {
+    update_incorrect(addr, idx, prediction, taken);
+  }
+
+  /* useful bits update */
+  if( (tp.prediction != tp.alt_prediction) and (tp.alt_pred_table != -1) and (tp.pred_table != -1)) {
+    int entry = tp.hashes[table];
+    int u = tage_tables[table][entry].useful;
+    tage_tables[table][entry].useful =  clamp<int, 3>((correct_pred ? u+1 : u-1));  
   }
 
   n_branches++;
-
-  // if((n_branches & ((1<<20)-1)) == 0) {
-  //   for(int t = table; t < tage::n_tables; t++) {
-  //     tage_tables[t][hashes[t]].useful = 0;
-  //   }
-  // }
-  
   n_mispredicts += !correct_pred;
-
-  //std::cout << "prediction came from table " << table << "\n";
 }
 
 
