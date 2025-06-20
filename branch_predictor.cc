@@ -93,8 +93,8 @@ static uint64_t pc_hash(uint64_t p) {
 
 tage::tage(uint64_t &icnt, uint32_t lg_pht_entries) : branch_predictor(icnt), lg_pht_entries(lg_pht_entries){
   pht = new twobit_counter_array(1U<<lg_pht_entries);
-  bhr = new sim_bitvec;  
-  for(int h = 0; h < tage::n_tables; h++) {
+  bhr = new sim_bitvec(table_lengths[n_tables-1]);  
+  for(size_t h = 0; h < tage::n_tables; h++) {
     tage_tables[h] = new tage_entry[1UL<<lg_pht_entries];
     for(size_t i = 0; i < (1UL<<lg_pht_entries); i++) {
       tage_tables[h][i].clear();
@@ -107,7 +107,7 @@ tage::~tage() {
   for(int h = 0; h < tage::n_tables; h++) {
     delete [] tage_tables[h];
   }
-  for(int h = 0; h <= tage::n_tables; h++) {
+  for(size_t h = 0; h <= tage::n_tables; h++) {
     double f = (static_cast<double>(corr_pred_table[h]) / pred_table[h]) * 100.0;
     std::cout << f << " percent correct "
 	      << pred_table[h] << " predictions, "
@@ -122,7 +122,7 @@ bool tage::predict(uint64_t addr, uint64_t & idx) {
 
   uint64_t addr_hash = (addr >> 2) & tage::TAG_MASK;
 
-  for(int h = 0; h < tage::n_tables; h++) {
+  for(size_t h = 0; h < tage::n_tables; h++) {
     uint64_t hash = 0;
     hash = bhr->xor_fold(tage::table_lengths[h]);
     hash ^= (addr << 2);
@@ -131,7 +131,7 @@ bool tage::predict(uint64_t addr, uint64_t & idx) {
     pred_valid[h] = false;
   }
 
-  for(int h = 0; h < tage::n_tables; h++)  {
+  for(size_t h = 0; h < tage::n_tables; h++)  {
     bool tag_match = tage_tables[h][hashes[h]].tag == addr_hash;    
     if(tag_match) {
       pred[h] = (tage_tables[h][hashes[h]].pred > 1);
@@ -172,11 +172,11 @@ void tage::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
     int p = tage_tables[t][entry].pred;
     tage_tables[t][entry].pred = std::max(0, std::min(3, (taken ? p+1 : p-1)));
 
-    for(int i = 0; i < tage::n_tables; i++) {
-      if(pred_valid[i] && (i != t) && (pred[i] != prediction)) {
+    for(size_t i = 0; i < tage::n_tables; i++) {
+      if(/*pred_valid[i] && */(i != t) && (pred[i] != prediction)) {
 	int u = tage_tables[t][entry].useful;
 	tage_tables[t][entry].useful = std::max(0, std::min(0, (correct_pred ? u + 1 : u - 1))); 
-	break;
+	//break;
       }
     }
   }
@@ -196,7 +196,7 @@ void tage::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
       
     }
     
-    for(int t = table; t < tage::n_tables; t++) {
+    for(size_t t = table; t < tage::n_tables; t++) {
       if(tage_tables[t][hashes[t]].useful == 0) {
 	//std::cout << "allocate from table " << t << " for index " << entry << "\n";
 	alloc = true;

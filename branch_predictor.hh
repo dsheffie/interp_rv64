@@ -116,8 +116,9 @@ protected:
 protected:
   constexpr static const char* typeString = "tage";
 
-  static const int n_tables = 2;  
-  const int table_lengths[n_tables] =  {256,32};  
+  static constexpr int table_lengths[] = {256,128,64,32,16};  
+  static const size_t n_tables = sizeof(table_lengths)/sizeof(table_lengths[0]);  
+
   
   tage_entry *tage_tables[n_tables] = {nullptr};
   uint64_t hashes[n_tables] = {0};
