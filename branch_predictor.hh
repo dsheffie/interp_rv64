@@ -116,7 +116,7 @@ protected:
 protected:
   constexpr static const char* typeString = "tage";
 
-  static const int n_tables = 3;  
+  static const int n_tables = 2;  
   const int table_lengths[n_tables] =  {256,32};  
   
   tage_entry *tage_tables[n_tables] = {nullptr};

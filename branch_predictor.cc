@@ -93,6 +93,7 @@ static uint64_t pc_hash(uint64_t p) {
 
 tage::tage(uint64_t &icnt, uint32_t lg_pht_entries) : branch_predictor(icnt), lg_pht_entries(lg_pht_entries){
   pht = new twobit_counter_array(1U<<lg_pht_entries);
+  bhr = new sim_bitvec;  
   for(int h = 0; h < tage::n_tables; h++) {
     tage_tables[h] = new tage_entry[1UL<<lg_pht_entries];
     for(size_t i = 0; i < (1UL<<lg_pht_entries); i++) {
@@ -116,11 +117,11 @@ tage::~tage() {
 }
 
 bool tage::predict(uint64_t addr, uint64_t & idx) {
-  printf("%s : pc %lx, this = %p\n", __PRETTY_FUNCTION__, addr, this);
+  //printf("%s : pc %lx, this = %p\n", __PRETTY_FUNCTION__, addr, this);
   bool hit = false, prediction = false;
 
   uint64_t addr_hash = (addr >> 2) & tage::TAG_MASK;
-  
+
   for(int h = 0; h < tage::n_tables; h++) {
     uint64_t hash = 0;
     hash = bhr->xor_fold(tage::table_lengths[h]);
@@ -130,23 +131,18 @@ bool tage::predict(uint64_t addr, uint64_t & idx) {
     pred_valid[h] = false;
   }
 
-
   for(int h = 0; h < tage::n_tables; h++)  {
-    if(tage_tables[h][hashes[h]].tag == addr_hash) {
+    bool tag_match = tage_tables[h][hashes[h]].tag == addr_hash;    
+    if(tag_match) {
       pred[h] = (tage_tables[h][hashes[h]].pred > 1);
     }
-  }
-  
-  for(int h = 0; h < tage::n_tables; h++)  {
-    bool tag_match = tage_tables[h][hashes[h]].tag == addr_hash;
-    if(tag_match) {
+    if(tag_match and not(hit)) {
       idx = (static_cast<uint64_t>(h+1) << 32) | hashes[h];
       prediction = (tage_tables[h][hashes[h]].pred > 1);
       hit = true;
-      break;
     }
   }
-  
+
   //missed tagged tables, provide prediction from pht
   if(hit == false) {
     idx = addr_hash & ((1UL << lg_pht_entries) - 1);
@@ -216,12 +212,15 @@ void tage::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
       tage_tables[t][hashes[t]].useful = std::max(0, u-1);
     }
   }
+
   n_branches++;
-  if((n_branches & ((1<<20)-1)) == 0) {
-    for(int t = table; t < tage::n_tables; t++) {
-      tage_tables[t][hashes[t]].useful = 0;
-    }
-  }
+
+  // if((n_branches & ((1<<20)-1)) == 0) {
+  //   for(int t = table; t < tage::n_tables; t++) {
+  //     tage_tables[t][hashes[t]].useful = 0;
+  //   }
+  // }
+  
   n_mispredicts += !correct_pred;
 
   //std::cout << "prediction came from table " << table << "\n";
