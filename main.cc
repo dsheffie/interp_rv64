@@ -118,7 +118,7 @@ static int buildArgcArgv(const char *filename, const std::string &sysArgs, char 
 int main(int argc, char *argv[]) {
   namespace po = boost::program_options; 
   size_t pgSize = getpagesize();
-  std::string sysArgs, filename, tracename;
+  std::string sysArgs, filename, tracename, bpred;
   uint64_t maxinsns = ~(0UL), dumpIcnt = ~(0UL);
   bool simpoint = false, raw = false, load_dump = false, take_checkpoints = false;
   std::string tohost, fromhost, simpoint_file;
@@ -128,7 +128,8 @@ int main(int argc, char *argv[]) {
   try {
     po::options_description desc("Options");
     desc.add_options() 
-      ("help,h", "Print help messages") 
+      ("help,h", "Print help messages")
+      ("bpred", po::value<std::string>(&bpred)->default_value(""))
       ("args,a", po::value<std::string>(&sysArgs), "arguments to riscv binary") 
       ("file,f", po::value<std::string>(&filename), "rv32 binary")
       ("maxicnt,m", po::value<uint64_t>(&maxinsns)->default_value(~(0UL)), "max instructions to execute")
@@ -212,8 +213,12 @@ int main(int argc, char *argv[]) {
   if(not(filename.empty())) {
     fileIsDump = isDump(filename);
   }
-
-  //globals::bpred = new gshare(s->icnt, 16);
+  if(bpred == "tage") {
+    globals::bpred = new tage(s->icnt, 16);
+  }
+  else if(bpred == "gshare") {
+    globals::bpred = new gshare(s->icnt, 16);
+  }
   
   if(s->mem == nullptr) {
     std::cerr << "INTERP : couldn't allocate backing memory!\n";
@@ -357,13 +362,14 @@ int main(int argc, char *argv[]) {
       std::cout << "tlb_accesses = " << globals::tlb_accesses << "\n";
       std::cout << "tlb_hits     = " << globals::tlb_hits << "\n";
     }
-    if(globals::bpred) {
-      uint64_t n_br = 0, n_mis=0, n_inst=0;      
-      globals::bpred->get_stats(n_br,n_mis,n_inst);
-      printf("bpu %g mpki\n", 1000.0*(static_cast<double>(n_mis) / n_inst));
-    }    
   }
 
+  if(globals::bpred) {
+    uint64_t n_br = 0, n_mis=0, n_inst=0;      
+    globals::bpred->get_stats(n_br,n_mis,n_inst);
+    printf("bpu %g mpki\n", 1000.0*(static_cast<double>(n_mis) / n_inst));
+  }    
+  
   // {
   //   uint8_t *buf = &s->mem[disk_addr];
   //   int fd = ::open("disk.img", O_RDWR|O_CREAT|O_TRUNC, 0600);

@@ -87,19 +87,18 @@ gshare::~gshare() {
   delete pht;
 }
 
-tage::tage(uint64_t &icnt, uint32_t lg_pht_entries) :
-  branch_predictor(icnt),
-  lg_pht_entries(lg_pht_entries){
+static uint64_t pc_hash(uint64_t p) {
+  return (p >> 2) & tage::TAG_MASK;
+}
 
+tage::tage(uint64_t &icnt, uint32_t lg_pht_entries) : branch_predictor(icnt), lg_pht_entries(lg_pht_entries){
   pht = new twobit_counter_array(1U<<lg_pht_entries);
-  
   for(int h = 0; h < tage::n_tables; h++) {
-    tage_tables[h] = new tage_entry[1U<<lg_pht_entries];
-    for(size_t i = 0; i < (1U<<lg_pht_entries); i++) {
+    tage_tables[h] = new tage_entry[1UL<<lg_pht_entries];
+    for(size_t i = 0; i < (1UL<<lg_pht_entries); i++) {
       tage_tables[h][i].clear();
     }
   }
-  
 }
 
 tage::~tage() {
@@ -117,15 +116,14 @@ tage::~tage() {
 }
 
 bool tage::predict(uint64_t addr, uint64_t & idx) {
+  printf("%s : pc %lx, this = %p\n", __PRETTY_FUNCTION__, addr, this);
   bool hit = false, prediction = false;
 
-  uint32_t addr_hash = pc_hash(addr);
-  //std::cout << bhr->as_string() << "\n";
+  uint64_t addr_hash = (addr >> 2) & tage::TAG_MASK;
   
   for(int h = 0; h < tage::n_tables; h++) {
     uint64_t hash = 0;
     hash = bhr->xor_fold(tage::table_lengths[h]);
-    //hash = bhr->hash(tage::table_lengths[h]);
     hash ^= (addr << 2);
     hash &= (1UL << lg_pht_entries) - 1;
     hashes[h] = hash;
@@ -176,26 +174,18 @@ void tage::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
   else {
     int t = table - 1;
     int p = tage_tables[t][entry].pred;
-    p = taken ? p+1 : p-1;
-    p = std::max(0, p);
-    p = std::min(3, p);
-    tage_tables[t][entry].pred = p;
+    tage_tables[t][entry].pred = std::max(0, std::min(3, (taken ? p+1 : p-1)));
 
     for(int i = 0; i < tage::n_tables; i++) {
       if(pred_valid[i] && (i != t) && (pred[i] != prediction)) {
 	int u = tage_tables[t][entry].useful;
-	u = correct_pred ? u + 1 : u - 1;
-	u = (u > 3) ? 3 : u;
-	u = (u < 0) ? 0 : u;
-	tage_tables[t][entry].useful = u;	
+	tage_tables[t][entry].useful = std::max(0, std::min(0, (correct_pred ? u + 1 : u - 1))); 
 	break;
       }
     }
   }
-
-
   
-  if(!correct_pred) {
+  if(not(correct_pred)) {
     bool alloc = false;
     int tagged_table = table - 1;
     
@@ -221,15 +211,11 @@ void tage::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
     }
 
     
-    if(!alloc) {
-      for(int t = table; t < tage::n_tables; t++) {
-	int u = tage_tables[t][hashes[t]].useful;
-	u = (u == 0) ? 0 : (u-1);
-	tage_tables[t][hashes[t]].useful = u;
-      }
+    for(int t = table; not(alloc) and (t < tage::n_tables); t++) {
+      int u = tage_tables[t][hashes[t]].useful;
+      tage_tables[t][hashes[t]].useful = std::max(0, u-1);
     }
   }
-
   n_branches++;
   if((n_branches & ((1<<20)-1)) == 0) {
     for(int t = table; t < tage::n_tables; t++) {

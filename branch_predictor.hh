@@ -97,7 +97,10 @@ public:
 
 
 class tage : public branch_predictor {
-  #define TAG_LEN 12
+public:
+  static const uint64_t TAG_LEN = 12;
+  static const uint64_t TAG_MASK = (1UL<<TAG_LEN)-1;
+protected:
   template<typename T, typename std::enable_if<std::is_integral<T>::value, T>::type* = nullptr>
   struct te {
     T pred : 2;
@@ -110,11 +113,6 @@ class tage : public branch_predictor {
     }
   };
   typedef te<uint64_t> tage_entry;
-  static uint32_t pc_hash(uint32_t pc) {
-    const uint32_t mask = ((1U<<TAG_LEN)-1);
-    return (pc >> 2) & mask;
-  }
-  #undef TAG_LEN
 protected:
   constexpr static const char* typeString = "tage";
 
