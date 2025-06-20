@@ -120,7 +120,7 @@ protected:
   };
   typedef te<uint64_t> tage_entry;
 
-  static constexpr int table_lengths[] = {256,128,64,32,16};  
+  static constexpr int table_lengths[] = {256,128,64,32};  
   static const size_t n_tables = sizeof(table_lengths)/sizeof(table_lengths[0]);  
   
   struct tage_prediction {
@@ -130,13 +130,12 @@ protected:
     int alt_pred_table;
     uint64_t hashes[n_tables] = {0};
     bool pred[n_tables] = {false};
-    bool pred_valid[n_tables] = {false};
     
     void clear() {
       prediction = alt_prediction = false;
       pred_table = alt_pred_table = -1;
       for(size_t i = 0; i < n_tables; i++) {
-	pred[i] = pred_valid[i] = false;
+	pred[i] = false;
 	hashes[i] =0;
       }
       
@@ -151,8 +150,11 @@ protected:
   void update_incorrect(uint64_t addr, uint64_t idx, bool prediction, bool taken);
   
   //statistics
-  uint64_t pred_table[n_tables+1] = {0};
-  uint64_t corr_pred_table[n_tables+1] = {0};
+  uint64_t pred_table[n_tables] = {0};
+  uint64_t corr_pred_table[n_tables] = {0};
+
+  uint64_t bimodal_pred = 0, bimodal_pred_corr = 0;
+
   
   uint32_t lg_pht_entries = 0;
   twobit_counter_array *pht = nullptr;

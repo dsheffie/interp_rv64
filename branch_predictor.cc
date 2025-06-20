@@ -107,13 +107,17 @@ tage::~tage() {
   for(int h = 0; h < tage::n_tables; h++) {
     delete [] tage_tables[h];
   }
-  for(size_t h = 0; h <= tage::n_tables; h++) {
+  for(size_t h = 0; h < tage::n_tables; h++) {
     double f = (static_cast<double>(corr_pred_table[h]) / pred_table[h]) * 100.0;
     std::cout << f << " percent correct "
 	      << pred_table[h] << " predictions, "
 	      << corr_pred_table[h] << " correct from table len "
-	      << ((h==0) ? 0 : table_lengths[h-1]) << "\n";
+	      << table_lengths[h] << "\n";
   }
+  double f = (static_cast<double>(bimodal_pred_corr) / bimodal_pred) * 100.0;
+  std::cout << f << " percent correct "
+	    << bimodal_pred << " predictions, "
+	    << bimodal_pred_corr << " correct from bimodal table\n";
 }
 
 bool tage::predict(uint64_t addr, uint64_t & idx) {
@@ -123,7 +127,7 @@ bool tage::predict(uint64_t addr, uint64_t & idx) {
 
   tp.clear();
   idx = 0;
-  
+  /* compute hash for each component */
   for(size_t h = 0; h < tage::n_tables; h++) {
     uint64_t hash = 0;
     hash = bhr->xor_fold(tage::table_lengths[h]);
@@ -136,7 +140,6 @@ bool tage::predict(uint64_t addr, uint64_t & idx) {
     bool tag_match = tage_tables[h][tp.hashes[h]].tag == addr_hash;    
     if(tag_match) {
       tp.pred[h] = (tage_tables[h][tp.hashes[h]].pred > 1);
-      tp.pred_valid[h] = true;
     }
   }
 
@@ -176,7 +179,8 @@ void tage::update_correct(uint64_t addr, uint64_t idx, bool prediction, bool tak
 }
 
 void tage::update_incorrect(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
-  uint64_t table = tp.pred_table;
+  int table = tp.pred_table;
+  //std::cout << "updating prediction for " << FMT_HEX(addr) << " prediction from table " << table << "\n";
   if(table == -1) {
     uint32_t entry = (idx & (static_cast<uint64_t>(1) << 32) - 1);
     pht->update(entry, taken);
@@ -185,24 +189,26 @@ void tage::update_incorrect(uint64_t addr, uint64_t idx, bool prediction, bool t
     int entry = tp.hashes[table];
     int p = tage_tables[table][entry].pred;
     tage_tables[table][entry].pred = clamp<int, 3>((taken ? p+1 : p-1));
-    /* find component with u == 0 */
-    int a = -1;
+  }
+  
+  /* find component with u == 0 */
+  int a = -1;
+  for(int t = table+1; t < tage::n_tables; t++) {
+    int entry = tp.hashes[t];
+    int u = tage_tables[t][entry].useful;
+    if(u == 0) {
+      //std::cout << "found allocation location for " << FMT_HEX(addr) << " into table " << t <<"\n";
+      a = t;
+      tage_tables[t][entry].tag =  pc_hash(addr);
+      tage_tables[t][entry].pred = 1;
+      break;
+    }
+  }
+  if(a == -1)  { /* no place to allocate - decrement all useful */
     for(int t = table+1; t < tage::n_tables; t++) {
       int entry = tp.hashes[t];
       int u = tage_tables[t][entry].useful;
-      if(u == 0) {
-	a = t;
-	tage_tables[t][entry].tag =  pc_hash(addr);
-	tage_tables[t][entry].pred = 1;
-	break;
-      }
-    }
-    if(a == -1)  { /* no place to allocate - decrement all useful */
-      for(int t = table+1; t < tage::n_tables; t++) {
-	int entry = tp.hashes[t];
-	int u = tage_tables[t][entry].useful;
-	tage_tables[t][entry].useful = clamp<int, 3>(u-1);  
-      }
+      tage_tables[t][entry].useful = clamp<int, 3>(u-1);  
     }
   }
 }
@@ -214,6 +220,15 @@ void tage::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
   uint64_t table = tp.pred_table;
   bool correct_pred = prediction == taken;
 
+  if(table != -1) {
+    pred_table[table]++;
+    corr_pred_table[table] += correct_pred;
+  }
+  else {
+    bimodal_pred++;
+    bimodal_pred_corr += correct_pred;
+  }
+  
   if(correct_pred) {
     update_correct(addr, idx, prediction, taken);
   }
@@ -221,6 +236,8 @@ void tage::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
     update_incorrect(addr, idx, prediction, taken);
   }
 
+
+  
   /* useful bits update */
   if( (tp.prediction != tp.alt_prediction) and (tp.alt_pred_table != -1) and (tp.pred_table != -1)) {
     int entry = tp.hashes[table];
