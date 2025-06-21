@@ -1,9 +1,9 @@
 UNAME_S = $(shell uname -s)
 
-OBJ = main.o elf.o disassemble.o helper.o interpret.o saveState.o githash.o syscall.o raw.o fdt.o temu_code.o virtio.o uart.o trace.o nway_cache.o branch_predictor.o av.o
+OBJ = tage_base.o main.o elf.o disassemble.o helper.o interpret.o saveState.o githash.o syscall.o raw.o fdt.o temu_code.o virtio.o uart.o trace.o nway_cache.o branch_predictor.o av.o
 
 ifeq ($(UNAME_S),Linux)
-	CXX = clang++-16 -march=nehalem
+	CXX = clang++-16 #-march=nehalem
 	EXTRA_LD = -ldl -lunwind -lboost_program_options -lcapstone
 endif
 

@@ -9,6 +9,8 @@
 #include "counter2b.hh"
 #include "sim_bitvec.hh"
 
+#include "tage_base.hh"
+
 #define BPRED_IMPL_LIST(BA) \
   BA(unknown)		    \
   BA(gshare)		    \
