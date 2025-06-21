@@ -123,28 +123,26 @@ tage::~tage() {
 bool tage::predict(uint64_t addr, uint64_t & idx) {
   //printf("%s : pc %lx, this = %p\n", __PRETTY_FUNCTION__, addr, this);
   bool hit = false, prediction = false, alt_pred = false;
-  uint64_t addr_hash = pc_hash(addr);
+  //uint64_t addr_hash = pc_hash(addr);
 
   tp.clear();
   idx = 0;
   /* compute hash for each component */
   for(size_t h = 0; h < tage::n_tables; h++) {
-    uint64_t hash = 0;
-    hash = bhr->xor_fold(tage::table_lengths[h]);
-    hash ^= (addr << 2);
-    hash &= (1UL << lg_pht_entries) - 1;
-    tp.hashes[h] = hash;
+    uint64_t hash = bhr->hash(tage::table_lengths[h], addr<<2);
+    tp.full_hashes[h] = hash;
+    tp.hashes[h] = hash & ((1UL << lg_pht_entries) - 1);
   }
 
   for(size_t h = 0; h < tage::n_tables; h++)  {
-    bool tag_match = tage_tables[h][tp.hashes[h]].tag == addr_hash;    
+    bool tag_match = tage_tables[h][tp.hashes[h]].tag == (tp.full_hashes[h] & tage::TAG_MASK); 
     if(tag_match) {
       tp.pred[h] = (tage_tables[h][tp.hashes[h]].pred > 1);
     }
   }
 
   for(int h = tage::n_tables-1; h >= 0; h--) {
-    bool tag_match = tage_tables[h][tp.hashes[h]].tag == addr_hash;
+    bool tag_match = tage_tables[h][tp.hashes[h]].tag == (tp.full_hashes[h] & tage::TAG_MASK); 
     if(tag_match and (tp.pred_table == -1)) {
       prediction = tp.prediction = tp.pred[h];
       tp.pred_table = h;
@@ -160,6 +158,9 @@ bool tage::predict(uint64_t addr, uint64_t & idx) {
   //missed tagged tables, provide prediction from pht
   if(hit == false) {
     prediction = pht->get_value(idx) > 1;
+  }
+  else if(tp.alt_pred_table == -1) {
+    tp.alt_prediction = pht->get_value(idx) > 1;
   }
   
   return prediction;
@@ -199,7 +200,7 @@ void tage::update_incorrect(uint64_t addr, uint64_t idx, bool prediction, bool t
     if(u == 0) {
       //std::cout << "found allocation location for " << FMT_HEX(addr) << " into table " << t <<"\n";
       a = t;
-      tage_tables[t][entry].tag =  pc_hash(addr);
+      tage_tables[t][entry].tag = (tp.full_hashes[t] & tage::TAG_MASK); 
       tage_tables[t][entry].pred = 1;
       break;
     }
@@ -239,7 +240,7 @@ void tage::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
 
   
   /* useful bits update */
-  if( (tp.prediction != tp.alt_prediction) and (tp.alt_pred_table != -1) and (tp.pred_table != -1)) {
+  if( (tp.prediction != tp.alt_prediction) and (tp.pred_table != -1) and correct_pred) {
     int entry = tp.hashes[table];
     int u = tage_tables[table][entry].useful;
     tage_tables[table][entry].useful =  clamp<int, 3>((correct_pred ? u+1 : u-1));  

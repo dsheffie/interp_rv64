@@ -51,9 +51,9 @@ public:
     }
     return seed;
   }
-  std::size_t hash(uint64_t bits) const noexcept {
+  std::size_t hash(uint64_t bits, uint64_t pc) const noexcept {
     bits = (bits == 0) || (bits > n_bits) ? n_bits : bits;    
-    std::size_t seed = 0;
+    std::size_t seed = pc;
     int64_t words = static_cast<int64_t>((bits + bpw - 1) / bpw);
     uint64_t leftover = bits % bpw;
     E mask = (static_cast<E>(1) << leftover) - 1;
@@ -245,6 +245,6 @@ public:
   }
 };
 
-typedef sim_bitvec_template<uint64_t> sim_bitvec;
+typedef sim_bitvec_template<uint16_t> sim_bitvec;
 
 #endif
