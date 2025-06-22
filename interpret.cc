@@ -2393,10 +2393,22 @@ void runRiscv(state_t *s, uint64_t dumpIcnt) {
     return;
 
   if(s->icache and s->dcache) {
-    abort();
+    do {
+      execRiscv_<true,true,false>(s);
+      bool dump = (s->icnt >= dumpIcnt) /*and (s->priv == 0)*/;
+      keep_going = (s->brk==0) and
+	(s->icnt < s->maxicnt) and
+	not(dump);
+    } while(keep_going);        
   }
   else if(s->icache and s->dcache == nullptr) {
-    abort();
+    do {
+      execRiscv_<true,false,false>(s);
+      bool dump = (s->icnt >= dumpIcnt) /*and (s->priv == 0)*/;
+      keep_going = (s->brk==0) and
+	(s->icnt < s->maxicnt) and
+	not(dump);
+    } while(keep_going);        
   }
   else if(s->icache==nullptr and s->dcache) {
     do {
