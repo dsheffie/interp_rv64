@@ -40,36 +40,33 @@
 #include <cstring>
 #include <cmath>
 
-#if 0
-TAGEBase::TAGEBase(const TAGEBaseParams &p) : SimObject(p),
-     logRatioBiModalHystEntries(p.logRatioBiModalHystEntries),
-     nHistoryTables(p.nHistoryTables),
-     tagTableCounterBits(p.tagTableCounterBits),
-     tagTableUBits(p.tagTableUBits),
-     histBufferSize(p.histBufferSize),
-     minHist(p.minHist),
-     maxHist(p.maxHist),
-     pathHistBits(p.pathHistBits),
-     tagTableTagWidths(p.tagTableTagWidths),
-     logTagTableSizes(p.logTagTableSizes),
-     threadHistory(p.numThreads),
-     logUResetPeriod(p.logUResetPeriod),
-     initialTCounterValue(p.initialTCounterValue),
-     numUseAltOnNa(p.numUseAltOnNa),
-     useAltOnNaBits(p.useAltOnNaBits),
-     maxNumAlloc(p.maxNumAlloc),
-     noSkip(p.noSkip),
-     speculativeHistUpdate(p.speculativeHistUpdate),
-     instShiftAmt(p.instShiftAmt),
-     initialized(false),
-     stats(this, nHistoryTables)
-{
-    if (noSkip.empty()) {
+
+TAGEBase::TAGEBase() :
+  logRatioBiModalHystEntries(2),
+  nHistoryTables(7),
+  tagTableCounterBits(3),
+  tagTableUBits(2),
+  histBufferSize(2097152),
+  minHist(5),
+  maxHist(130),
+  pathHistBits(16),
+  tagTableTagWidths({0, 9, 9, 10, 10, 11, 11, 12}),
+  logTagTableSizes({13, 9, 9, 9, 9, 9, 9, 9}),
+  threadHistory({ThreadHistory()}),
+  logUResetPeriod(18),
+  initialTCounterValue(1 << 17),
+  numUseAltOnNa(1),
+  useAltOnNaBits(4),
+  maxNumAlloc(1),
+  noSkip({}),
+  speculativeHistUpdate(false),
+  instShiftAmt(2),
+  initialized(false) {
+  if (noSkip.empty()) {
         // Set all the table to enabled by default
         noSkip.resize(nHistoryTables + 1, true);
     }
 }
-#endif
 
 TAGEBase::BranchInfo* TAGEBase::makeBranchInfo() {
     return new BranchInfo(*this);
@@ -612,49 +609,6 @@ unsigned TAGEBase::getGHR(ThreadID tid, BranchInfo *bi) const
   
   return val;
 }
-#if 0
-TAGEBase::TAGEBaseStats::TAGEBaseStats(
-    statistics::Group *parent, unsigned nHistoryTables)
-    : statistics::Group(parent),
-      ADD_STAT(longestMatchProviderCorrect, statistics::units::Count::get(),
-               "Number of times TAGE Longest Match is the provider and the "
-               "prediction is correct"),
-      ADD_STAT(altMatchProviderCorrect, statistics::units::Count::get(),
-               "Number of times TAGE Alt Match is the provider and the "
-               "prediction is correct"),
-      ADD_STAT(bimodalAltMatchProviderCorrect, statistics::units::Count::get(),
-               "Number of times TAGE Alt Match is the bimodal and it is the "
-               "provider and the prediction is correct"),
-      ADD_STAT(bimodalProviderCorrect, statistics::units::Count::get(),
-               "Number of times there are no hits on the TAGE tables and the "
-               "bimodal prediction is correct"),
-      ADD_STAT(longestMatchProviderWrong, statistics::units::Count::get(),
-               "Number of times TAGE Longest Match is the provider and the "
-               "prediction is wrong"),
-      ADD_STAT(altMatchProviderWrong, statistics::units::Count::get(),
-               "Number of times TAGE Alt Match is the provider and the "
-               "prediction is wrong"),
-      ADD_STAT(bimodalAltMatchProviderWrong, statistics::units::Count::get(),
-               "Number of times TAGE Alt Match is the bimodal and it is the "
-               "provider and the prediction is wrong"),
-      ADD_STAT(bimodalProviderWrong, statistics::units::Count::get(),
-               "Number of times there are no hits on the TAGE tables and the "
-               "bimodal prediction is wrong"),
-      ADD_STAT(altMatchProviderWouldHaveHit, statistics::units::Count::get(),
-               "Number of times TAGE Longest Match is the provider, the "
-               "prediction is wrong and Alt Match prediction was correct"),
-      ADD_STAT(longestMatchProviderWouldHaveHit, statistics::units::Count::get(),
-               "Number of times TAGE Alt Match is the provider, the "
-               "prediction is wrong and Longest Match prediction was correct"),
-      ADD_STAT(longestMatchProvider, statistics::units::Count::get(),
-               "TAGE provider for longest match"),
-      ADD_STAT(altMatchProvider, statistics::units::Count::get(),
-               "TAGE provider for alt match")
-{
-    longestMatchProvider.init(nHistoryTables + 1);
-    altMatchProvider.init(nHistoryTables + 1);
-}
-#endif
 
 int8_t TAGEBase::getCtr(int hitBank, int hitBankIndex) const {
     return gtable[hitBank][hitBankIndex].ctr;

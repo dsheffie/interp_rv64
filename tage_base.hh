@@ -52,6 +52,88 @@
 #include <cstdint>
 #include <cstddef>
 
+struct TAGEBaseParams {
+  unsigned histBufferSize;
+  int initialTCounterValue;
+  unsigned instShiftAmt;
+  unsigned logRatioBiModalHystEntries;
+  std::vector< int > logTagTableSizes;
+  unsigned logUResetPeriod;
+  unsigned maxHist;
+  unsigned maxNumAlloc;
+  unsigned minHist;
+  unsigned nHistoryTables;
+  std::vector< bool > noSkip;
+  unsigned numThreads;
+  unsigned numUseAltOnNa;
+  unsigned pathHistBits;
+  bool speculativeHistUpdate;
+  unsigned tagTableCounterBits;
+  std::vector< unsigned > tagTableTagWidths;
+  unsigned tagTableUBits;
+  bool takenOnlyHistory;
+  unsigned useAltOnNaBits;
+};
+
+#if 0
+    numThreads = Param.Unsigned(Parent.numThreads, "Number of threads")
+    instShiftAmt = Param.Unsigned(
+        Parent.instShiftAmt, "Number of bits to shift instructions by"
+    )
+
+    nHistoryTables = Param.Unsigned(7, "Number of history tables")
+    minHist = Param.Unsigned(5, "Minimum history size of TAGE")
+    maxHist = Param.Unsigned(130, "Maximum history size of TAGE")
+
+    tagTableTagWidths = VectorParam.Unsigned(
+        [0, 9, 9, 10, 10, 11, 11, 12], "Tag size in TAGE tag tables"
+    )
+    logTagTableSizes = VectorParam.Int(
+        [13, 9, 9, 9, 9, 9, 9, 9], "Log2 of TAGE table sizes"
+    )
+    logRatioBiModalHystEntries = Param.Unsigned(
+        2,
+        "Log num of prediction entries for a shared hysteresis bit "
+        "for the Bimodal",
+    )
+
+    tagTableCounterBits = Param.Unsigned(3, "Number of tag table counter bits")
+    tagTableUBits = Param.Unsigned(2, "Number of tag table u bits")
+
+    histBufferSize = Param.Unsigned(
+        2097152,
+        "A large number to track all branch histories(2MEntries default)",
+    )
+
+    pathHistBits = Param.Unsigned(16, "Path history size")
+    logUResetPeriod = Param.Unsigned(
+        18, "Log period in number of branches to reset TAGE useful counters"
+    )
+    numUseAltOnNa = Param.Unsigned(1, "Number of USE_ALT_ON_NA counters")
+    initialTCounterValue = Param.Int(1 << 17, "Initial value of tCounter")
+    useAltOnNaBits = Param.Unsigned(4, "Size of the USE_ALT_ON_NA counter(s)")
+
+    maxNumAlloc = Param.Unsigned(
+        1, "Max number of TAGE entries allocted on mispredict"
+    )
+
+      // List of enabled TAGE tables. If empty, all are enabled                                                                                                                                 
+    noSkip = VectorParam.Bool([], "Vector of enabled TAGE tables")
+
+    speculativeHistUpdate = Param.Bool(
+        Parent.speculativeHistUpdate, "Use speculative update for histories"
+    )
+
+      
+      //Taken only history as used in most modern server CPUs.
+      takenOnlyHistory = Param.Bool(
+        Parent.takenOnlyHistory,
+        "Build the global history only from taken branches (2-bit) "
+        "instead of direction history from all branches. Widely implemented "
+        "in modern server CPUs: https://ieeexplore.ieee.org/document/9246215",
+#endif
+
+
 class TAGEBase 
 {
 public:
@@ -59,7 +141,7 @@ public:
   typedef int ThreadID;
   static const Addr MaxAddr = ~static_cast<Addr>(0);
   TAGEBase(/*const TAGEBaseParams &p*/);
-    void init();
+  void init();
 
   protected:
     // Prediction Structures

@@ -91,6 +91,33 @@ static uint64_t pc_hash(uint64_t p) {
   return (p >> 2) & tage::TAG_MASK;
 }
 
+
+gem5_tage::gem5_tage(uint64_t & icnt) :  branch_predictor(icnt) {
+  tb = new TAGEBase();
+  tb->init();
+}
+
+gem5_tage::~gem5_tage() {
+  delete tb;
+}
+
+bool gem5_tage::predict(uint64_t addr, uint64_t &idx) {
+  if(bi) {
+    delete bi;
+  }
+  bi = new TAGEBase::BranchInfo(*tb);
+  return tb->tagePredict(0, addr, true, bi);
+}
+
+void gem5_tage::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
+  bool correct_pred = prediction == taken;
+  tb->handleTAGEUpdate(addr, taken, bi);
+  delete bi;
+  bi = nullptr;
+  n_branches++;
+  n_mispredicts += !correct_pred;  
+}
+
 tage::tage(uint64_t &icnt, uint32_t lg_pht_entries) : branch_predictor(icnt), lg_pht_entries(lg_pht_entries){
   pht = new twobit_counter_array(1U<<lg_pht_entries);
   bhr = new sim_bitvec(table_lengths[n_tables-1]);  

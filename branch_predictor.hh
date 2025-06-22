@@ -104,6 +104,23 @@ public:
 };
 
 
+class gem5_tage : public branch_predictor {
+protected:
+  constexpr static const char* typeString = "gem5_tage";
+  TAGEBase *tb = nullptr;
+  TAGEBase::BranchInfo* bi = nullptr;
+public:
+  gem5_tage(uint64_t & icnt) ;
+  ~gem5_tage();
+  const char* getTypeString() const override {
+    return typeString;
+  }
+  bool predict(uint64_t, uint64_t &) override;
+  void update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) override;
+
+};
+
+
 class tage : public branch_predictor {
 public:
   static const uint64_t TAG_LEN = 12;

@@ -216,6 +216,9 @@ int main(int argc, char *argv[]) {
   if(bpred == "tage") {
     globals::bpred = new tage(s->icnt, 16);
   }
+  else if(bpred == "gem5_tage") {
+    globals::bpred = new gem5_tage(s->icnt);
+  }
   else if(bpred == "gshare") {
     globals::bpred = new gshare(s->icnt, 16);
   }
