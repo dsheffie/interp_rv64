@@ -28,6 +28,7 @@
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
 #include "nway_cache.hh"
+#include "helper.hh"
 #include <ostream>
 #include <fstream>
 
@@ -41,7 +42,7 @@ direct_mapped_cache::~direct_mapped_cache() {
   delete [] tags;
 }
 
-void direct_mapped_cache::access(addr_t ea, uint64_t icnt, uint64_t pc) {
+void direct_mapped_cache::access(addr_t ea, uint64_t icnt, uint64_t pc, bool wr) {
   ea &= MASK;
   size_t idx = (ea >> CL_LEN) & ((1U<<lg2_lines)-1);
   accesses++;
@@ -50,7 +51,32 @@ void direct_mapped_cache::access(addr_t ea, uint64_t icnt, uint64_t pc) {
   if(tags[idx] == ea) {
     hits++;
   }
+}
 
+store_to_load_tracker::store_to_load_tracker() : cache(1, 1) {}
+store_to_load_tracker::~store_to_load_tracker() {
+  uint64_t sum = 0, tcnt = 0;
+  for(auto &p : histo) {
+    uint64_t insns = p.first;
+    uint64_t cnt = p.second;
+    std::cout << (1UL<<p.first) << " : " << p.second << "\n";
+  }
+}
+
+void store_to_load_tracker::access(addr_t ea, uint64_t icnt, uint64_t pc, bool wr) {
+  ea &= MASK;
+  
+  if(wr) {
+    last_write_map[ea] = std::pair<uint64_t, uint64_t>(icnt, pc);
+  }
+  else {
+    auto it = last_write_map.find(ea);
+    if(it != last_write_map.end()) {
+      const std::pair<uint64_t, uint64_t> &p = it->second;
+      histo[ln2(icnt-p.first)]++;
+      //std::cout << "last write to " << std::hex <<ea << std::dec << " was " << (icnt-p.first) << " instructions ago\n";
+    }
+  }
 }
 
 tlb::tlb(size_t entries) : entries(entries), hits(0), accesses(0) {}
@@ -89,7 +115,7 @@ nway_cache::nway_cache(size_t nways, size_t lg2_lines) :
     }
 }
 
-void nway_cache::access(addr_t ea,  uint64_t icnt, uint64_t pc) {
+void nway_cache::access(addr_t ea,  uint64_t icnt, uint64_t pc, bool wr) {
   ea &= MASK;
   size_t idx = (ea >> CL_LEN) & ((1U<<lg2_lines)-1);
   accesses++;

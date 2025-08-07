@@ -150,6 +150,7 @@ int main(int argc, char *argv[]) {
   std::string sysArgs, filename, tracename, bpred;
   uint64_t maxinsns = ~(0UL), dumpIcnt = ~(0UL);
   bool simpoint = false, raw = false, load_dump = false, take_checkpoints = false;
+  bool use_store_to_load_tracker = false;
   std::string tohost, fromhost, simpoint_file;
   int lg2_icache_lines, lg2_dcache_lines;
   int icache_ways, dcache_ways, dtlb_entries;
@@ -185,6 +186,7 @@ int main(int argc, char *argv[]) {
       ("dcache_ways", po::value<int>(&dcache_ways)->default_value(1), "number of dcache ways")
       ("tracename", po::value<std::string>(&tracename), "tracename")
       ("svnapot", po::value<bool>(&globals::svnapot)->default_value(true), "enable svnapot")
+      ("store_to_load",  po::value<bool>(&use_store_to_load_tracker)->default_value(false), "store to load tracker") 
       ("extract_kernel,k", po::value<bool>(&globals::extract_kernel)->default_value(false), "extract kernel.bin")
       ("freq", po::value<uint32_t>(&globals::cpu_freq)->default_value(100*1000*1000), "system freq")
       ; 
@@ -214,7 +216,10 @@ int main(int argc, char *argv[]) {
     s->maxicnt = maxinsns;
   }
   
-  if(lg2_dcache_lines != 0) {
+  if(use_store_to_load_tracker) {
+    s->dcache = new store_to_load_tracker();
+  }
+  else if(lg2_dcache_lines != 0) {
     s->dcache = make_cache(dcache_ways, lg2_dcache_lines);
   }
   if(lg2_icache_lines != 0) {

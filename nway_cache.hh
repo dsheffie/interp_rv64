@@ -87,7 +87,7 @@ public:
   virtual ~cache() {
     delete [] access_distribution;
   }
-  virtual void access(addr_t ea,  uint64_t icnt, uint64_t pc) = 0;
+  virtual void access(addr_t ea,  uint64_t icnt, uint64_t pc, bool wr=false) = 0;
 };
 
 class direct_mapped_cache : public cache {
@@ -99,7 +99,20 @@ public:
   uint64_t get_mru_hits() const override {
     return hits;
   }
-  void access(addr_t ea, uint64_t icnt, uint64_t pc) override ;
+  void access(addr_t ea, uint64_t icnt, uint64_t pc, bool wr=false) override ;
+};
+
+class store_to_load_tracker : public cache {
+private:
+  std::map<uint64_t, std::pair<uint64_t, uint64_t> > last_write_map;
+  std::map<uint64_t, uint64_t> histo;
+public:
+  store_to_load_tracker(); 
+  ~store_to_load_tracker();
+  uint64_t get_mru_hits() const override {
+    return 0;
+  }
+  void access(addr_t ea, uint64_t icnt, uint64_t pc, bool wr=false) override ;
 };
 
 struct way {
@@ -152,7 +165,7 @@ public:
   uint64_t get_mru_hits() const override {
     return hit_mru;
   }  
-  void access(addr_t ea,  uint64_t icnt, uint64_t pc) override;
+  void access(addr_t ea,  uint64_t icnt, uint64_t pc, bool wr=false) override;
 };
 
 static inline cache* make_cache(int n_ways, int lg2_lines) {

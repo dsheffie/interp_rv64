@@ -282,7 +282,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   
   if(unpaged_mode()) {
     if(dcache and not(fetch)) {
-      dcache->access(ea, icnt, pc);
+      dcache->access(ea, icnt, pc, store);
     }
     if(globals::tracer and entered_user) {
       globals::tracer->add(ea, ea, fetch ? 1 : 2);      
@@ -296,7 +296,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   if((dtlb == nullptr) and tlb_hit and (tlb_dirty or not(store))) {
     if(store) assert(tlb_dirty);
     if(dcache and not(fetch)) {
-      dcache->access(t_pa, icnt, pc);
+      dcache->access(t_pa, icnt, pc, store);
     }
     return t_pa;
   }
@@ -393,7 +393,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
   if(r.sv39.a == 0) {
     r.sv39.a = 1;
     if(dcache) {
-      dcache->access(a, icnt, ~0UL);
+      dcache->access(a, icnt, ~0UL, true);
     }    
     store64(a, r.r);
   }
@@ -402,7 +402,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     //abort();
     r.sv39.d = 1;
     if(dcache) {
-      dcache->access(a, icnt, ~0UL);
+      dcache->access(a, icnt, ~0UL, true);
     }
     store64(a, r.r);    
   }
@@ -426,7 +426,7 @@ uint64_t state_t::translate(uint64_t ea, int &fault, int sz, bool store, bool fe
     globals::tracer->add(ea, pa, fetch ? 1 : 2);
   }
   if(dcache and not(fetch)) {
-    dcache->access(pa, icnt, pc);
+    dcache->access(pa, icnt, pc, store);
   }
 
   insert_tlb(ea, r.sv39.ppn * 4096, mask_bits, r.sv39.d);

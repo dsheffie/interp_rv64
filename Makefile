@@ -3,7 +3,7 @@ UNAME_S = $(shell uname -s)
 OBJ = tage_base.o main.o elf.o disassemble.o helper.o interpret.o saveState.o githash.o syscall.o raw.o fdt.o temu_code.o virtio.o uart.o trace.o nway_cache.o branch_predictor.o av.o
 
 ifeq ($(UNAME_S),Linux)
-	CXX = clang++-16 #-march=nehalem
+	CXX = clang++-16 -march=native
 	EXTRA_LD = -ldl -lunwind -lboost_program_options -lcapstone
 endif
 
@@ -21,7 +21,7 @@ CXXFLAGS = -std=c++11 -g $(OPT)
 LIBS =  $(EXTRA_LD) -lpthread
 
 DEP = $(OBJ:.o=.d)
-OPT = -Og -std=c++11 -g
+OPT = -O3 -flto -std=c++11 -g
 EXE = interp_rv64
 
 .PHONY : all clean
