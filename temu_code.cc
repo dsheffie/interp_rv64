@@ -47,6 +47,7 @@ int64_t take_interrupt(state_t *s) {
     }
   pending_irq_bitvec &= enabled_ints;
   
+  
   if(pending_irq_bitvec != 0) {
     //printf("%d pending irqs\n", __builtin_popcount(pending_irq_bitvec));
     for(int32_t p = 31; p >= 0; p--) {

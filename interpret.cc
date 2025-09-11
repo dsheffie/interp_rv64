@@ -698,7 +698,7 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
       break;
     default:
       if(not(globals::silent)) {
-	printf("wr csr id 0x%x unimplemented\n", csr_id);
+	printf("wr csr id 0x%x unimplemented, pc %lx\n", csr_id, s->pc);
       }
       undef = true;
       break;
@@ -2221,10 +2221,18 @@ void execRiscv_(state_t *s) {
 	    int64_t v = 0;
 	    if(rd != 0) {
 	      v = read_csr(csr_id, s, undef);
-	      if(undef) goto report_unimplemented;
+	      if(undef) {
+		except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+		tval = s->pc;
+		goto handle_exception;
+	      }
 	    }
 	    write_csr(csr_id, s, s->gpr[rs], undef);
-	    if(undef) goto report_unimplemented;
+	    if(undef) {
+		except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+		tval = s->pc;
+		goto handle_exception;
+	    }
 	    if(rd != 0) {
 	      s->gpr[rd] = v;
 	    }
@@ -2232,10 +2240,18 @@ void execRiscv_(state_t *s) {
 	  }
 	  case 2: {/* CSRRS */
 	    int64_t t = read_csr(csr_id, s, undef);
-	    if(undef) goto report_unimplemented;
+	    if(undef) {
+	      except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+	      tval = s->pc;
+	      goto handle_exception;
+	    }
 	    if(rs != 0) {
 	      write_csr(csr_id, s, t | s->gpr[rs], undef);
-	      if(undef) goto report_unimplemented;
+	      if(undef) {
+		except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+		tval = s->pc;
+		goto handle_exception;
+	      }
 	    }
 	    if(rd != 0) {
 	      s->gpr[rd] = t;
@@ -2244,10 +2260,18 @@ void execRiscv_(state_t *s) {
 	  }
 	  case 3: {/* CSRRC */
 	    int64_t t = read_csr(csr_id, s,undef);
-	    if(undef) goto report_unimplemented;	    
+	    if(undef) {
+		except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+		tval = s->pc;
+		goto handle_exception;
+	    }
 	    if(rs != 0) {
 	      write_csr(csr_id, s, t & (~s->gpr[rs]), undef);
-	      if(undef) goto report_unimplemented;	      
+	      if(undef) {
+		except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+		tval = s->pc;
+		goto handle_exception;
+	      }
 	    }
 	    if(rd != 0) {
 	      s->gpr[rd] = t;
@@ -2258,10 +2282,18 @@ void execRiscv_(state_t *s) {
 	    int64_t t = 0;
 	    if(rd != 0) {
 	      t = read_csr(csr_id, s, undef);
-	      if(undef) goto report_unimplemented;
+	      if(undef) {
+		except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+		tval = s->pc;
+		goto handle_exception;
+	      }	      
 	    }
 	    write_csr(csr_id, s, rs, undef);
-	    if(undef) goto report_unimplemented;
+	    if(undef) {
+	      except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+	      tval = s->pc;
+	      goto handle_exception;
+	    }	      
 	    if(rd != 0) {
 	      s->gpr[rd] = t;
 	    }
@@ -2269,10 +2301,18 @@ void execRiscv_(state_t *s) {
 	  }
 	  case 6:{ /* CSRRSI */
 	    int64_t t = read_csr(csr_id,s,undef);
-	    if(undef) goto report_unimplemented;
+	    if(undef) {
+	      except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+	      tval = s->pc;
+	      goto handle_exception;
+	    }	      	    
 	    if(rs != 0) {
 	      write_csr(csr_id, s, t | rs, undef);
-	      if(undef) goto report_unimplemented;
+	      if(undef) {
+		except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+		tval = s->pc;
+		goto handle_exception;
+	      }	      	      
 	    }
 	    if(rd != 0) {
 	      s->gpr[rd] = t;
@@ -2281,10 +2321,18 @@ void execRiscv_(state_t *s) {
 	  }
 	  case 7: {/* CSRRCI */
 	    int64_t t = read_csr(csr_id, s, undef);
-	    if(undef) goto report_unimplemented;	    
+	    if(undef) {
+	      except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+	      tval = s->pc;
+	      goto handle_exception;
+	    }	      	      	    
 	    if(rs != 0) {
 	      write_csr(csr_id, s, t & (~rs), undef);
-	      if(undef) goto report_unimplemented;	      
+	      if(undef) {
+		except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+		tval = s->pc;
+		goto handle_exception;
+	      }	      	      	    	      
 	    }
 	    if(rd != 0) {
 	      s->gpr[rd] = t;
