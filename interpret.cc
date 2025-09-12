@@ -522,6 +522,8 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
       return s->mtvec;
     case 0x344:
       return s->mip;
+    case 0x3a0:
+      return s->pmpcfg0;
     case 0x3b0:
       return s->pmpaddr0;      
     case 0x3b1:
@@ -538,6 +540,8 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
       return s->icnt;
     case 0xc03:
       return 0;
+    case 0xf11: /* vendorid */
+      return 0;
     case 0xf14:
       return s->mhartid;      
     default:
@@ -550,7 +554,7 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
 		  << std::dec
 		  << "\n";
       }
-      //undef = true;
+      undef = true;
       break;
     }
   return 0;
@@ -2386,7 +2390,7 @@ void execRiscv_(state_t *s) {
       cause |= 1UL<<63;
     }
     
-    if( /*(cause != 9 and cause < 16)*/ globals::log) {
+    if( /*(cause != 9 and cause < 16)*/ not(globals::silent)) {
       std::cout << "--> took fault at pc "
 		<< std::hex << s->pc
 		<< ", tval " << tval
@@ -2419,7 +2423,6 @@ void execRiscv_(state_t *s) {
       s->pc = s->stvec;
     }
     else {
-
       s->mcause = cause;
       s->mepc = s->pc;
       s->mtval = tval;
