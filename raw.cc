@@ -94,9 +94,12 @@ void load_raw(const char* fn, state_t *ms) {
   munmap(buf, s.st_size);
   close(fd);
   std::cout << "firmware starts " << std::hex <<globals::fw_start_addr
+	    << ", firmware size " << s.st_size 
 	    << ", dram starts at " << globals::ram_phys_start
 	    << ", kernel at " << kern_addr
-	    << std::dec << "\n";
+	    << std::dec
+	    << ", kernel size " << (kern_end-kern_addr)
+	    << "\n";
     
   
 
@@ -104,15 +107,13 @@ void load_raw(const char* fn, state_t *ms) {
     std::cout << "initrd_addr " << std::hex << initrd_addr << std::hex
 	      << ", initrd_size " << initrd_size << "\n";
   }
-  
+
   riscv_build_fdt(&mem[globals::fdt_addr],
 		  kern_addr,
 		  kern_size,
 		  initrd_addr,
 		  initrd_size,
 		  cmdline);
-
-
    
 #define WRITE_WORD(OFFS,WORD) { *reinterpret_cast<uint32_t*>(mem + BOOT_ROM_ADDR + OFFS) = WORD; }
   
