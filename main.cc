@@ -100,6 +100,7 @@ void catchUnixSignal(int n) {
 	      << s->icnt << "\n";
     std::cout << "loads = " << s->loads << "\n";
     std::cout << "match = " << s->va_track_pa << "\n";
+    std::cout << "pc = " << std::hex << s->pc << std::dec << "\n";
     std::cout << "simulator mips = " << mips << "\n";
     if(globals::bpred) {
       uint64_t n_br = 0, n_mis=0, n_inst=0;      
