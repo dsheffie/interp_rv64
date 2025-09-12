@@ -542,6 +542,10 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
       return 0;
     case 0xf11: /* vendorid */
       return 0;
+    case 0xf12: /* marchid */
+      return 0;
+    case 0xf13: /* mimpid */
+      return 0;
     case 0xf14:
       return s->mhartid;      
     default:
@@ -826,7 +830,7 @@ void execRiscv_(state_t *s) {
   }
 #endif  
   
-  if(s->priv == priv_machine) {
+  if(false and (s->priv == priv_machine)) {
     tohost = *reinterpret_cast<uint64_t*>(mem + globals::tohost_addr);
     if(tohost) {
       if(globals::fullsim) {

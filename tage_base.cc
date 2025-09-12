@@ -60,7 +60,7 @@ TAGEBase::TAGEBase() :
   maxNumAlloc(1),
   noSkip({}),
   speculativeHistUpdate(false),
-  instShiftAmt(2),
+  instShiftAmt(0),
   initialized(false) {
   if (noSkip.empty()) {
         // Set all the table to enabled by default

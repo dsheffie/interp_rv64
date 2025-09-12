@@ -65,6 +65,19 @@ void load_raw(const char* fn, state_t *ms) {
   uint64_t initrd_addr = 0;
   uint64_t kern_size = 0, initrd_size = 0;
   
+  fd = open(fn, O_RDONLY);
+  rc = fstat(fd,&s);
+  buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
+  if(buf == reinterpret_cast<void*>(-1L)) {
+    std::cout << "mmap of " << fn << " failed!\n";
+    exit(-1);
+  }
+  for(size_t i = 0; i < s.st_size; i++) {
+    mem[globals::fw_start_addr+i] = buf[i];
+  }
+  munmap(buf, s.st_size);
+  close(fd);
+
   //hack linux kernel
   fd = open("kernel.bin", O_RDONLY);
   if(fd != -1) {
@@ -81,18 +94,7 @@ void load_raw(const char* fn, state_t *ms) {
     close(fd);
   }
   
-  fd = open(fn, O_RDONLY);
-  rc = fstat(fd,&s);
-  buf = (char*)mmap(nullptr, s.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  if(buf == reinterpret_cast<void*>(-1L)) {
-    std::cout << "mmap of " << fn << " failed!\n";
-    exit(-1);
-  }
-  for(size_t i = 0; i < s.st_size; i++) {
-    mem[globals::fw_start_addr+i] = buf[i];
-  }
-  munmap(buf, s.st_size);
-  close(fd);
+  
   std::cout << "firmware starts " << std::hex <<globals::fw_start_addr
 	    << ", firmware size " << s.st_size 
 	    << ", dram starts at " << globals::ram_phys_start
