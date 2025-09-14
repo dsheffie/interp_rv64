@@ -539,6 +539,15 @@ static int64_t read_csr(int csr_id, state_t *s, bool &undef) {
     case 0xc02:
       return s->icnt;
     case 0xc03:
+    case 0xc04:
+    case 0xc09:
+    case 0xc0a:
+    case 0xc0b:
+    case 0xc0c:
+    case 0xc0d:
+    case 0xc0e:            
+    case 0xc0f:
+    case 0xc10:            
       return 0;
     case 0xf11: /* vendorid */
       return 0;
@@ -700,14 +709,12 @@ static void write_csr(int csr_id, state_t *s, int64_t v, bool &undef) {
     }
     case 0xc04:
       s->brk = v&1;
-      //if(s->brk) {
-      //std::cout << "you have panicd linux, game over\n";
-      //}
+
       break;
     default:
-      if(not(globals::silent)) {
-	printf("wr csr id 0x%x unimplemented, pc %lx\n", csr_id, s->pc);
-      }
+      //if(not(globals::silent)) {
+      //	printf("wr csr id 0x%x unimplemented, pc %lx\n", csr_id, s->pc);
+      //}
       undef = true;
       break;
     }
@@ -2394,7 +2401,7 @@ void execRiscv_(state_t *s) {
       cause |= 1UL<<63;
     }
     
-    if( /*(cause != 9 and cause < 16)*/ not(globals::silent)) {
+    if( /*(cause != 9 and cause < 16)*/ not(globals::silent) and false) {
       std::cout << "--> took fault at pc "
 		<< std::hex << s->pc
 		<< ", tval " << tval
