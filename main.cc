@@ -49,6 +49,7 @@
 #include "elf.hh"
 #include "helper.hh"
 #include "disassemble.hh"
+#include "framebuffer.hh"
 #include "interpret.hh"
 #include "saveState.hh"
 #include "globals.hh"
@@ -156,6 +157,8 @@ int main(int argc, char *argv[]) {
   int lg2_icache_lines, lg2_dcache_lines;
   int icache_ways, dcache_ways, dtlb_entries;
   uint64_t init_icnt = 0, simpoint_interval;
+  bool use_fb = false;
+  
   try {
     po::options_description desc("Options");
     desc.add_options() 
@@ -190,6 +193,7 @@ int main(int argc, char *argv[]) {
       ("store_to_load",  po::value<bool>(&use_store_to_load_tracker)->default_value(false), "store to load tracker") 
       ("extract_kernel,k", po::value<bool>(&globals::extract_kernel)->default_value(false), "extract kernel.bin")
       ("freq", po::value<uint32_t>(&globals::cpu_freq)->default_value(100*1000*1000), "system freq")
+      ("fb", po::value<bool>(&use_fb)->default_value(false), "framebuffer")
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -347,8 +351,13 @@ int main(int argc, char *argv[]) {
       execRiscv(s);
     }
   }
+  else if(use_fb) {
+    initializeFB();
+    runRiscvFB(s);
+    terminateFB();
+  }
   else if(not(globals::interactive)) {
-    if(dumpIcnt != 0) {
+    if(dumpIcnt != 0) {      
       runRiscv(s,dumpIcnt);
     }
     if( s->icnt >= dumpIcnt ) {

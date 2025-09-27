@@ -492,11 +492,12 @@ union pte_t {
   pte_t(uint64_t x) : r(x) {}
 };
 
-void initState(state_t *s);
-void runRiscv(state_t *s, uint64_t dumpIcnt);
-void execRiscv(state_t *s);
-void runRiscvSimPoint(state_t *s);
-void runInteractiveRiscv(state_t *s);
+void initState(state_t *);
+void runRiscv(state_t *, uint64_t);
+void runRiscvFB(state_t*);
+void execRiscv(state_t *);
+void runRiscvSimPoint(state_t *);
+void runInteractiveRiscv(state_t *);
 
 /* stolen from libgloss-htif : syscall.h */
 #define SYS_getcwd 17

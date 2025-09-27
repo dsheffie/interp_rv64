@@ -45,6 +45,7 @@
 #include "uart.hh"
 #include "trace.hh"
 #include "branch_predictor.hh"
+#include "framebuffer.hh"
 
 #include <stack>
 static uint64_t curr_pc = 0;
@@ -2475,6 +2476,19 @@ void runRiscvSimPoint(state_t *s) {
   } while(keep_going);  
 }
 
+void runRiscvFB(state_t *s) {
+  bool keep_going = (s->brk==0) and (s->icnt < s->maxicnt);
+  if(not(keep_going))
+    return;
+    do {
+      execRiscv_<false,false,false>(s);
+      keep_going = (s->brk==0) and (s->icnt < s->maxicnt);
+      /* draw at 60 fps */
+      if((s->icnt % 1666666) == 0) {
+	drawFrame(s);
+      }
+    } while(keep_going);        
+}
 
 void runRiscv(state_t *s, uint64_t dumpIcnt) {
   bool keep_going = (s->brk==0) and
