@@ -4,12 +4,7 @@ OBJ = tage_base.o main.o elf.o disassemble.o helper.o interpret.o saveState.o gi
 
 ifeq ($(UNAME_S),Linux)
 	CXX = clang++-16 -march=native
-	EXTRA_LD = -ldl -lunwind -lboost_program_options -lcapstone
-endif
-
-ifeq ($(UNAME_S),FreeBSD)
-	CXX = CC -march=native
-	EXTRA_LD = -L/usr/local/lib -lunwind -lboost_program_options -lcapstone
+	EXTRA_LD = -ldl -lunwind -lboost_program_options -lcapstone -lSDL2
 endif
 
 ifeq ($(UNAME_S),Darwin)
