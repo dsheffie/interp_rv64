@@ -63,6 +63,7 @@ namespace globals {
   extern bool extract_kernel;
   extern int disk_fd;
   extern bool hacky_fp32;
+  extern int disk_fd;
 };
 
 #endif
