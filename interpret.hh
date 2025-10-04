@@ -550,4 +550,19 @@ struct stat32_t {
 
 void dump_calls();
 
+#define DISK_CONTROL_ADDR (3UL*(1UL<<30) + (1UL<<20))
+#define DISK_MAGIC (0xcafe8888U)
+
+typedef struct {
+  uint32_t magic;
+  uint32_t size;
+  uint32_t pos;
+  uint32_t len;
+  int32_t start;
+  int32_t done;
+  int32_t wr;
+  uint8_t buf[1<<16];
+} __attribute__((packed)) rv64disk_t;
+
+
 #endif

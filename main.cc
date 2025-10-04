@@ -86,6 +86,8 @@ std::ofstream* globals::console_log = nullptr;
 branch_predictor *globals::bpred = nullptr;
 bool globals::extract_kernel = false;
 bool globals::enable_zbb = true;
+int globals::disk_fd = -1;
+
 std::map<uint64_t, std::map<uint64_t, uint64_t>> globals::insn_histo;
 
 static state_t *s = nullptr;
@@ -94,6 +96,10 @@ static double starttime = 0.0;
 static const uint64_t disk_addr = (384+32)*1024UL*1024UL;
 
 void catchUnixSignal(int n) {
+  if(globals::disk_fd != -1) {
+    close(globals::disk_fd);
+  }
+  
   if(s) {
     double runtime = timestamp()-starttime;
     double mips = (static_cast<double>(s->icnt)/runtime)*1e-6;
@@ -289,17 +295,20 @@ int main(int argc, char *argv[]) {
     globals::tracer = new trace(tracename);
   }
 
-  // if(0) { /* load initial disk image */
-  //   struct stat st;
-  //   int fd = open("diskimage.img", O_RDONLY);
-  //   fstat(fd, &st);
-  //   char * buf = (char*)mmap(nullptr, st.st_size, PROT_READ, MAP_PRIVATE, fd, 0);
-  //   memcpy(&s->mem[disk_addr], buf, st.st_size);
-  //   munmap(buf, st.st_size);
-  //   close(fd);
-  // }
-  
   s->va_track_pa = s->loads = 0;
+
+  globals::disk_fd = open("diskimage.img", O_RDWR, 0600);
+  assert(globals::disk_fd != -1);
+  if(globals::disk_fd != -1) {
+    struct stat st;
+    volatile rv64disk_t* disk = reinterpret_cast<volatile rv64disk_t*>(s->mem + DISK_CONTROL_ADDR);
+    fstat(globals::disk_fd, &st);
+    disk->size = st.st_size;
+    disk->magic = DISK_MAGIC;
+    printf("%x written to disk magic\n", disk->magic);
+  }
+
+  
   
   //globals::branch_tracer = new branch_trace("branches.trc");
   signal(SIGINT, catchUnixSignal);
@@ -477,6 +486,10 @@ int main(int argc, char *argv[]) {
     delete globals::bpred;
   }
 
+  if(globals::disk_fd != -1) {
+    close(globals::disk_fd);
+  }
+  
   for(const auto &p : globals::insn_histo) {
     const auto &m = p.second;
     uint64_t cnt = 0;

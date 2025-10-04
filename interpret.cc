@@ -48,6 +48,8 @@
 #include "framebuffer.hh"
 
 #include <stack>
+
+
 static uint64_t curr_pc = 0;
 static uint64_t last_tval = 0;
 static std::stack<int64_t> calls;
@@ -732,6 +734,27 @@ void execRiscv_(state_t *s) {
   riscv_t m(0);
   curr_pc = s->pc;
 
+  if(globals::disk_fd != -1) {
+    volatile rv64disk_t *d = reinterpret_cast<rv64disk_t*>(s->mem + DISK_CONTROL_ADDR);
+    if(d->start) {
+      off_t x = lseek(globals::disk_fd, d->pos, SEEK_SET);
+      assert(x != static_cast<off_t>(-1));
+      d->start = 0;
+      if(d->wr) {
+	write(globals::disk_fd, (const void*)d->buf, d->len);
+      }
+      else {
+	read(globals::disk_fd, (void*)d->buf, d->len);
+      }
+      d->done = 1;      
+      //printf("got disk start command, wr = %d, pos = %d, len = %d\n",
+      //d->wr, d->pos, d->len);
+      //exit(-1);
+    }
+  }
+
+    
+  
   if(useBBV) {
     s->bblog->nextSample(s->icnt);
     s->bbsz++;
@@ -739,6 +762,7 @@ void execRiscv_(state_t *s) {
   if(useMAV) {
     s->mlog->nextSample(s->icnt);
   }
+
   
   //if( not(s->unpaged_mode()) ) {
   // globals::insn_histo[s->satp>>16][s->pc]++;
@@ -1281,6 +1305,9 @@ void execRiscv_(state_t *s) {
 	    goto report_unimplemented;
 	    assert(false);
 	  }
+      }
+      else if(m.i.sel == 6) { /* prefetch.r */
+	//printf("prefetch.r at %lx\n", s->pc);
       }
       s->pc += 4;
       break;
