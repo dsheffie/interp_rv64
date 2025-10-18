@@ -88,7 +88,6 @@ bool globals::extract_kernel = false;
 bool globals::enable_zbb = true;
 int globals::disk_fd = -1;
 bool globals::hacky_fp32 = true;
-int globals::disk_fd = -1;
 uint64_t globals::disk_rd_bytes = 0;
 uint64_t globals::disk_wr_bytes = 0;
 uint64_t globals::fb_phys_addr = 0x18000000;
