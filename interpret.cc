@@ -742,9 +742,11 @@ void execRiscv_(state_t *s) {
       d->start = 0;
       if(d->wr) {
 	write(globals::disk_fd, (const void*)d->buf, d->len);
+	globals::disk_wr_bytes += d->len;
       }
       else {
 	read(globals::disk_fd, (void*)d->buf, d->len);
+	globals::disk_rd_bytes += d->len;
       }
       d->done = 1;      
       //printf("got disk start command, wr = %d, pos = %d, len = %d\n",

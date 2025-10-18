@@ -89,6 +89,9 @@ bool globals::enable_zbb = true;
 int globals::disk_fd = -1;
 bool globals::hacky_fp32 = true;
 int globals::disk_fd = -1;
+uint64_t globals::disk_rd_bytes = 0;
+uint64_t globals::disk_wr_bytes = 0;
+uint64_t globals::fb_phys_addr = 0x18000000;
 
 std::map<uint64_t, std::map<uint64_t, uint64_t>> globals::insn_histo;
 
@@ -99,6 +102,8 @@ static const uint64_t disk_addr = (384+32)*1024UL*1024UL;
 
 void catchUnixSignal(int n) {
   if(globals::disk_fd != -1) {
+    std::cout << globals::disk_wr_bytes << " bytes written to disk\n";
+    std::cout << globals::disk_rd_bytes << " bytes read from disk\n";            
     close(globals::disk_fd);
   }
   
@@ -489,6 +494,8 @@ int main(int argc, char *argv[]) {
   }
 
   if(globals::disk_fd != -1) {
+    std::cout << globals::disk_wr_bytes << " bytes written to disk\n";
+    std::cout << globals::disk_rd_bytes << " bytes read from disk\n";        
     close(globals::disk_fd);
   }
   

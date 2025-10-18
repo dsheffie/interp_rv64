@@ -7,6 +7,7 @@
 #include <sys/time.h>
 
 #include "interpret.hh"
+#include "globals.hh"
 
 struct color_t {
     uint32_t b:8;
@@ -14,6 +15,13 @@ struct color_t {
     uint32_t r:8;
     uint32_t a:8;
 };
+
+struct color16 {
+  uint16_t b:5;
+  uint16_t g:6;
+  uint16_t r:5;
+};
+
 
 const int32_t width = 320;
 const int32_t height = 200;
@@ -37,13 +45,21 @@ void terminateFB() {
   SDL_DestroyWindow(sdlwin);
 }
 
-static const uint64_t phys_offs = 0x6000000;
+
 void drawFrame(const state_t *s) {
   SDL_Event e;  
-  color_t *in = reinterpret_cast<color_t*>(s->mem + phys_offs);  
+  color16 *in = reinterpret_cast<color16*>(s->mem + globals::fb_phys_addr);  
   SDL_LockSurface(sdlscr);
   color_t *out = reinterpret_cast<color_t*>(sdlscr->pixels);
-  memcpy(out,in,sizeof(color_t)*height*width);
+  
+  /* memcpy(out,in,sizeof(color_t)*height*width); */
+  for(int i = 0; i < (height*width); i++) {
+    out[i].b = in[i].b * (256/32);
+    out[i].g = in[i].g * (256/64);
+    out[i].r = in[i].r * (256/32);    
+  }
+    
+  
   SDL_UnlockSurface(sdlscr);
   SDL_UpdateWindowSurface(sdlwin);
 

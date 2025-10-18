@@ -64,6 +64,9 @@ namespace globals {
   extern int disk_fd;
   extern bool hacky_fp32;
   extern int disk_fd;
+  extern uint64_t disk_rd_bytes;
+  extern uint64_t disk_wr_bytes;
+  extern uint64_t fb_phys_addr;
 };
 
 #endif
