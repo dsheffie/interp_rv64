@@ -1216,6 +1216,21 @@ void execRiscv_(state_t *s) {
 	      int64_t z64 = (z16 << 48) >> 48;
 	      s->sext_xlen(z64, rd);
 	    }
+	    else if( ((inst>>20) == 0x606) and globals::hacky_fp32) {
+	      /* int32 to fp32 */
+	      int32_t i32 = *reinterpret_cast<int32_t*>(&s->gpr[m.i.rs1]);
+	      float f32 = static_cast<float>(i32);
+	      s->gpr[m.i.rd] = 0;
+	      *reinterpret_cast<float_t*>(&s->gpr[m.i.rd]) = f32;
+	    }
+	    else if( ((inst>>20) == 0x607) and globals::hacky_fp32) { /* sext.h */
+	      float f32 = *reinterpret_cast<float*>(&s->gpr[m.i.rs1]);	      
+	      int64_t i32 = static_cast<int32_t>(f32);
+	      int64_t s64 = (i32 << 32) >> 32;
+	      s->sext_xlen(s64, rd);
+	    }
+
+	    
 	    else {
 	      if(sel == 0) {
 		s->sext_xlen((*reinterpret_cast<uint64_t*>(&s->gpr[m.i.rs1])) << shamt, rd);
@@ -1887,8 +1902,44 @@ void execRiscv_(state_t *s) {
 	      case 0x1: /* mul */
 		s->gpr[m.r.rd] = s->gpr[m.r.rs1] * s->gpr[m.r.rs2];
 		break;
-	      case 0x4:
-		assert(false);
+	      case 0x2: {/* fp32 add */
+		if(globals::hacky_fp32) {		
+		  float a = *reinterpret_cast<float*>(&s->gpr[m.r.rs1]);		
+		  float b = *reinterpret_cast<float*>(&s->gpr[m.r.rs2]);
+		  a += b;
+		  uint32_t u = *reinterpret_cast<uint32_t*>(&a);
+		  s->gpr[m.r.rd] = u;
+		  break;
+		}
+		else {
+		  except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+		  tval = s->pc;
+		  goto handle_exception;	  		  
+		}
+	      }
+	      case 0x3: { /* fp32 sub */
+		if(globals::hacky_fp32) {				
+		  float a = *reinterpret_cast<float*>(&s->gpr[m.r.rs1]);
+		  float b = *reinterpret_cast<float*>(&s->gpr[m.r.rs2]);
+		  a -= b;
+		  uint32_t u = *reinterpret_cast<uint32_t*>(&a);
+		  s->gpr[m.r.rd] = u;
+		  break;
+		}
+		else {
+		  except_cause = CAUSE_ILLEGAL_INSTRUCTION;
+		  tval = s->pc;
+		  goto handle_exception;	  		  
+		}		
+	      }
+	      case 0x4: {/* fp32 mul */
+		float a = *reinterpret_cast<float*>(&s->gpr[m.r.rs1]);
+		float b = *reinterpret_cast<float*>(&s->gpr[m.r.rs2]);
+		a *= b;
+		uint32_t u = *reinterpret_cast<uint32_t*>(&a);
+		s->gpr[m.r.rd] = u;
+		break;
+	      }
 	      case 0x20: /* sub */
 		s->sext_xlen(s->gpr[m.r.rs1] - s->gpr[m.r.rs2], m.r.rd);		
 		break;

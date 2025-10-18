@@ -85,6 +85,7 @@ std::ofstream* globals::console_log = nullptr;
 branch_predictor *globals::bpred = nullptr;
 bool globals::extract_kernel = false;
 bool globals::enable_zbb = true;
+bool globals::hacky_fp32 = true;
 std::map<uint64_t, std::map<uint64_t, uint64_t>> globals::insn_histo;
 
 static state_t *s = nullptr;
