@@ -62,6 +62,7 @@ namespace globals {
   extern std::map<uint64_t, std::map<uint64_t, uint64_t>> insn_histo;
   extern bool extract_kernel;
   extern int disk_fd;
+  extern bool hacky_fp32;
 };
 
 #endif

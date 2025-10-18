@@ -87,6 +87,7 @@ branch_predictor *globals::bpred = nullptr;
 bool globals::extract_kernel = false;
 bool globals::enable_zbb = true;
 int globals::disk_fd = -1;
+bool globals::hacky_fp32 = true;
 
 std::map<uint64_t, std::map<uint64_t, uint64_t>> globals::insn_histo;
 
