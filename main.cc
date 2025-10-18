@@ -206,6 +206,7 @@ int main(int argc, char *argv[]) {
       ("extract_kernel,k", po::value<bool>(&globals::extract_kernel)->default_value(false), "extract kernel.bin")
       ("freq", po::value<uint32_t>(&globals::cpu_freq)->default_value(100*1000*1000), "system freq")
       ("fb", po::value<bool>(&use_fb)->default_value(false), "framebuffer")
+      ("fbaddr", po::value<uint64_t>(&globals::fb_phys_addr)->default_value(0x18000000UL), "framebuffer address")
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -303,8 +304,8 @@ int main(int argc, char *argv[]) {
 
   s->va_track_pa = s->loads = 0;
 
-  globals::disk_fd = open("diskimage.img", O_RDWR, 0600);
-  assert(globals::disk_fd != -1);
+  //globals::disk_fd = open("diskimage.img", O_RDWR, 0600);
+  //assert(globals::disk_fd != -1);
   if(globals::disk_fd != -1) {
     struct stat st;
     volatile rv64disk_t* disk = reinterpret_cast<volatile rv64disk_t*>(s->mem + DISK_CONTROL_ADDR);
