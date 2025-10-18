@@ -91,6 +91,7 @@ bool globals::hacky_fp32 = true;
 uint64_t globals::disk_rd_bytes = 0;
 uint64_t globals::disk_wr_bytes = 0;
 uint64_t globals::fb_phys_addr = 0x18000000;
+int globals::scale = 1;
 
 std::map<uint64_t, std::map<uint64_t, uint64_t>> globals::insn_histo;
 
@@ -207,6 +208,7 @@ int main(int argc, char *argv[]) {
       ("freq", po::value<uint32_t>(&globals::cpu_freq)->default_value(100*1000*1000), "system freq")
       ("fb", po::value<bool>(&use_fb)->default_value(false), "framebuffer")
       ("fbaddr", po::value<uint64_t>(&globals::fb_phys_addr)->default_value(0x18000000UL), "framebuffer address")
+      ("scale", po::value<int>(&globals::scale)->default_value(1), "scale")
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
