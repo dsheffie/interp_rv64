@@ -61,6 +61,7 @@ namespace globals {
   extern bool enable_zbb;
   extern std::map<uint64_t, std::map<uint64_t, uint64_t>> insn_histo;
   extern bool extract_kernel;
+  extern bool hacky_fp32;
 };
 
 #endif
