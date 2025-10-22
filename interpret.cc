@@ -1941,6 +1941,34 @@ void execRiscv_(state_t *s) {
 		s->gpr[m.r.rd] = u;
 		break;
 	      }
+	      case 0x5: {/* fp32 cmp lt */
+		float a = *reinterpret_cast<float*>(&s->gpr[m.r.rs1]);
+		float b = *reinterpret_cast<float*>(&s->gpr[m.r.rs2]);
+		s->gpr[m.r.rd] = (a<b);
+		break;
+	      }
+	      case 0x6: {/* fp32 cmp gt */
+		float a = *reinterpret_cast<float*>(&s->gpr[m.r.rs1]);
+		float b = *reinterpret_cast<float*>(&s->gpr[m.r.rs2]);
+		s->gpr[m.r.rd] = (a>b);
+		break;
+	      }
+	      case 0x7: {/* fp32 cmp ne */
+		float a = *reinterpret_cast<float*>(&s->gpr[m.r.rs1]);
+		float b = *reinterpret_cast<float*>(&s->gpr[m.r.rs2]);
+		a *= b;
+		uint32_t u = *reinterpret_cast<uint32_t*>(&a);
+		s->gpr[m.r.rd] = (a!=b);
+		break;
+	      }
+	      case 0x8: {/* fp32 cmp eq */
+		float a = *reinterpret_cast<float*>(&s->gpr[m.r.rs1]);
+		float b = *reinterpret_cast<float*>(&s->gpr[m.r.rs2]);
+		a *= b;
+		uint32_t u = *reinterpret_cast<uint32_t*>(&a);
+		s->gpr[m.r.rd] = (a==b);
+		break;
+	      }		
 	      case 0x20: /* sub */
 		s->sext_xlen(s->gpr[m.r.rs1] - s->gpr[m.r.rs2], m.r.rd);		
 		break;
