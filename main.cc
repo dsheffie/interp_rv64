@@ -92,6 +92,8 @@ uint64_t globals::disk_rd_bytes = 0;
 uint64_t globals::disk_wr_bytes = 0;
 uint64_t globals::fb_phys_addr = 0x18000000;
 int globals::scale = 1;
+int globals::fwidth = 320;
+int globals::fheight = 200;
 
 std::map<uint64_t, std::map<uint64_t, uint64_t>> globals::insn_histo;
 
@@ -209,6 +211,8 @@ int main(int argc, char *argv[]) {
       ("fb", po::value<bool>(&use_fb)->default_value(false), "framebuffer")
       ("fbaddr", po::value<uint64_t>(&globals::fb_phys_addr)->default_value(0x18000000UL), "framebuffer address")
       ("scale", po::value<int>(&globals::scale)->default_value(1), "scale")
+      ("width", po::value<int>(&globals::fwidth)->default_value(320), "width")
+      ("height", po::value<int>(&globals::fheight)->default_value(200), "height")      
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);

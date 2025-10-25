@@ -68,6 +68,8 @@ namespace globals {
   extern uint64_t disk_wr_bytes;
   extern uint64_t fb_phys_addr;
   extern int scale;
+  extern int fheight;
+  extern int fwidth;  
 };
 
 #endif
