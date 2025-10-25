@@ -1229,8 +1229,12 @@ void execRiscv_(state_t *s) {
 	      int64_t s64 = (i32 << 32) >> 32;
 	      s->sext_xlen(s64, rd);
 	    }
-
-	    
+	    else if( ((inst>>20) == 0x608) and globals::hacky_fp32) { /* sext.h */
+	      uint32_t u32 = *reinterpret_cast<uint32_t*>(&s->gpr[m.i.rs1]);
+	      float f32 = static_cast<float>(u32);
+	      s->gpr[m.i.rd] = 0;
+	      *reinterpret_cast<float_t*>(&s->gpr[m.i.rd]) = f32;
+	    }	    
 	    else {
 	      if(sel == 0) {
 		s->sext_xlen((*reinterpret_cast<uint64_t*>(&s->gpr[m.i.rs1])) << shamt, rd);
@@ -1940,30 +1944,33 @@ void execRiscv_(state_t *s) {
 		s->gpr[m.r.rd] = u;
 		break;
 	      }
-	      case 0x5: {/* fp32 cmp lt */
+	      case 0x5:
+	      case 0x9:
+		{/* fp32 cmp lt */
 		float a = *reinterpret_cast<float*>(&s->gpr[m.r.rs1]);
 		float b = *reinterpret_cast<float*>(&s->gpr[m.r.rs2]);
 		s->gpr[m.r.rd] = (a<b);
 		break;
 	      }
-	      case 0x6: {/* fp32 cmp gt */
+	      case 0x6:
+	      case 0xa:{/* fp32 cmp gt */
 		float a = *reinterpret_cast<float*>(&s->gpr[m.r.rs1]);
 		float b = *reinterpret_cast<float*>(&s->gpr[m.r.rs2]);
 		s->gpr[m.r.rd] = (a>b);
 		break;
 	      }
-	      case 0x7: {/* fp32 cmp ne */
+	      case 0x7:
+	      case 0xb: {/* fp32 cmp ne */
 		float a = *reinterpret_cast<float*>(&s->gpr[m.r.rs1]);
 		float b = *reinterpret_cast<float*>(&s->gpr[m.r.rs2]);
-		a *= b;
 		uint32_t u = *reinterpret_cast<uint32_t*>(&a);
 		s->gpr[m.r.rd] = (a!=b);
 		break;
 	      }
-	      case 0x8: {/* fp32 cmp eq */
+	      case 0x8:
+	      case 0xc: {/* fp32 cmp eq */
 		float a = *reinterpret_cast<float*>(&s->gpr[m.r.rs1]);
 		float b = *reinterpret_cast<float*>(&s->gpr[m.r.rs2]);
-		a *= b;
 		uint32_t u = *reinterpret_cast<uint32_t*>(&a);
 		s->gpr[m.r.rd] = (a==b);
 		break;
