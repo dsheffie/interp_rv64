@@ -348,8 +348,7 @@ int riscv_build_fdt(uint8_t *dst,
     fdt_begin_node(s, "");
     fdt_prop_u32(s, "#address-cells", 2);
     fdt_prop_u32(s, "#size-cells", 2);
-    fdt_prop_str(s, "compatible", "ucbbar,riscvemu-bar_dev");
-    fdt_prop_str(s, "model", "ucbbar,riscvemu-bare");
+    fdt_prop_str(s, "model", "dsheffie,rv64core");
 
     /* CPU list */
     fdt_begin_node(s, "cpus");
