@@ -2551,7 +2551,7 @@ void runRiscvSimPoint(state_t *s) {
     return;
 
   do {
-    execRiscv_<false,false,true,true>(s);
+    execRiscv_<false,false,true,false>(s);
     keep_going = (s->brk==0) and
       (s->icnt < s->maxicnt);
   } while(keep_going);  

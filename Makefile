@@ -1,6 +1,6 @@
 UNAME_S = $(shell uname -s)
 
-OBJ = tage_base.o main.o elf.o disassemble.o helper.o interpret.o saveState.o githash.o syscall.o raw.o fdt.o temu_code.o virtio.o uart.o trace.o nway_cache.o branch_predictor.o av.o
+OBJ = tage_base.o main.o elf.o disassemble.o helper.o interpret.o saveState.o githash.o syscall.o raw.o fdt.o temu_code.o virtio.o uart.o trace.o nway_cache.o branch_predictor.o av.o champsim_hashed_perceptron.o
 
 ifeq ($(UNAME_S),Linux)
 	CXX = clang++-16 -march=native

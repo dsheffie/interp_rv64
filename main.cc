@@ -258,6 +258,9 @@ int main(int argc, char *argv[]) {
   else if(bpred == "gshare") {
     globals::bpred = new gshare(s->icnt, 16);
   }
+  else if(bpred == "hashed_perceptron") {
+    globals::bpred = new hashed_perceptron(s->icnt);
+  }
   
   if(s->mem == nullptr) {
     std::cerr << "INTERP : couldn't allocate backing memory!\n";
@@ -304,12 +307,12 @@ int main(int argc, char *argv[]) {
   starttime = timestamp();
   if(simpoint) {
     s->bblog = new av(simpoint_interval);
-    s->mlog = new av(simpoint_interval);
+    //s->mlog = new av(simpoint_interval);
     runRiscvSimPoint(s);
     s->bblog->dumpAVs(filename+".bbv");
-    s->mlog->dumpAVs(filename+".mav");
+    //s->mlog->dumpAVs(filename+".mav");
     delete s->bblog;
-    delete s->mlog;
+    //delete s->mlog;
   }
   else if(not(simpoint_file.empty())) {
     std::string line;

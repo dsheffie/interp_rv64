@@ -103,6 +103,19 @@ public:
   void update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) override;
 };
 
+class hashed_perceptron : public branch_predictor {
+protected:
+  constexpr static const char* typeString = "hashed_perceptron";
+public:
+  hashed_perceptron(uint64_t & icnt);
+  ~hashed_perceptron();
+  const char* getTypeString() const override {
+    return typeString;
+  }
+  bool predict(uint64_t, uint64_t &) override;
+  void update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) override;  
+  
+};
 
 class gem5_tage : public branch_predictor {
 protected:

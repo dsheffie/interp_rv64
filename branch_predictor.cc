@@ -3,6 +3,9 @@
 #include "globals.hh"
 #include <sstream>
 
+int hashed_perceptron_predict(long long pc, int key);
+bool hashed_perceptron_update(int key, uint64_t pc, int taken);
+
 branch_predictor::branch_predictor(uint64_t &icnt):
   icnt(icnt), bhr(nullptr), n_branches(0), n_mispredicts(0), old_gbl_hist(0) {
 }
@@ -86,6 +89,31 @@ gshare::gshare(uint64_t &icnt, uint32_t lg_pht_entries, uint32_t pc_shift) :
 gshare::~gshare() {
   delete pht;
 }
+
+
+bool hashed_perceptron::predict(uint64_t addr, uint64_t &idx)  {
+  idx = 0;
+  return hashed_perceptron_predict(addr, 0);
+}
+
+void hashed_perceptron::update_(uint64_t addr, uint64_t idx, bool prediction, bool taken) {
+  bool correct = hashed_perceptron_update(0, addr, taken);
+  n_branches++;
+  n_mispredicts += !correct;  
+  //std::cout << std::hex << addr << std::dec << "," << taken << "," << correct << "\n";
+}
+
+
+hashed_perceptron::hashed_perceptron(uint64_t &icnt) : branch_predictor(icnt) {
+
+}
+
+hashed_perceptron::~hashed_perceptron() {
+
+}
+
+
+
 
 static uint64_t pc_hash(uint64_t p) {
   return (p >> 2) & tage::TAG_MASK;
