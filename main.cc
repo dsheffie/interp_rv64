@@ -86,6 +86,10 @@ branch_predictor *globals::bpred = nullptr;
 bool globals::extract_kernel = false;
 bool globals::enable_zbb = true;
 bool globals::hacky_fp32 = true;
+std::vector<bool> globals::br_per_cl;
+std::vector<uint64_t> globals::br_per_cl_cnt;
+bool globals::track_multiple_branches_per_cl = true;
+
 std::map<uint64_t, std::map<uint64_t, uint64_t>> globals::insn_histo;
 
 static state_t *s = nullptr;
@@ -191,6 +195,8 @@ int main(int argc, char *argv[]) {
       ("store_to_load",  po::value<bool>(&use_store_to_load_tracker)->default_value(false), "store to load tracker") 
       ("extract_kernel,k", po::value<bool>(&globals::extract_kernel)->default_value(false), "extract kernel.bin")
       ("freq", po::value<uint32_t>(&globals::cpu_freq)->default_value(100*1000*1000), "system freq")
+      ("br_alignment", po::value<bool>(&globals::track_multiple_branches_per_cl)->default_value(false), "track multiple branches in a single cacheline")
+       
       ; 
     po::variables_map vm;
     po::store(po::parse_command_line(argc, argv, desc), vm);
@@ -245,6 +251,11 @@ int main(int argc, char *argv[]) {
   assert(madvise(mempt, 1UL<<32, MADV_DONTNEED)==0);
   s->mem = reinterpret_cast<uint8_t*>(mempt);
 
+  if(globals::track_multiple_branches_per_cl) {
+    globals::br_per_cl.resize(globals::fdt_ram_size);
+    globals::br_per_cl_cnt.resize(globals::fdt_ram_size>>4);
+  }
+  
   bool fileIsDump = false;
   if(not(filename.empty())) {
     fileIsDump = isDump(filename);
@@ -489,6 +500,26 @@ int main(int argc, char *argv[]) {
 	      << p.first
 	      << std::dec
 	      << ", " << cnt << "\n";
+  }
+
+
+  if(globals::track_multiple_branches_per_cl) {
+    std::vector<std::pair<uint64_t, uint64_t>> hot_cl_br;
+    for(uint64_t i = 0; i < globals::br_per_cl.size(); i+=16) {
+      uint32_t cnt = 0;
+      for(uint64_t j = 0; j < 16; j+=4) {
+	cnt += globals::br_per_cl.at(j+i);
+      }
+      if(cnt > 1) {
+	hot_cl_br.emplace_back(globals::br_per_cl_cnt.at(i>>4), i);
+      }
+    }
+    std::sort(hot_cl_br.begin(), hot_cl_br.end());
+    std::reverse(hot_cl_br.begin(), hot_cl_br.end());
+    for(size_t i = 0; i < std::min(10UL, hot_cl_br.size()); i++) {
+      std::cout << std::hex << hot_cl_br.at(i).second << std::dec
+		<< "," << hot_cl_br.at(i).first << "\n";
+    }
   }
   
   return 0;

@@ -34,6 +34,8 @@ struct trace;
 struct branch_trace;
 struct branch_predictor;
 #include <iostream>
+#include <map>
+#include <vector>
 
 namespace globals {
   extern uint64_t tlb_accesses;
@@ -62,6 +64,9 @@ namespace globals {
   extern std::map<uint64_t, std::map<uint64_t, uint64_t>> insn_histo;
   extern bool extract_kernel;
   extern bool hacky_fp32;
+  extern bool track_multiple_branches_per_cl;
+  extern std::vector<uint64_t> br_per_cl_cnt;
+  extern std::vector<bool> br_per_cl;
 };
 
 #endif

@@ -1846,6 +1846,12 @@ void execRiscv_(state_t *s) {
 	s->bblog->addSample(s->translate(s->pc, ff, 4, false, true), s->bbsz);
 	s->bbsz = 0;
       }
+      int f = 0;
+      if(globals::track_multiple_branches_per_cl) {
+	uint64_t phys_pc = s->translate(s->pc, f, 4);	
+	globals::br_per_cl.at(phys_pc) = true;
+	globals::br_per_cl_cnt.at(phys_pc>>4)++;      
+    }
       s->pc = tgt64;
       break;
     }
@@ -1884,6 +1890,13 @@ void execRiscv_(state_t *s) {
 	s->bblog->addSample(s->translate(s->pc, ff, 4, false, true), s->bbsz);
 	s->bbsz = 0;	
       }
+      int f = 0;
+      if(globals::track_multiple_branches_per_cl) {
+	uint64_t phys_pc = s->translate(s->pc, f, 4);
+	globals::br_per_cl.at(phys_pc) = true;
+	globals::br_per_cl_cnt.at(phys_pc>>4)++;
+      }
+      //globals::br_per_cl.at(s->pc) = true;      
       s->pc += jaddr;      
       break;
     }
@@ -2220,6 +2233,7 @@ void execRiscv_(state_t *s) {
 	s->bbsz = 0;	
       }
       s->pc = takeBranch ? disp + s->pc : s->pc + 4;
+      //globals::br_per_cl.at(s->pc) = true;      
       break;
     }
 
