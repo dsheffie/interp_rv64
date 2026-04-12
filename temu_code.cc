@@ -57,6 +57,6 @@ int64_t take_interrupt(state_t *s) {
     }
   }
 
-  return -1;
+  return -1L;
     
 }

@@ -782,7 +782,7 @@ void execRiscv_(state_t *s) {
 
   
   irq = take_interrupt(s);
-  if(irq != -1) {
+  if(irq != -1L) {
     //printf(">> taking interrupt, irq %ld, time %ld, mtimecmp %ld <<\n",
     //irq, s->get_time(), s->mtimecmp);
     except_cause = CAUSE_INTERRUPT | irq;
