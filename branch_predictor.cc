@@ -181,23 +181,25 @@ bool tage::predict(uint64_t addr, uint64_t & idx) {
   //uint64_t addr_hash = pc_hash(addr);
 
   tp.clear();
-  idx = 0;
+  idx = (addr >> 2) & ((1UL << lg_pht_entries) - 1);;
   /* compute hash for each component */
   for(size_t h = 0; h < tage::n_tables; h++) {
-    uint64_t hash = bhr->hash(tage::table_lengths[h], addr<<2);
+    uint64_t hash = bhr->hash(tage::table_lengths[h], addr>>2);
     tp.full_hashes[h] = hash;
     tp.hashes[h] = hash & ((1UL << lg_pht_entries) - 1);
   }
 
   for(size_t h = 0; h < tage::n_tables; h++)  {
-    bool tag_match = tage_tables[h][tp.hashes[h]].tag == (tp.full_hashes[h] & tage::TAG_MASK); 
+    uint64_t tag = (tp.full_hashes[h] >> lg_pht_entries) & tage::TAG_MASK;
+    bool tag_match = tage_tables[h][tp.hashes[h]].tag == tag; 
     if(tag_match) {
       tp.pred[h] = (tage_tables[h][tp.hashes[h]].pred > 1);
     }
   }
 
   for(int h = tage::n_tables-1; h >= 0; h--) {
-    bool tag_match = tage_tables[h][tp.hashes[h]].tag == (tp.full_hashes[h] & tage::TAG_MASK); 
+    uint64_t tag = (tp.full_hashes[h] >> lg_pht_entries) & tage::TAG_MASK;    
+    bool tag_match = tage_tables[h][tp.hashes[h]].tag == tag;
     if(tag_match and (tp.pred_table == -1)) {
       prediction = tp.prediction = tp.pred[h];
       tp.pred_table = h;
@@ -255,7 +257,8 @@ void tage::update_incorrect(uint64_t addr, uint64_t idx, bool prediction, bool t
     if(u == 0) {
       //std::cout << "found allocation location for " << FMT_HEX(addr) << " into table " << t <<"\n";
       a = t;
-      tage_tables[t][entry].tag = (tp.full_hashes[t] & tage::TAG_MASK); 
+      uint64_t tag = (tp.full_hashes[t] >> lg_pht_entries) & tage::TAG_MASK;    	
+      tage_tables[t][entry].tag = tag; 
       tage_tables[t][entry].pred = 1;
       break;
     }

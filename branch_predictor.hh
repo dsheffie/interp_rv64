@@ -152,7 +152,7 @@ protected:
   };
   typedef te<uint64_t> tage_entry;
 
-  static constexpr int table_lengths[] = {256,192};  
+  static constexpr int table_lengths[] = {2,4,8,16,32,48,64,96,128,192,256};  
   static const size_t n_tables = sizeof(table_lengths)/sizeof(table_lengths[0]);  
   
   struct tage_prediction {
